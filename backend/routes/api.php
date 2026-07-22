@@ -1,8 +1,12 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\HelloController;
+use App\Http\Controllers\ServiceCategoryController;
+use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\StaffController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -26,4 +30,11 @@ Route::prefix('auth')->group(function () {
 // current organization so every query is auto-filtered by organization_id.
 Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('customers', [CustomerController::class, 'index']);
+
+    Route::apiResource('branches', BranchController::class);
+    Route::apiResource('categories', ServiceCategoryController::class)
+        ->parameters(['categories' => 'category']);
+    Route::apiResource('services', ServiceController::class);
+    Route::apiResource('staff', StaffController::class)
+        ->parameters(['staff' => 'staff']);
 });

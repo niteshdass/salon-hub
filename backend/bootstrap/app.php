@@ -15,6 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => \App\Http\Middleware\ResolveTenant::class,
         ]);
+
+        // Resolve the tenant BEFORE route-model binding runs, so implicit
+        // binding (Branch, Service, ServiceCategory) is filtered by the
+        // tenant's global scope and a cross-tenant id yields a 404.
+        $middleware->prependToPriorityList(
+            before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            prepend: \App\Http\Middleware\ResolveTenant::class,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
