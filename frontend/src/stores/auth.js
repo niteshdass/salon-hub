@@ -1,0 +1,78 @@
+import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
+import api, { TOKEN_KEY } from '@/lib/api'
+
+export const useAuthStore = defineStore('auth', () => {
+  const token = ref(localStorage.getItem(TOKEN_KEY) || null)
+  const user = ref(null)
+  const organization = ref(null)
+  const loading = ref(false)
+
+  const isAuthenticated = computed(() => !!token.value)
+
+  function setSession(data) {
+    token.value = data.token
+    user.value = data.user
+    organization.value = data.organization
+    localStorage.setItem(TOKEN_KEY, data.token)
+  }
+
+  function clearSession() {
+    token.value = null
+    user.value = null
+    organization.value = null
+    localStorage.removeItem(TOKEN_KEY)
+  }
+
+  async function register(payload) {
+    loading.value = true
+    try {
+      const { data } = await api.post('/auth/register', payload)
+      setSession(data)
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function login(payload) {
+    loading.value = true
+    try {
+      const { data } = await api.post('/auth/login', payload)
+      setSession(data)
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchMe() {
+    const { data } = await api.get('/auth/me')
+    user.value = data.user
+    organization.value = data.organization
+    return data
+  }
+
+  async function logout() {
+    try {
+      await api.post('/auth/logout')
+    } catch {
+      // Ignore network/auth errors — we clear the session regardless.
+    } finally {
+      clearSession()
+    }
+  }
+
+  return {
+    token,
+    user,
+    organization,
+    loading,
+    isAuthenticated,
+    setSession,
+    register,
+    login,
+    fetchMe,
+    logout,
+  }
+})
