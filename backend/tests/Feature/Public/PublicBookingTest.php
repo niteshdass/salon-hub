@@ -169,6 +169,58 @@ class PublicBookingTest extends TestCase
         $this->assertNotContains('16:31', $slots);
     }
 
+    public function test_branch_opening_hours_narrow_the_slot_window(): void
+    {
+        $ctx = $this->scaffold('india');
+        $date = $this->nextMonday();
+
+        // Staff works 09:00-17:00, but the branch only opens 10:00-12:00 on Monday.
+        $ctx['branch']->update(['opening_hours_json' => ['mon' => ['10:00', '12:00']]]);
+
+        $response = $this->getJson(
+            "/api/public/india/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
+        );
+        $response->assertOk();
+
+        $slots = $response->json('data.slots');
+        $this->assertSame(['10:00', '10:30', '11:00', '11:30'], $slots);
+    }
+
+    public function test_branch_closed_weekday_has_no_slots(): void
+    {
+        $ctx = $this->scaffold('juliet');
+        $date = $this->nextMonday();
+
+        // Branch explicitly closed on Monday (null), even though the staff works.
+        $ctx['branch']->update(['opening_hours_json' => ['mon' => null, 'tue' => ['09:00', '17:00']]]);
+
+        $response = $this->getJson(
+            "/api/public/juliet/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
+        );
+        $response->assertOk();
+        $this->assertSame([], $response->json('data.slots'));
+    }
+
+    public function test_booking_outside_branch_hours_is_rejected(): void
+    {
+        $ctx = $this->scaffold('kilo');
+        $date = $this->nextMonday();
+        $ctx['branch']->update(['opening_hours_json' => ['mon' => ['10:00', '12:00']]]);
+
+        // 09:00 is within staff hours but before the branch opens.
+        $response = $this->postJson('/api/public/kilo/book', [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $date,
+            'start_time' => '09:00',
+            'customer' => ['name' => 'Too Early Tom', 'phone' => '555-0000'],
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('message', 'Sorry, that time slot is no longer available.');
+        $this->assertDatabaseMissing('customers', ['phone' => '555-0000']);
+    }
+
     public function test_slots_empty_on_a_closed_weekday(): void
     {
         // Staff works only Sundays (ISO 7); the target date is a Monday.

@@ -118,19 +118,33 @@ class BookingController extends Controller
                     ->where('role', UserRole::STAFF->value),
             ],
             'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'branch_id' => [
+                'nullable',
+                Rule::exists('branches', 'id')->where('organization_id', $tenantId),
+            ],
         ]);
 
         $service = Service::findOrFail($validated['service_id']);
         $staff = User::where('organization_id', $tenantId)
             ->where('role', UserRole::STAFF->value)
             ->findOrFail($validated['staff_id']);
+        $branch = $this->resolveBranch($validated['branch_id'] ?? null);
 
         return response()->json([
             'data' => [
                 'date' => $validated['date'],
-                'slots' => $slotGenerator->generate($service, $staff, $validated['date']),
+                'slots' => $slotGenerator->generate($service, $staff, $validated['date'], $branch),
             ],
         ]);
+    }
+
+    /**
+     * The branch a booking applies to: an explicit (tenant-scoped) id, else
+     * the salon's first branch. Null when the salon has no branch yet.
+     */
+    protected function resolveBranch(?int $branchId): ?Branch
+    {
+        return $branchId ? Branch::find($branchId) : Branch::query()->first();
     }
 
     /**
@@ -138,22 +152,28 @@ class BookingController extends Controller
      * so a slot taken between the customer viewing it and submitting cannot be
      * double-booked, and finds-or-creates the customer by phone.
      */
-    public function book(PublicBookingRequest $request, BookingNotifier $notifier): JsonResponse
+    public function book(PublicBookingRequest $request, BookingNotifier $notifier, SlotGenerator $slotGenerator): JsonResponse
     {
         $data = $request->validated();
 
         $service = Service::findOrFail($data['service_id']);
+        $staff = User::findOrFail($data['staff_id']);
+        $branch = $this->resolveBranch($data['branch_id'] ?? null);
+        if (! $branch) {
+            return response()->json(['message' => 'This salon is not accepting online bookings yet.'], 422);
+        }
+
         $startTime = $this->scheduler->normalizeTime($data['start_time']);
         $endTime = $this->scheduler->deriveEndTime($data['start_time'], $service->duration);
 
-        if ($this->scheduler->hasConflict($data['staff_id'], $data['date'], $startTime, $endTime)) {
+        // The requested start must still be an open slot: this re-checks the
+        // staff + branch hours, existing conflicts and past times in one gate,
+        // closing the gap between viewing a slot and submitting the booking.
+        if (! in_array(substr($startTime, 0, 5), $slotGenerator->generate($service, $staff, $data['date'], $branch), true)) {
             return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
         }
 
-        $branchId = $data['branch_id'] ?? Branch::query()->value('id');
-        if (! $branchId) {
-            return response()->json(['message' => 'This salon is not accepting online bookings yet.'], 422);
-        }
+        $branchId = $branch->id;
 
         $appointment = DB::transaction(function () use ($data, $branchId, $startTime, $endTime) {
             // Find-or-create by phone within the tenant. When the customer

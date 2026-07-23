@@ -26,6 +26,9 @@ class StoreBranchRequest extends FormRequest
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'opening_hours_json' => ['nullable', 'array'],
+            // Each weekday is either null (closed) or a [open, close] H:i pair.
+            'opening_hours_json.*' => ['nullable', 'array', 'size:2'],
+            'opening_hours_json.*.*' => ['date_format:H:i'],
         ];
     }
 }

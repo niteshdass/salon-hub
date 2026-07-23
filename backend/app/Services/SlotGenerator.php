@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\Service;
 use App\Models\User;
 use Carbon\Carbon;
@@ -29,9 +30,13 @@ class SlotGenerator
     /**
      * Open 'H:i' start times for the staff member on the date.
      *
+     * The bookable window is the intersection of the staff member's working
+     * hours and (when supplied) the branch's opening hours. If either the staff
+     * or the branch is closed on that weekday, there are no slots.
+     *
      * @return list<string>
      */
-    public function generate(Service $service, User $staff, string $date): array
+    public function generate(Service $service, User $staff, string $date, ?Branch $branch = null): array
     {
         $profile = $staff->staffProfile;
         $weekday = Carbon::parse($date)->dayOfWeekIso; // 1=Mon .. 7=Sun
@@ -46,6 +51,24 @@ class SlotGenerator
         $hours = $profile?->working_hours_json ?: self::DEFAULT_HOURS;
         $dayStart = Carbon::parse($date.' '.($hours['start'] ?? self::DEFAULT_HOURS['start']));
         $dayEnd = Carbon::parse($date.' '.($hours['end'] ?? self::DEFAULT_HOURS['end']));
+
+        // Narrow the window to the branch's opening hours when the branch
+        // defines them. A branch with no configured hours imposes no limit.
+        if ($branch !== null && ! empty($branch->opening_hours_json)) {
+            $key = strtolower(Carbon::parse($date)->format('D')); // mon..sun
+            $branchHours = $branch->opening_hours_json[$key] ?? null;
+
+            if (empty($branchHours)) {
+                return []; // branch closed on this weekday
+            }
+
+            [$open, $close] = $branchHours;
+            $branchOpen = Carbon::parse($date.' '.$open);
+            $branchClose = Carbon::parse($date.' '.$close);
+
+            $dayStart = $dayStart->greaterThan($branchOpen) ? $dayStart : $branchOpen;
+            $dayEnd = $dayEnd->lessThan($branchClose) ? $dayEnd : $branchClose;
+        }
 
         $isToday = Carbon::parse($date)->isToday();
         $now = Carbon::now();

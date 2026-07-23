@@ -8,6 +8,23 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const authStore = useAuthStore()
 
+// Short keys match the opening_hours_json the API stores + SlotGenerator reads.
+const DAYS = [
+  { key: 'mon', label: 'Monday' },
+  { key: 'tue', label: 'Tuesday' },
+  { key: 'wed', label: 'Wednesday' },
+  { key: 'thu', label: 'Thursday' },
+  { key: 'fri', label: 'Friday' },
+  { key: 'sat', label: 'Saturday' },
+  { key: 'sun', label: 'Sunday' },
+]
+
+function defaultHours() {
+  return Object.fromEntries(
+    DAYS.map((d) => [d.key, { enabled: !['sat', 'sun'].includes(d.key), open: '09:00', close: '18:00' }]),
+  )
+}
+
 const branches = ref([])
 const loading = ref(false)
 const listError = ref('')
@@ -30,6 +47,9 @@ const form = reactive({
   country: '',
   latitude: '',
   longitude: '',
+  // When off, the branch imposes no hours (bookable whenever staff are).
+  useHours: false,
+  hours: defaultHours(),
 })
 
 const confirmTarget = ref(null)
@@ -68,6 +88,8 @@ function resetForm() {
     country: '',
     latitude: '',
     longitude: '',
+    useHours: false,
+    hours: defaultHours(),
   })
   formErrors.value = {}
   formMessage.value = ''
@@ -92,6 +114,22 @@ function openEdit(branch) {
     latitude: branch.latitude ?? '',
     longitude: branch.longitude ?? '',
   })
+
+  // Hydrate the hours grid: a stored map means custom hours; each day is an
+  // [open, close] pair when open, or null/absent when closed.
+  const stored = branch.opening_hours_json
+  if (stored && typeof stored === 'object' && Object.keys(stored).length) {
+    form.useHours = true
+    for (const { key } of DAYS) {
+      const pair = stored[key]
+      if (Array.isArray(pair) && pair.length === 2) {
+        form.hours[key] = { enabled: true, open: pair[0], close: pair[1] }
+      } else {
+        form.hours[key] = { ...form.hours[key], enabled: false }
+      }
+    }
+  }
+
   showForm.value = true
 }
 
@@ -114,6 +152,15 @@ async function submitForm() {
     country: form.country || null,
     latitude: form.latitude === '' ? null : Number(form.latitude),
     longitude: form.longitude === '' ? null : Number(form.longitude),
+    // Off => null (unrestricted). On => per-day [open, close] or null (closed).
+    opening_hours_json: form.useHours
+      ? Object.fromEntries(
+          DAYS.map(({ key }) => {
+            const d = form.hours[key]
+            return [key, d.enabled ? [d.open, d.close] : null]
+          }),
+        )
+      : null,
   }
 
   try {
@@ -330,6 +377,47 @@ onMounted(loadBranches)
           <label class="mb-1 block text-sm font-medium text-slate-700">Longitude</label>
           <input v-model="form.longitude" type="number" step="any" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
           <p v-if="formErrors.longitude" class="mt-1 text-sm text-rose-600">{{ formErrors.longitude[0] }}</p>
+        </div>
+
+        <div class="sm:col-span-2 border-t border-slate-100 pt-4">
+          <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+            <input v-model="form.useHours" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300" />
+            Set opening hours
+          </label>
+          <p class="mt-1 text-xs text-slate-400">
+            When off, this branch is bookable whenever staff are available. When on, online slots are limited to the hours below.
+          </p>
+
+          <div v-if="form.useHours" class="mt-3 space-y-2">
+            <div
+              v-for="day in DAYS"
+              :key="day.key"
+              class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 px-3 py-2"
+            >
+              <label class="flex w-32 shrink-0 cursor-pointer items-center gap-2 text-sm text-slate-700">
+                <input
+                  v-model="form.hours[day.key].enabled"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300"
+                />
+                {{ day.label }}
+              </label>
+              <template v-if="form.hours[day.key].enabled">
+                <input
+                  v-model="form.hours[day.key].open"
+                  type="time"
+                  class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                />
+                <span class="text-sm text-slate-400">to</span>
+                <input
+                  v-model="form.hours[day.key].close"
+                  type="time"
+                  class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                />
+              </template>
+              <span v-else class="text-sm text-slate-400">Closed</span>
+            </div>
+          </div>
         </div>
       </form>
 
