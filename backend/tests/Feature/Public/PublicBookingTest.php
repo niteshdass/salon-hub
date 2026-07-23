@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Public;
 
+use App\Mail\BookingConfirmationMail;
+use App\Mail\NewBookingMail;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
@@ -11,6 +13,7 @@ use App\Models\StaffProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -218,6 +221,48 @@ class PublicBookingTest extends TestCase
         $duplicate = $this->postJson('/api/public/foxtrot/book', $payload);
         $duplicate->assertStatus(422);
         $duplicate->assertJsonPath('message', 'Sorry, that time slot is no longer available.');
+    }
+
+    public function test_booking_queues_customer_and_salon_emails(): void
+    {
+        Mail::fake();
+
+        $ctx = $this->scaffold('golf');
+
+        $this->postJson('/api/public/golf/book', [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+            'customer' => ['name' => 'Emailed Emma', 'phone' => '555-1212', 'email' => 'emma@example.test'],
+        ])->assertCreated();
+
+        Mail::assertQueued(
+            BookingConfirmationMail::class,
+            fn (BookingConfirmationMail $mail) => $mail->hasTo('emma@example.test'),
+        );
+        Mail::assertQueued(
+            NewBookingMail::class,
+            fn (NewBookingMail $mail) => $mail->hasTo($ctx['org']->email),
+        );
+    }
+
+    public function test_booking_without_email_only_notifies_the_salon(): void
+    {
+        Mail::fake();
+
+        $ctx = $this->scaffold('hotel');
+
+        $this->postJson('/api/public/hotel/book', [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+            'customer' => ['name' => 'No Email Ned', 'phone' => '555-3434'],
+        ])->assertCreated();
+
+        Mail::assertNotQueued(BookingConfirmationMail::class);
+        Mail::assertQueued(NewBookingMail::class);
     }
 
     public function test_tenant_isolation_between_orgs_services(): void

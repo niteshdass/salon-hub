@@ -10,6 +10,7 @@ use App\Models\Appointment;
 use App\Models\Customer;
 use App\Models\Service;
 use App\Services\AppointmentScheduler;
+use App\Services\BookingNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -47,7 +48,7 @@ class AppointmentController extends Controller
         return AppointmentResource::collection($appointments);
     }
 
-    public function store(StoreAppointmentRequest $request): JsonResponse
+    public function store(StoreAppointmentRequest $request, BookingNotifier $notifier): JsonResponse
     {
         $data = $request->validated();
 
@@ -76,7 +77,11 @@ class AppointmentController extends Controller
             ]);
         });
 
-        return (new AppointmentResource($appointment->load(self::RELATIONS)))
+        $appointment->load(self::RELATIONS);
+
+        $notifier->sendForNewBooking($appointment);
+
+        return (new AppointmentResource($appointment))
             ->response()->setStatusCode(201);
     }
 

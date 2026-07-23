@@ -14,6 +14,7 @@ use App\Models\Customer;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\AppointmentScheduler;
+use App\Services\BookingNotifier;
 use App\Services\SlotGenerator;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
@@ -137,7 +138,7 @@ class BookingController extends Controller
      * so a slot taken between the customer viewing it and submitting cannot be
      * double-booked, and finds-or-creates the customer by phone.
      */
-    public function book(PublicBookingRequest $request): JsonResponse
+    public function book(PublicBookingRequest $request, BookingNotifier $notifier): JsonResponse
     {
         $data = $request->validated();
 
@@ -179,6 +180,8 @@ class BookingController extends Controller
         });
 
         $appointment->load(['service', 'staff', 'branch', 'customer']);
+
+        $notifier->sendForNewBooking($appointment);
 
         return response()->json([
             'data' => [
