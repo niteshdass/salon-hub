@@ -51,4 +51,9 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     Route::get('services/{service}/staff', [BookingController::class, 'staffForService']);
     Route::get('slots', [BookingController::class, 'slots']);
     Route::post('book', [BookingController::class, 'book']);
+
+    // Token-based self-service management of an existing booking (no auth).
+    Route::get('manage/{token}', [BookingController::class, 'manage']);
+    Route::post('manage/{token}/reschedule', [BookingController::class, 'reschedule']);
+    Route::post('manage/{token}/cancel', [BookingController::class, 'cancel']);
 });

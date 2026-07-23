@@ -656,9 +656,19 @@ onMounted(async () => {
               </div>
             </dl>
 
+            <p v-if="confirmation.public_token" class="mt-6 text-sm text-slate-500">
+              Need to make a change?
+              <a
+                :href="`/book/${slug}/manage/${confirmation.public_token}`"
+                class="font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Manage this booking
+              </a>
+            </p>
+
             <button
               type="button"
-              class="mt-6 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+              class="mt-4 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
               @click="resetWizard"
             >
               Book another

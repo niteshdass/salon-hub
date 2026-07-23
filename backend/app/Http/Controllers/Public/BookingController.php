@@ -203,20 +203,140 @@ class BookingController extends Controller
 
         $notifier->sendForNewBooking($appointment);
 
+        return response()->json(['data' => $this->bookingPayload($appointment)], 201);
+    }
+
+    /**
+     * View a booking by its public manage token (no auth). The token is
+     * unguessable and tenant-scoped, so a wrong token yields a 404.
+     */
+    public function manage(string $org, string $token): JsonResponse
+    {
+        $appointment = $this->findByToken($token)
+            ->load(['service', 'staff', 'branch', 'customer']);
+
+        return response()->json(['data' => $this->bookingPayload($appointment)]);
+    }
+
+    /**
+     * Move a booking to a new date/time. Re-checks the staff + branch hours
+     * and conflicts (ignoring this appointment's own slot), so the customer
+     * cannot reschedule onto an occupied or closed window.
+     */
+    public function reschedule(Request $request, string $org, string $token, SlotGenerator $slotGenerator): JsonResponse
+    {
+        $appointment = $this->findByToken($token);
+
+        if (! $this->isChangeable($appointment)) {
+            return response()->json(['message' => 'This booking can no longer be changed.'], 422);
+        }
+
+        $data = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
+            'start_time' => ['required', 'date_format:H:i,H:i:s'],
+        ]);
+
+        $appointment->loadMissing(['service', 'staff', 'branch']);
+        $service = $appointment->service;
+
+        $startTime = $this->scheduler->normalizeTime($data['start_time']);
+        $endTime = $this->scheduler->deriveEndTime($data['start_time'], $service->duration);
+
+        $open = $slotGenerator->generate($service, $appointment->staff, $data['date'], $appointment->branch, $appointment->id);
+        if (! in_array(substr($startTime, 0, 5), $open, true)) {
+            return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
+        }
+
+        $appointment->update([
+            'booking_date' => $data['date'],
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ]);
+
         return response()->json([
-            'data' => [
-                'id' => $appointment->id,
-                'date' => $appointment->booking_date->format('Y-m-d'),
-                'start_time' => substr($appointment->start_time, 0, 5),
-                'end_time' => substr($appointment->end_time, 0, 5),
-                'status' => $appointment->status instanceof \BackedEnum
-                    ? $appointment->status->value
-                    : $appointment->status,
-                'service' => ['id' => $appointment->service->id, 'name' => $appointment->service->name],
-                'staff' => ['id' => $appointment->staff->id, 'name' => $appointment->staff->name],
-                'branch' => ['id' => $appointment->branch->id, 'name' => $appointment->branch->name],
-                'customer' => ['id' => $appointment->customer->id, 'name' => $appointment->customer->name],
-            ],
-        ], 201);
+            'data' => $this->bookingPayload($appointment->fresh()->load(['service', 'staff', 'branch', 'customer'])),
+        ]);
+    }
+
+    /**
+     * Cancel a booking. Only a still-active (pending/confirmed) booking can be
+     * cancelled; a completed/cancelled/no-show one is left untouched.
+     */
+    public function cancel(string $org, string $token): JsonResponse
+    {
+        $appointment = $this->findByToken($token);
+
+        if (! $this->isChangeable($appointment)) {
+            return response()->json(['message' => 'This booking can no longer be changed.'], 422);
+        }
+
+        $appointment->update(['status' => AppointmentStatus::CANCELLED->value]);
+
+        return response()->json([
+            'data' => $this->bookingPayload($appointment->fresh()->load(['service', 'staff', 'branch', 'customer'])),
+        ]);
+    }
+
+    /**
+     * Resolve an appointment by its public token within the bound tenant.
+     * ModelNotFoundException (wrong token / wrong org) surfaces as a 404.
+     */
+    protected function findByToken(string $token): Appointment
+    {
+        return Appointment::where('public_token', $token)->firstOrFail();
+    }
+
+    /**
+     * Whether a booking is still customer-editable (pending or confirmed).
+     */
+    protected function isChangeable(Appointment $appointment): bool
+    {
+        $status = $appointment->status instanceof AppointmentStatus
+            ? $appointment->status
+            : AppointmentStatus::from($appointment->status);
+
+        return in_array($status, [AppointmentStatus::PENDING, AppointmentStatus::CONFIRMED], true);
+    }
+
+    /**
+     * Public-facing shape of a booking, shared by book / manage / reschedule /
+     * cancel. `changeable` tells the customer UI whether to offer edits.
+     *
+     * @return array<string, mixed>
+     */
+    protected function bookingPayload(Appointment $appointment): array
+    {
+        $tenant = app(CurrentTenant::class)->get();
+
+        return [
+            'id' => $appointment->id,
+            'public_token' => $appointment->public_token,
+            'salon' => ['name' => $tenant?->name, 'slug' => $tenant?->slug],
+            'date' => $appointment->booking_date->format('Y-m-d'),
+            'start_time' => substr($appointment->start_time, 0, 5),
+            'end_time' => substr($appointment->end_time, 0, 5),
+            'status' => $appointment->status instanceof \BackedEnum
+                ? $appointment->status->value
+                : $appointment->status,
+            'changeable' => $this->isChangeable($appointment),
+            'service' => $appointment->service ? [
+                'id' => $appointment->service->id,
+                'name' => $appointment->service->name,
+                'duration' => $appointment->service->duration,
+                'price' => $appointment->service->price,
+            ] : null,
+            'staff' => $appointment->staff ? [
+                'id' => $appointment->staff->id,
+                'name' => $appointment->staff->name,
+            ] : null,
+            'branch' => $appointment->branch ? [
+                'id' => $appointment->branch->id,
+                'name' => $appointment->branch->name,
+            ] : null,
+            'customer' => $appointment->customer ? [
+                'id' => $appointment->customer->id,
+                'name' => $appointment->customer->name,
+            ] : null,
+        ];
     }
 }

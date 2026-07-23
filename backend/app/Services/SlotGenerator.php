@@ -34,9 +34,12 @@ class SlotGenerator
      * hours and (when supplied) the branch's opening hours. If either the staff
      * or the branch is closed on that weekday, there are no slots.
      *
+     * Pass $excludeAppointmentId when rescheduling so the appointment being
+     * moved does not block its own candidate slots.
+     *
      * @return list<string>
      */
-    public function generate(Service $service, User $staff, string $date, ?Branch $branch = null): array
+    public function generate(Service $service, User $staff, string $date, ?Branch $branch = null, ?int $excludeAppointmentId = null): array
     {
         $profile = $staff->staffProfile;
         $weekday = Carbon::parse($date)->dayOfWeekIso; // 1=Mon .. 7=Sun
@@ -86,6 +89,7 @@ class SlotGenerator
                 $date,
                 $candidate->format('H:i'),
                 $candidateEnd->format('H:i'),
+                $excludeAppointmentId,
             )) {
                 $slots[] = $candidate->format('H:i');
             }

@@ -7,6 +7,7 @@ use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class Appointment extends Model
 {
@@ -14,6 +15,7 @@ class Appointment extends Model
 
     protected $fillable = [
         'organization_id',
+        'public_token',
         'branch_id',
         'customer_id',
         'staff_id',
@@ -24,6 +26,18 @@ class Appointment extends Model
         'status',
         'notes',
     ];
+
+    /**
+     * Assign a public manage token on creation when one was not supplied.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Appointment $appointment): void {
+            if (empty($appointment->public_token)) {
+                $appointment->public_token = (string) Str::uuid();
+            }
+        });
+    }
 
     protected function casts(): array
     {

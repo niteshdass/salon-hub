@@ -30,6 +30,12 @@ const router = createRouter({
       component: () => import('@/views/PublicBookingView.vue'),
     },
     {
+      // Public self-service page to view / reschedule / cancel a booking.
+      path: '/book/:slug/manage/:token',
+      name: 'manage-booking',
+      component: () => import('@/views/ManageBookingView.vue'),
+    },
+    {
       // Authenticated app shell — every child renders inside DashboardLayout.
       path: '/',
       component: DashboardLayout,

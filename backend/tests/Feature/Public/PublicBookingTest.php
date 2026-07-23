@@ -317,6 +317,163 @@ class PublicBookingTest extends TestCase
         Mail::assertQueued(NewBookingMail::class);
     }
 
+    /** Book a pending appointment and return the decoded booking payload. */
+    private function bookSlot(string $slug, array $ctx, string $start = '11:00'): array
+    {
+        $response = $this->postJson("/api/public/{$slug}/book", [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => $start,
+            'customer' => ['name' => 'Manage Mona', 'phone' => '555-9090'],
+        ]);
+        $response->assertCreated();
+
+        return $response->json('data');
+    }
+
+    public function test_book_returns_a_public_manage_token_that_can_view_the_booking(): void
+    {
+        $ctx = $this->scaffold('mike');
+        $booking = $this->bookSlot('mike', $ctx);
+
+        $this->assertNotEmpty($booking['public_token']);
+
+        $response = $this->getJson("/api/public/mike/manage/{$booking['public_token']}");
+        $response->assertOk();
+        $response->assertJsonPath('data.id', $booking['id']);
+        $response->assertJsonPath('data.start_time', '11:00');
+        $response->assertJsonPath('data.status', 'pending');
+        $response->assertJsonPath('data.changeable', true);
+        $response->assertJsonPath('data.salon.slug', 'mike');
+    }
+
+    public function test_manage_unknown_token_returns_404(): void
+    {
+        $this->scaffold('november');
+
+        $this->getJson('/api/public/november/manage/'.Str::uuid())->assertNotFound();
+    }
+
+    public function test_customer_can_reschedule_to_an_open_slot(): void
+    {
+        $ctx = $this->scaffold('oscar');
+        $booking = $this->bookSlot('oscar', $ctx, '11:00');
+
+        $response = $this->postJson("/api/public/oscar/manage/{$booking['public_token']}/reschedule", [
+            'date' => $this->nextMonday(),
+            'start_time' => '14:00',
+        ]);
+        $response->assertOk();
+        $response->assertJsonPath('data.start_time', '14:00');
+        $response->assertJsonPath('data.end_time', '14:30');
+        $response->assertJsonPath('data.status', 'pending');
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $booking['id'],
+            'start_time' => '14:00:00',
+            'end_time' => '14:30:00',
+        ]);
+    }
+
+    public function test_reschedule_to_the_same_time_is_allowed(): void
+    {
+        // The appointment must not block its own slot on reschedule.
+        $ctx = $this->scaffold('papa');
+        $booking = $this->bookSlot('papa', $ctx, '11:00');
+
+        $this->postJson("/api/public/papa/manage/{$booking['public_token']}/reschedule", [
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+        ])->assertOk();
+    }
+
+    public function test_reschedule_onto_a_taken_slot_is_rejected(): void
+    {
+        $ctx = $this->scaffold('quebec');
+        $date = $this->nextMonday();
+        $booking = $this->bookSlot('quebec', $ctx, '11:00');
+
+        $blocker = Customer::create([
+            'organization_id' => $ctx['org']->id,
+            'name' => 'Blocker Bob',
+            'phone' => '555-2222',
+        ]);
+        Appointment::create([
+            'organization_id' => $ctx['org']->id,
+            'branch_id' => $ctx['branch']->id,
+            'customer_id' => $blocker->id,
+            'staff_id' => $ctx['staff']->id,
+            'service_id' => $ctx['service']->id,
+            'booking_date' => $date,
+            'start_time' => '14:00:00',
+            'end_time' => '14:30:00',
+            'status' => 'confirmed',
+        ]);
+
+        $response = $this->postJson("/api/public/quebec/manage/{$booking['public_token']}/reschedule", [
+            'date' => $date,
+            'start_time' => '14:00',
+        ]);
+        $response->assertStatus(422);
+        $response->assertJsonPath('message', 'Sorry, that time slot is no longer available.');
+
+        // Original slot is untouched.
+        $this->assertDatabaseHas('appointments', [
+            'id' => $booking['id'],
+            'start_time' => '11:00:00',
+        ]);
+    }
+
+    public function test_customer_can_cancel_a_booking_and_free_the_slot(): void
+    {
+        $ctx = $this->scaffold('romeo');
+        $booking = $this->bookSlot('romeo', $ctx, '11:00');
+
+        $response = $this->postJson("/api/public/romeo/manage/{$booking['public_token']}/cancel");
+        $response->assertOk();
+        $response->assertJsonPath('data.status', 'cancelled');
+        $response->assertJsonPath('data.changeable', false);
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $booking['id'],
+            'status' => 'cancelled',
+        ]);
+
+        // The freed 11:00 slot is bookable again.
+        $slots = $this->getJson(
+            "/api/public/romeo/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$this->nextMonday()}"
+        )->json('data.slots');
+        $this->assertContains('11:00', $slots);
+    }
+
+    public function test_a_cancelled_booking_cannot_be_rescheduled_or_cancelled_again(): void
+    {
+        $ctx = $this->scaffold('sierra');
+        $booking = $this->bookSlot('sierra', $ctx, '11:00');
+
+        $this->postJson("/api/public/sierra/manage/{$booking['public_token']}/cancel")->assertOk();
+
+        $this->postJson("/api/public/sierra/manage/{$booking['public_token']}/reschedule", [
+            'date' => $this->nextMonday(),
+            'start_time' => '14:00',
+        ])->assertStatus(422)->assertJsonPath('message', 'This booking can no longer be changed.');
+
+        $this->postJson("/api/public/sierra/manage/{$booking['public_token']}/cancel")
+            ->assertStatus(422)->assertJsonPath('message', 'This booking can no longer be changed.');
+    }
+
+    public function test_manage_token_is_isolated_between_organizations(): void
+    {
+        $a = $this->scaffold('tango-a');
+        $b = $this->scaffold('tango-b');
+        $booking = $this->bookSlot('tango-a', $a);
+
+        // A valid token cannot be viewed or mutated through another org's slug.
+        $this->getJson("/api/public/tango-b/manage/{$booking['public_token']}")->assertNotFound();
+        $this->postJson("/api/public/tango-b/manage/{$booking['public_token']}/cancel")->assertNotFound();
+    }
+
     public function test_tenant_isolation_between_orgs_services(): void
     {
         $a = $this->scaffold('org-a');
