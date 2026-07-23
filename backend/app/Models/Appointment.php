@@ -24,6 +24,7 @@ class Appointment extends Model
         'start_time',
         'end_time',
         'status',
+        'reminder_sent_at',
         'notes',
     ];
 
@@ -44,6 +45,7 @@ class Appointment extends Model
         return [
             'booking_date' => 'date',
             'status' => AppointmentStatus::class,
+            'reminder_sent_at' => 'datetime',
         ];
     }
 
