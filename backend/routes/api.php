@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\HelloController;
+use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\StaffController;
@@ -39,4 +40,15 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::apiResource('services', ServiceController::class);
     Route::apiResource('staff', StaffController::class)
         ->parameters(['staff' => 'staff']);
+});
+
+// Public (no-auth) customer booking site. `public.tenant` resolves the
+// organization from the {org} slug (or host header) and binds it, so every
+// query — including implicit {service} binding — is tenant-scoped.
+Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
+    Route::get('/', [BookingController::class, 'organization']);
+    Route::get('services', [BookingController::class, 'services']);
+    Route::get('services/{service}/staff', [BookingController::class, 'staffForService']);
+    Route::get('slots', [BookingController::class, 'slots']);
+    Route::post('book', [BookingController::class, 'book']);
 });

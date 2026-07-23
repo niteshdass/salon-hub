@@ -24,6 +24,12 @@ const router = createRouter({
       component: RegisterView,
     },
     {
+      // Public, standalone customer booking page (no auth, no dashboard shell).
+      path: '/book/:slug',
+      name: 'public-booking',
+      component: () => import('@/views/PublicBookingView.vue'),
+    },
+    {
       // Authenticated app shell — every child renders inside DashboardLayout.
       path: '/',
       component: DashboardLayout,

@@ -14,14 +14,20 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'tenant' => \App\Http\Middleware\ResolveTenant::class,
+            'public.tenant' => \App\Http\Middleware\ResolvePublicTenant::class,
         ]);
 
         // Resolve the tenant BEFORE route-model binding runs, so implicit
         // binding (Branch, Service, ServiceCategory) is filtered by the
-        // tenant's global scope and a cross-tenant id yields a 404.
+        // tenant's global scope and a cross-tenant id yields a 404. Both the
+        // authenticated and the public tenant resolvers run before bindings.
         $middleware->prependToPriorityList(
             before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
             prepend: \App\Http\Middleware\ResolveTenant::class,
+        );
+        $middleware->prependToPriorityList(
+            before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            prepend: \App\Http\Middleware\ResolvePublicTenant::class,
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
