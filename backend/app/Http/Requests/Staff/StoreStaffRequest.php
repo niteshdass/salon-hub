@@ -29,7 +29,10 @@ class StoreStaffRequest extends FormRequest
             'bio' => ['nullable', 'string'],
             'profile_image' => ['nullable', 'string', 'max:2048'],
             'working_days_json' => ['nullable', 'array'],
+            'working_days_json.*' => ['integer', 'between:1,7'],
             'working_hours_json' => ['nullable', 'array'],
+            'working_hours_json.start' => ['required_with:working_hours_json.end', 'date_format:H:i'],
+            'working_hours_json.end' => ['required_with:working_hours_json.start', 'date_format:H:i'],
             'service_ids' => ['nullable', 'array'],
             'service_ids.*' => [
                 Rule::exists('services', 'id')->where('organization_id', $tenantId),

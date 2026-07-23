@@ -8,6 +8,17 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const authStore = useAuthStore()
 
+// ISO weekday: 1=Mon .. 7=Sun (matches SlotGenerator + working_days_json).
+const WEEKDAYS = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 7, label: 'Sun' },
+]
+
 const staff = ref([])
 const loading = ref(false)
 const listError = ref('')
@@ -30,6 +41,11 @@ const form = reactive({
   designation: '',
   bio: '',
   service_ids: [],
+  // Empty working_days => available every day; blank hours => 09:00–18:00
+  // (SlotGenerator applies those same defaults server-side).
+  working_days: [],
+  working_hours_start: '',
+  working_hours_end: '',
 })
 
 const confirmTarget = ref(null)
@@ -76,6 +92,9 @@ function resetForm() {
     designation: '',
     bio: '',
     service_ids: [],
+    working_days: [],
+    working_hours_start: '',
+    working_hours_end: '',
   })
   formErrors.value = {}
   formMessage.value = ''
@@ -98,6 +117,9 @@ function openEdit(member) {
     designation: member.designation || '',
     bio: member.bio || '',
     service_ids: (member.services || []).map((s) => s.id),
+    working_days: Array.isArray(member.working_days_json) ? [...member.working_days_json] : [],
+    working_hours_start: member.working_hours_json?.start || '',
+    working_hours_end: member.working_hours_json?.end || '',
   })
   showForm.value = true
 }
@@ -119,6 +141,13 @@ async function submitForm() {
     designation: form.designation || null,
     bio: form.bio || null,
     service_ids: form.service_ids,
+    // Empty selection => null (available every day, per SlotGenerator default).
+    working_days_json: form.working_days.length ? [...form.working_days].sort((a, b) => a - b) : null,
+    // Send hours only when both ends are set; otherwise null => default 09:00–18:00.
+    working_hours_json:
+      form.working_hours_start && form.working_hours_end
+        ? { start: form.working_hours_start, end: form.working_hours_end }
+        : null,
   }
   // Only send a password when one was typed (blank => backend auto-generates).
   if (form.password) payload.password = form.password
@@ -164,6 +193,24 @@ function toggleService(id) {
   const idx = form.service_ids.indexOf(id)
   if (idx === -1) form.service_ids.push(id)
   else form.service_ids.splice(idx, 1)
+}
+
+function toggleDay(value) {
+  const idx = form.working_days.indexOf(value)
+  if (idx === -1) form.working_days.push(value)
+  else form.working_days.splice(idx, 1)
+}
+
+// Short human summary of a member's schedule for the card.
+function scheduleSummary(member) {
+  const days = member.working_days_json
+  const hours = member.working_hours_json
+  const dayLabel =
+    Array.isArray(days) && days.length
+      ? [...days].sort((a, b) => a - b).map((d) => WEEKDAYS.find((w) => w.value === d)?.label).join(', ')
+      : 'Every day'
+  const hourLabel = hours?.start && hours?.end ? `${hours.start}–${hours.end}` : '09:00–18:00'
+  return `${dayLabel} · ${hourLabel}`
 }
 
 onMounted(() => {
@@ -255,6 +302,10 @@ onMounted(() => {
           <div class="flex gap-2">
             <dt class="w-14 shrink-0 text-slate-400">Phone</dt>
             <dd class="truncate text-slate-700">{{ member.phone || '—' }}</dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="w-14 shrink-0 text-slate-400">Hours</dt>
+            <dd class="truncate text-slate-700">{{ scheduleSummary(member) }}</dd>
           </div>
         </dl>
 
@@ -362,6 +413,53 @@ onMounted(() => {
             class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
           ></textarea>
           <p v-if="formErrors.bio" class="mt-1 text-sm text-rose-600">{{ formErrors.bio[0] }}</p>
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="mb-2 block text-sm font-medium text-slate-700">Working days</label>
+          <div class="flex flex-wrap gap-2">
+            <label
+              v-for="day in WEEKDAYS"
+              :key="day.value"
+              class="cursor-pointer select-none rounded-lg border px-3 py-1.5 text-sm font-medium transition"
+              :class="form.working_days.includes(day.value)
+                ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'"
+            >
+              <input
+                type="checkbox"
+                class="sr-only"
+                :checked="form.working_days.includes(day.value)"
+                @change="toggleDay(day.value)"
+              />
+              {{ day.label }}
+            </label>
+          </div>
+          <p class="mt-1 text-xs text-slate-400">Leave all unchecked to make this member available every day.</p>
+          <p v-if="formErrors['working_days_json'] || formErrors['working_days_json.0']" class="mt-1 text-sm text-rose-600">
+            {{ (formErrors['working_days_json'] || formErrors['working_days_json.0'])[0] }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Starts at</label>
+          <input
+            v-model="form.working_hours_start"
+            type="time"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p v-if="formErrors['working_hours_json.start']" class="mt-1 text-sm text-rose-600">{{ formErrors['working_hours_json.start'][0] }}</p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Ends at</label>
+          <input
+            v-model="form.working_hours_end"
+            type="time"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p class="mt-1 text-xs text-slate-400">Leave blank for the default 09:00–18:00.</p>
+          <p v-if="formErrors['working_hours_json.end']" class="mt-1 text-sm text-rose-600">{{ formErrors['working_hours_json.end'][0] }}</p>
         </div>
 
         <div class="sm:col-span-2">
