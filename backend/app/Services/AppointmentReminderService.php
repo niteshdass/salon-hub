@@ -36,7 +36,11 @@ class AppointmentReminderService
         $now = Carbon::now();
         $windowEnd = $now->copy()->addHours($settings->lead_hours);
 
-        // Bound the DB scan by date (local); the exact window is checked in PHP.
+        // Bound the DB scan by local calendar date. Local date is monotonic in
+        // absolute time, so the lower bound needs no cushion; the upper bound
+        // adds a day so an appointment whose local date runs ahead of the
+        // window-end instant is still loaded. The exact (now, windowEnd] window
+        // is then enforced per row below.
         $fromDate = $now->copy()->timezone($tz)->toDateString();
         $toDate = $windowEnd->copy()->timezone($tz)->addDay()->toDateString();
 

@@ -172,4 +172,70 @@ class AppointmentReminderServiceTest extends TestCase
 
         Queue::assertNothingPushed();
     }
+
+    public function test_appointment_exactly_at_now_is_excluded(): void
+    {
+        Queue::fake();
+        $frozen = Carbon::parse('2026-08-01 10:00:00', 'UTC');
+        $this->travelTo($frozen);
+        $org = $this->makeOrg('boundnow', enabled: true, lead: 24);
+        $appt = $this->makeAppointment($org, $frozen->copy());
+
+        app(AppointmentReminderService::class)->dispatchDue();
+
+        Queue::assertNothingPushed();
+        $this->assertNull($appt->fresh()->reminder_sent_at);
+        $this->travelBack();
+    }
+
+    public function test_appointment_exactly_at_window_end_is_included(): void
+    {
+        Queue::fake();
+        $frozen = Carbon::parse('2026-08-01 10:00:00', 'UTC');
+        $this->travelTo($frozen);
+        $org = $this->makeOrg('boundend', enabled: true, lead: 24);
+        $appt = $this->makeAppointment($org, $frozen->copy()->addHours(24));
+
+        app(AppointmentReminderService::class)->dispatchDue();
+
+        Queue::assertPushed(SendAppointmentReminder::class, fn ($job) => $job->appointmentId === $appt->id);
+        $this->assertNotNull($appt->fresh()->reminder_sent_at);
+        $this->travelBack();
+    }
+
+    public function test_window_is_computed_in_the_org_timezone_not_utc(): void
+    {
+        Queue::fake();
+        // Freeze now at 2026-08-01 12:00 UTC. Org is +05:30 (no DST).
+        // Appointment local wall time 2026-08-02 15:30 IST = 2026-08-02 10:00 UTC,
+        // i.e. 22h away -> inside the 24h window. If the window math wrongly
+        // parsed the stored time as UTC it would be 2026-08-02 15:30 UTC -> past
+        // the window end -> wrongly skipped. So this only passes with real tz math.
+        $frozen = Carbon::parse('2026-08-01 12:00:00', 'UTC');
+        $this->travelTo($frozen);
+        $org = $this->makeOrg('kolkata', enabled: true, lead: 24, tz: 'Asia/Kolkata');
+        $startsLocal = Carbon::parse('2026-08-02 15:30:00', 'Asia/Kolkata');
+        $appt = $this->makeAppointment($org, $startsLocal);
+
+        app(AppointmentReminderService::class)->dispatchDue();
+
+        Queue::assertPushed(SendAppointmentReminder::class, fn ($job) => $job->appointmentId === $appt->id);
+        $this->travelBack();
+    }
+
+    public function test_only_enabled_orgs_appointments_are_reminded_when_two_orgs_share_the_table(): void
+    {
+        Queue::fake();
+        $enabled = $this->makeOrg('with-reminders', enabled: true, lead: 24);
+        $disabled = $this->makeOrg('no-reminders', enabled: false, lead: 24);
+        $apptEnabled = $this->makeAppointment($enabled, Carbon::now()->addHours(2));
+        $apptDisabled = $this->makeAppointment($disabled, Carbon::now()->addHours(2));
+
+        app(AppointmentReminderService::class)->dispatchDue();
+
+        Queue::assertPushed(SendAppointmentReminder::class, 1);
+        Queue::assertPushed(SendAppointmentReminder::class, fn ($job) => $job->appointmentId === $apptEnabled->id);
+        $this->assertNotNull($apptEnabled->fresh()->reminder_sent_at);
+        $this->assertNull($apptDisabled->fresh()->reminder_sent_at);
+    }
 }
