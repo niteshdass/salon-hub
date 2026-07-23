@@ -7,6 +7,8 @@ import DashboardView from '../views/DashboardView.vue'
 import BranchesView from '../views/BranchesView.vue'
 import ServicesView from '../views/ServicesView.vue'
 import StaffView from '../views/StaffView.vue'
+import AppointmentsView from '../views/AppointmentsView.vue'
+import CustomersView from '../views/CustomersView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -35,6 +37,12 @@ const router = createRouter({
           meta: { requiresAuth: true },
         },
         {
+          path: 'appointments',
+          name: 'appointments',
+          component: AppointmentsView,
+          meta: { requiresAuth: true },
+        },
+        {
           path: 'branches',
           name: 'branches',
           component: BranchesView,
@@ -50,6 +58,12 @@ const router = createRouter({
           path: 'staff',
           name: 'staff',
           component: StaffView,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'customers',
+          name: 'customers',
+          component: CustomersView,
           meta: { requiresAuth: true },
         },
       ],

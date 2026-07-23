@@ -33,16 +33,28 @@ onMounted(async () => {
     }
   }
 
+  // Today's date (local) for the bookings count.
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
   // Best-effort live counts; a failed tile just stays at 0.
-  const [staffRes, servicesRes] = await Promise.allSettled([
+  const [staffRes, servicesRes, bookingsRes, customersRes] = await Promise.allSettled([
     api.get('/staff'),
     api.get('/services'),
+    api.get('/appointments', { params: { date: today } }),
+    api.get('/customers'),
   ])
   if (staffRes.status === 'fulfilled') {
     counts.staff = staffRes.value.data?.data?.length || 0
   }
   if (servicesRes.status === 'fulfilled') {
     counts.services = servicesRes.value.data?.data?.length || 0
+  }
+  if (bookingsRes.status === 'fulfilled') {
+    counts.bookings = bookingsRes.value.data?.data?.length || 0
+  }
+  if (customersRes.status === 'fulfilled') {
+    counts.customers = customersRes.value.data?.data?.length || 0
   }
 })
 </script>

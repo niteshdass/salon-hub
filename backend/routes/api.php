@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
@@ -29,7 +30,8 @@ Route::prefix('auth')->group(function () {
 // Tenant-scoped API: auth:sanctum authenticates, then `tenant` binds the
 // current organization so every query is auto-filtered by organization_id.
 Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
-    Route::get('customers', [CustomerController::class, 'index']);
+    Route::apiResource('customers', CustomerController::class);
+    Route::apiResource('appointments', AppointmentController::class);
 
     Route::apiResource('branches', BranchController::class);
     Route::apiResource('categories', ServiceCategoryController::class)

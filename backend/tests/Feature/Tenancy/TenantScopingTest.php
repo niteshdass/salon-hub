@@ -80,8 +80,10 @@ class TenantScopingTest extends TestCase
         $res = $this->withToken($token)->getJson('/api/customers');
         $res->assertOk();
 
-        $orgIds = collect($res->json('data'))->pluck('organization_id')->unique()->values();
-        $this->assertSame([$orgA->id], $orgIds->all());
+        // The resource no longer leaks organization_id, so assert isolation
+        // by the seeded customer names: only delta's two, never epsilon's.
+        $names = collect($res->json('data'))->pluck('name')->sort()->values();
+        $this->assertSame(['delta A', 'delta B'], $names->all());
         $this->assertCount(2, $res->json('data'));
     }
 }

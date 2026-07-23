@@ -2,22 +2,50 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Customer\StoreCustomerRequest;
+use App\Http\Requests\Customer\UpdateCustomerRequest;
+use App\Http\Resources\CustomerResource;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 
+/**
+ * Customer is auto-scoped by BelongsToOrganization (global scope +
+ * auto-fill), so every query here — including implicit route-model
+ * binding — is restricted to the current tenant. A cross-tenant id
+ * resolves to a 404.
+ */
 class CustomerController extends Controller
 {
-    /**
-     * List customers for the current tenant. The global scope on
-     * Customer (BelongsToOrganization) restricts this to the resolved
-     * organization automatically — no manual where() needed.
-     */
-    public function index(): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
-        return response()->json([
-            'data' => Customer::query()
-                ->latest('id')
-                ->get(['id', 'name', 'email', 'phone', 'organization_id']),
-        ]);
+        return CustomerResource::collection(Customer::query()->latest('id')->get());
+    }
+
+    public function store(StoreCustomerRequest $request): JsonResponse
+    {
+        $customer = Customer::create($request->validated());
+
+        return (new CustomerResource($customer))->response()->setStatusCode(201);
+    }
+
+    public function show(Customer $customer): CustomerResource
+    {
+        return new CustomerResource($customer);
+    }
+
+    public function update(UpdateCustomerRequest $request, Customer $customer): CustomerResource
+    {
+        $customer->update($request->validated());
+
+        return new CustomerResource($customer);
+    }
+
+    public function destroy(Customer $customer): Response
+    {
+        $customer->delete();
+
+        return response()->noContent();
     }
 }
