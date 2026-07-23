@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Public;
 
+use App\Mail\BookingCancelledMail;
 use App\Mail\BookingConfirmationMail;
+use App\Mail\BookingRescheduledMail;
 use App\Mail\NewBookingMail;
 use App\Models\Appointment;
 use App\Models\Branch;
@@ -472,6 +474,79 @@ class PublicBookingTest extends TestCase
         // A valid token cannot be viewed or mutated through another org's slug.
         $this->getJson("/api/public/tango-b/manage/{$booking['public_token']}")->assertNotFound();
         $this->postJson("/api/public/tango-b/manage/{$booking['public_token']}/cancel")->assertNotFound();
+    }
+
+    /** Book with an email so both customer and salon are reachable. */
+    private function bookWithEmail(string $slug, array $ctx, string $email): array
+    {
+        return $this->postJson("/api/public/{$slug}/book", [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+            'customer' => ['name' => 'Notify Nia', 'phone' => '555-6161', 'email' => $email],
+        ])->assertCreated()->json('data');
+    }
+
+    public function test_reschedule_notifies_customer_and_salon(): void
+    {
+        Mail::fake();
+        $ctx = $this->scaffold('uniform');
+        $booking = $this->bookWithEmail('uniform', $ctx, 'nia@example.test');
+
+        $this->postJson("/api/public/uniform/manage/{$booking['public_token']}/reschedule", [
+            'date' => $this->nextMonday(),
+            'start_time' => '14:00',
+        ])->assertOk();
+
+        Mail::assertQueued(
+            BookingRescheduledMail::class,
+            fn (BookingRescheduledMail $m) => $m->hasTo('nia@example.test') && $m->audience === 'customer',
+        );
+        Mail::assertQueued(
+            BookingRescheduledMail::class,
+            fn (BookingRescheduledMail $m) => $m->hasTo($ctx['org']->email) && $m->audience === 'salon',
+        );
+    }
+
+    public function test_cancel_notifies_customer_and_salon(): void
+    {
+        Mail::fake();
+        $ctx = $this->scaffold('victor');
+        $booking = $this->bookWithEmail('victor', $ctx, 'vic@example.test');
+
+        $this->postJson("/api/public/victor/manage/{$booking['public_token']}/cancel")->assertOk();
+
+        Mail::assertQueued(
+            BookingCancelledMail::class,
+            fn (BookingCancelledMail $m) => $m->hasTo('vic@example.test') && $m->audience === 'customer',
+        );
+        Mail::assertQueued(
+            BookingCancelledMail::class,
+            fn (BookingCancelledMail $m) => $m->hasTo($ctx['org']->email) && $m->audience === 'salon',
+        );
+    }
+
+    public function test_reschedule_without_customer_email_only_notifies_salon(): void
+    {
+        Mail::fake();
+        $ctx = $this->scaffold('whiskey');
+        // bookSlot books a customer with a phone but no email.
+        $booking = $this->bookSlot('whiskey', $ctx, '11:00');
+
+        $this->postJson("/api/public/whiskey/manage/{$booking['public_token']}/reschedule", [
+            'date' => $this->nextMonday(),
+            'start_time' => '14:00',
+        ])->assertOk();
+
+        Mail::assertNotQueued(
+            BookingRescheduledMail::class,
+            fn (BookingRescheduledMail $m) => $m->audience === 'customer',
+        );
+        Mail::assertQueued(
+            BookingRescheduledMail::class,
+            fn (BookingRescheduledMail $m) => $m->audience === 'salon',
+        );
     }
 
     public function test_tenant_isolation_between_orgs_services(): void

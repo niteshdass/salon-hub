@@ -223,7 +223,7 @@ class BookingController extends Controller
      * and conflicts (ignoring this appointment's own slot), so the customer
      * cannot reschedule onto an occupied or closed window.
      */
-    public function reschedule(Request $request, string $org, string $token, SlotGenerator $slotGenerator): JsonResponse
+    public function reschedule(Request $request, string $org, string $token, SlotGenerator $slotGenerator, BookingNotifier $notifier): JsonResponse
     {
         $appointment = $this->findByToken($token);
 
@@ -253,16 +253,17 @@ class BookingController extends Controller
             'end_time' => $endTime,
         ]);
 
-        return response()->json([
-            'data' => $this->bookingPayload($appointment->fresh()->load(['service', 'staff', 'branch', 'customer'])),
-        ]);
+        $fresh = $appointment->fresh()->load(['service', 'staff', 'branch', 'customer']);
+        $notifier->sendForReschedule($fresh);
+
+        return response()->json(['data' => $this->bookingPayload($fresh)]);
     }
 
     /**
      * Cancel a booking. Only a still-active (pending/confirmed) booking can be
      * cancelled; a completed/cancelled/no-show one is left untouched.
      */
-    public function cancel(string $org, string $token): JsonResponse
+    public function cancel(string $org, string $token, BookingNotifier $notifier): JsonResponse
     {
         $appointment = $this->findByToken($token);
 
@@ -272,9 +273,10 @@ class BookingController extends Controller
 
         $appointment->update(['status' => AppointmentStatus::CANCELLED->value]);
 
-        return response()->json([
-            'data' => $this->bookingPayload($appointment->fresh()->load(['service', 'staff', 'branch', 'customer'])),
-        ]);
+        $fresh = $appointment->fresh()->load(['service', 'staff', 'branch', 'customer']);
+        $notifier->sendForCancellation($fresh);
+
+        return response()->json(['data' => $this->bookingPayload($fresh)]);
     }
 
     /**
