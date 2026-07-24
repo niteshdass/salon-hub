@@ -45,6 +45,10 @@ class AppointmentController extends Controller
             ->with(self::RELATIONS)
             ->when($user->isStaff(), fn ($q) => $q->where('staff_id', $user->id))
             ->when($request->filled('date'), fn ($q) => $q->whereDate('booking_date', $request->query('date')))
+            // The calendar loads a whole month or week at once; both bounds
+            // are inclusive and either may be omitted.
+            ->when($request->filled('from'), fn ($q) => $q->whereDate('booking_date', '>=', $request->query('from')))
+            ->when($request->filled('to'), fn ($q) => $q->whereDate('booking_date', '<=', $request->query('to')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->when($request->filled('staff_id'), fn ($q) => $q->where('staff_id', $request->query('staff_id')))
             ->when($request->filled('branch_id'), fn ($q) => $q->where('branch_id', $request->query('branch_id')))

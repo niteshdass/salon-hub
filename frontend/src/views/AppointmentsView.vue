@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
@@ -40,7 +41,11 @@ function statusBadge(status) {
 const authStore = useAuthStore()
 const canWrite = computed(() => authStore.canManageOperations)
 
-const selectedDate = ref(todayStr())
+// The calendar hands off here with ?date=Y-m-d.
+const route = useRoute()
+const initialDate = /^\d{4}-\d{2}-\d{2}$/.test(route.query.date || '') ? route.query.date : todayStr()
+
+const selectedDate = ref(initialDate)
 const statusFilter = ref('')
 
 const appointments = ref([])
