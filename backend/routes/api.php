@@ -7,6 +7,8 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GalleryController;
+use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\ReminderSettingController;
@@ -60,6 +62,15 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::apiResource('services', ServiceController::class);
     Route::apiResource('staff', StaffController::class)
         ->parameters(['staff' => 'staff']);
+
+    Route::apiResource('gallery', GalleryController::class)->except('show');
+
+    Route::get('settings/organization', [OrganizationSettingController::class, 'show']);
+    Route::put('settings/organization', [OrganizationSettingController::class, 'update']);
+    Route::post('settings/organization/logo', [OrganizationSettingController::class, 'uploadLogo']);
+    Route::delete('settings/organization/logo', [OrganizationSettingController::class, 'deleteLogo']);
+    Route::post('settings/organization/cover', [OrganizationSettingController::class, 'uploadCover']);
+    Route::delete('settings/organization/cover', [OrganizationSettingController::class, 'deleteCover']);
 
     Route::get('settings/reminders', [ReminderSettingController::class, 'show']);
     Route::put('settings/reminders', [ReminderSettingController::class, 'update']);
