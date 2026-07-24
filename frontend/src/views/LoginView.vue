@@ -1,6 +1,6 @@
 <script setup>
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -72,9 +72,17 @@ async function onSubmit() {
         </div>
 
         <div>
-          <label for="password" class="mb-1 block text-sm font-medium text-slate-700">
-            Password
-          </label>
+          <div class="mb-1 flex items-baseline justify-between">
+            <label for="password" class="block text-sm font-medium text-slate-700">
+              Password
+            </label>
+            <RouterLink
+              to="/forgot-password"
+              class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            >
+              Forgot?
+            </RouterLink>
+          </div>
           <input
             id="password"
             v-model="form.password"

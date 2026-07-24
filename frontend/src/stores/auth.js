@@ -18,6 +18,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isStaff = computed(() => role.value === 'staff')
   const canManageOperations = computed(() => role.value === 'owner' || role.value === 'manager')
 
+  // Unverified users are not locked out — the dashboard nags instead.
+  const emailVerified = computed(() => user.value?.email_verified === true)
+
   function setSession(data) {
     token.value = data.token
     user.value = data.user
@@ -81,6 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
     isOwner,
     isStaff,
     canManageOperations,
+    emailVerified,
     setSession,
     register,
     login,

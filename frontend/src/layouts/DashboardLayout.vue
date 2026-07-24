@@ -1,13 +1,34 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
+import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { parseApiError } from '@/lib/errors'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const organization = computed(() => authStore.organization)
 const sidebarOpen = ref(false)
+
+// Unverified accounts keep full access — the banner is a nudge, and the
+// user has to be loaded before we can judge either way.
+const showVerifyBanner = computed(() => !!authStore.user && !authStore.emailVerified)
+const resendState = ref('idle')
+const resendMessage = ref('')
+
+async function resendVerification() {
+  resendState.value = 'sending'
+  try {
+    const { data } = await api.post('/auth/email/resend')
+    resendMessage.value = data.message
+    resendState.value = 'sent'
+    if (data.verified) await authStore.fetchMe().catch(() => {})
+  } catch (err) {
+    resendMessage.value = parseApiError(err).message
+    resendState.value = 'failed'
+  }
+}
 
 // `d` holds a heroicons-style outline path so every nav item renders through
 // one <svg> template instead of a bespoke icon block each.
@@ -144,6 +165,33 @@ async function onLogout() {
 
       <main class="px-4 py-6 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-6xl">
+          <div
+            v-if="showVerifyBanner"
+            class="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div class="flex items-start gap-2">
+              <svg class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+              </svg>
+              <span>
+                <template v-if="resendState === 'idle'">
+                  Confirm <span class="font-medium">{{ authStore.user.email }}</span> to secure your
+                  account — check your inbox for the verification link.
+                </template>
+                <template v-else>{{ resendMessage }}</template>
+              </span>
+            </div>
+            <button
+              v-if="resendState !== 'sent'"
+              type="button"
+              :disabled="resendState === 'sending'"
+              class="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              @click="resendVerification"
+            >
+              {{ resendState === 'sending' ? 'Sending…' : 'Resend email' }}
+            </button>
+          </div>
+
           <RouterView />
         </div>
       </main>

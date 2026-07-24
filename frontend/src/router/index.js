@@ -24,6 +24,23 @@ const router = createRouter({
       component: RegisterView,
     },
     {
+      // Emailed-link landing pages. Reachable signed-out by design: the
+      // link is usually opened in a browser with no session.
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
+    },
+    {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: () => import('@/views/VerifyEmailView.vue'),
+    },
+    {
       // Public, standalone customer booking page (no auth, no dashboard shell).
       path: '/book/:slug',
       name: 'public-booking',

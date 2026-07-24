@@ -45,6 +45,7 @@ class EmailVerificationTest extends TestCase
             'verification.verify',
             now()->addMinutes(60),
             ['id' => $user->id, 'hash' => sha1($user->getEmailForVerification())],
+            absolute: false,
         );
     }
 
@@ -113,6 +114,7 @@ class EmailVerificationTest extends TestCase
             'verification.verify',
             now()->addMinutes(60),
             ['id' => $user->id, 'hash' => sha1('someone-else@evil.test')],
+            absolute: false,
         );
 
         $this->getJson($url)->assertForbidden();
@@ -137,6 +139,7 @@ class EmailVerificationTest extends TestCase
             'verification.verify',
             now()->subMinute(),
             ['id' => $user->id, 'hash' => sha1($user->getEmailForVerification())],
+            absolute: false,
         );
 
         $this->getJson($url)->assertForbidden();

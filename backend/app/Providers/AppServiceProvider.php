@@ -46,7 +46,9 @@ class AppServiceProvider extends ServiceProvider
         VerifyEmail::createUrlUsing(function (MustVerifyEmail $notifiable) use ($frontend) {
             // Sign the API route, then hand its parameters to the SPA. The
             // SPA replays them against that same route, so the signature —
-            // which covers the API URL — still validates.
+            // which covers path and query — still validates. Signed
+            // relatively on purpose: the API is reached through a dev proxy
+            // and a production domain that need not match APP_URL.
             $signed = URL::temporarySignedRoute(
                 'verification.verify',
                 now()->addMinutes((int) config('auth.verification.expire', 60)),
@@ -54,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
                     'id' => $notifiable->getKey(),
                     'hash' => sha1($notifiable->getEmailForVerification()),
                 ],
+                absolute: false,
             );
 
             parse_str((string) parse_url($signed, PHP_URL_QUERY), $query);
