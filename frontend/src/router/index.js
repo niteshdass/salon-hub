@@ -102,10 +102,16 @@ const router = createRouter({
           meta: { requiresAuth: true },
         },
         {
+          path: 'gallery',
+          name: 'gallery',
+          component: () => import('@/views/GalleryView.vue'),
+          meta: { requiresAuth: true, roles: ['owner', 'manager'] },
+        },
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('@/views/SettingsView.vue'),
-          meta: { requiresAuth: true, ownerOnly: true },
+          meta: { requiresAuth: true, roles: ['owner'] },
         },
       ],
     },
@@ -120,7 +126,9 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return '/login'
   }
-  if (to.meta.ownerOnly) {
+  // `meta.roles` mirrors the policy behind the page; no list means any
+  // authenticated member may look.
+  if (to.meta.roles) {
     // On a hard refresh the role is not loaded yet; fetch it before
     // deciding, otherwise an owner would bounce off their own page.
     if (!authStore.user) {
@@ -130,7 +138,7 @@ router.beforeEach(async (to) => {
         return '/login'
       }
     }
-    if (!authStore.isOwner) {
+    if (!to.meta.roles.includes(authStore.role)) {
       return '/dashboard'
     }
   }

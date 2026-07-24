@@ -41,7 +41,10 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            // Host-relative by default: the SPA reaches this app through a dev
+            // proxy and a production domain that need not match APP_URL. Point
+            // STORAGE_URL at a CDN to serve the same files from elsewhere.
+            'url' => rtrim(env('STORAGE_URL', '/storage'), '/'),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

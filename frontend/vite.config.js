@@ -24,6 +24,12 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
+      // Uploaded logos, covers and gallery images live on the backend's
+      // public disk and come back as host-relative URLs.
+      '/storage': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
     },
   },
 })
