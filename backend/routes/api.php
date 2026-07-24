@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\ReminderSettingController;
@@ -48,6 +49,8 @@ Route::prefix('auth')->group(function () {
 // Tenant-scoped API: auth:sanctum authenticates, then `tenant` binds the
 // current organization so every query is auto-filtered by organization_id.
 Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
+    Route::get('dashboard', DashboardController::class);
+
     Route::apiResource('customers', CustomerController::class);
     Route::apiResource('appointments', AppointmentController::class);
 
