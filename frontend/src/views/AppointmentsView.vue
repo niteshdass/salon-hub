@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PaymentModal from '@/components/PaymentModal.vue'
 
 // Local (not UTC) YYYY-MM-DD for the current day.
 function todayStr() {
@@ -269,6 +270,19 @@ async function confirmDelete() {
   }
 }
 
+/* ------------------------------ Payments ------------------------------ */
+const paymentTarget = ref(null)
+
+const currency = computed(() => authStore.organization?.currency || 'USD')
+function money(amount) {
+  const value = Number(amount ?? 0)
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.value }).format(value)
+  } catch {
+    return `${currency.value} ${value.toFixed(2)}`
+  }
+}
+
 onMounted(loadAppointments)
 </script>
 
@@ -386,6 +400,10 @@ onMounted(loadAppointments)
                 <dt class="text-slate-400">Branch</dt>
                 <dd class="truncate text-slate-700">{{ appt.branch?.name || '—' }}</dd>
               </div>
+              <div v-if="appt.price != null" class="flex gap-2">
+                <dt class="text-slate-400">Price</dt>
+                <dd class="truncate font-medium text-slate-900">{{ money(appt.price) }}</dd>
+              </div>
             </dl>
             <p v-if="appt.notes" class="mt-2 text-sm text-slate-500">{{ appt.notes }}</p>
           </div>
@@ -405,7 +423,15 @@ onMounted(loadAppointments)
               {{ statusLabel(action) }}
             </button>
           </div>
-          <div v-if="canWrite" class="flex gap-2">
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+              @click="paymentTarget = appt"
+            >
+              Payment
+            </button>
+            <template v-if="canWrite">
             <button
               type="button"
               class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
@@ -420,6 +446,7 @@ onMounted(loadAppointments)
             >
               Delete
             </button>
+            </template>
           </div>
         </div>
       </div>
@@ -630,6 +657,14 @@ onMounted(loadAppointments)
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="confirmTarget = null"
+    />
+
+    <!-- Invoice + payments -->
+    <PaymentModal
+      v-if="paymentTarget"
+      :appointment="paymentTarget"
+      @changed="loadAppointments"
+      @close="paymentTarget = null"
     />
   </div>
 </template>
