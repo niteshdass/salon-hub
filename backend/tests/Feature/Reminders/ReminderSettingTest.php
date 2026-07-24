@@ -145,13 +145,24 @@ class ReminderSettingTest extends TestCase
     public function test_settings_are_tenant_isolated(): void
     {
         [, $tokenA] = $this->orgWithToken('tenanta');
-        [$orgB, $tokenB] = $this->orgWithToken('tenantb');
+        [$orgB] = $this->orgWithToken('tenantb');
 
-        $this->withToken($tokenB)->putJson('/api/settings/reminders', [
-            'enabled' => true, 'channel' => 'sms', 'lead_hours' => 6,
-        ])->assertOk();
+        // Org B already has a saved settings row, written directly with no
+        // tenant bound (mirrors the sibling CRUD isolation tests). Switching
+        // the authenticated tenant across two requests in one test method is
+        // avoided on purpose: Sanctum's RequestGuard memoizes the resolved
+        // user within a booted test app, so a second withToken() request would
+        // re-see the first token's user — a test-harness artifact, not app
+        // behaviour (each real request gets a fresh app). One request as A
+        // proves the global scope hides B's row.
+        ReminderSetting::create([
+            'organization_id' => $orgB->id,
+            'enabled' => true,
+            'channel' => 'sms',
+            'lead_hours' => 6,
+        ]);
 
-        // Tenant A still sees its own defaults, not B's row.
+        // Tenant A sees its own defaults, never B's row.
         $this->withToken($tokenA)->getJson('/api/settings/reminders')
             ->assertJsonPath('data.enabled', false)
             ->assertJsonPath('data.channel', 'whatsapp');
