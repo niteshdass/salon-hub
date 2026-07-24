@@ -11,6 +11,7 @@ use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\Public\BookingController;
+use App\Http\Controllers\Public\SiteController;
 use App\Http\Controllers\ReminderSettingController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
@@ -81,6 +82,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 // query — including implicit {service} binding — is tenant-scoped.
 Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     Route::get('/', [BookingController::class, 'organization']);
+    Route::get('site', SiteController::class);
     Route::get('services', [BookingController::class, 'services']);
     Route::get('services/{service}/staff', [BookingController::class, 'staffForService']);
     Route::get('slots', [BookingController::class, 'slots']);
