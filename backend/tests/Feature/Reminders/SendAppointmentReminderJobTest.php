@@ -14,12 +14,70 @@ use App\Reminders\ReminderChannel;
 use App\Reminders\ReminderChannelManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class SendAppointmentReminderJobTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_a_rejected_message_is_logged_rather_than_thrown(): void
+    {
+        Http::fake(['*' => Http::response(['code' => 21211, 'message' => 'Invalid To'], 400)]);
+        Log::shouldReceive('error')->once();
+
+        $org = Organization::create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Glow Bar',
+            'slug' => 'glow-reject',
+            'email' => 'owner@glow-reject.test',
+            'timezone' => 'UTC',
+            'subscription_plan' => 'free',
+            'status' => 'active',
+        ]);
+        ReminderSetting::create([
+            'organization_id' => $org->id,
+            'enabled' => true,
+            'channel' => 'sms',
+            'lead_hours' => 24,
+            'credentials' => [
+                'account_sid' => 'AC123',
+                'auth_token' => 'secret',
+                'from' => '+15550111',
+            ],
+        ]);
+        $branch = Branch::create(['organization_id' => $org->id, 'name' => 'Main']);
+        $staff = User::create([
+            'organization_id' => $org->id, 'name' => 'Stylist',
+            'email' => 'stylist@glow-reject.test', 'password' => 'secret1234',
+            'role' => 'staff', 'status' => 'active',
+        ]);
+        $service = Service::create([
+            'organization_id' => $org->id, 'name' => 'Haircut',
+            'duration' => 30, 'price' => 20, 'status' => 'active',
+        ]);
+        $customer = Customer::create([
+            'organization_id' => $org->id, 'name' => 'Casey',
+            'phone' => 'nonsense', 'email' => 'casey@example.test',
+        ]);
+        $appointment = Appointment::create([
+            'organization_id' => $org->id,
+            'branch_id' => $branch->id,
+            'customer_id' => $customer->id,
+            'staff_id' => $staff->id,
+            'service_id' => $service->id,
+            'booking_date' => Carbon::parse('2026-08-01')->toDateString(),
+            'start_time' => '14:30:00',
+            'end_time' => '15:00:00',
+            'status' => 'confirmed',
+        ]);
+
+        // The claim already happened when this job was dispatched, so a
+        // failed send is written down and dropped, not retried forever.
+        (new SendAppointmentReminder($appointment->id))->handle(app(ReminderChannelManager::class));
+    }
 
     public function test_job_sends_reminder_message_over_the_resolved_channel(): void
     {
@@ -40,7 +98,7 @@ class SendAppointmentReminderJobTest extends TestCase
             {
             }
 
-            public function for(string $channel): ReminderChannel
+            public function for(ReminderSetting $settings): ReminderChannel
             {
                 return $this->channel;
             }

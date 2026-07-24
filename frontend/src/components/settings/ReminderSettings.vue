@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
 
@@ -10,26 +10,45 @@ const formMessage = ref('')
 const formErrors = ref({})
 const savedOk = ref(false)
 
-// Per-channel credential presence, reported by the API (never the secrets).
-const hasCredentials = reactive({ whatsapp: false, sms: false })
+// Reported by the API: whether an auth token is on file, and whether the
+// platform's own Twilio account would carry reminders regardless.
+const connected = ref(false)
+const platformFallback = ref(false)
 
 const form = reactive({
   enabled: false,
   channel: 'whatsapp',
   lead_hours: 24,
   credentials: {
-    phone_number_id: '',
-    access_token: '',
-    template_name: '',
-    provider: '',
+    account_sid: '',
+    auth_token: '',
     from: '',
-    api_key: '',
+    whatsapp_from: '',
+    messaging_service_sid: '',
   },
 })
+
+// Nothing connected here and nothing behind it: reminders only reach the log.
+const dryRun = computed(() => !connected.value && !platformFallback.value)
 
 function fieldError(key) {
   const e = formErrors.value[key]
   return Array.isArray(e) ? e[0] : e || ''
+}
+
+function apply(settings) {
+  const s = settings || {}
+  form.enabled = !!s.enabled
+  form.channel = s.channel || 'whatsapp'
+  form.lead_hours = s.lead_hours ?? 24
+  form.credentials.account_sid = s.account_sid || ''
+  form.credentials.from = s.from || ''
+  form.credentials.whatsapp_from = s.whatsapp_from || ''
+  form.credentials.messaging_service_sid = s.messaging_service_sid || ''
+  // Write-only: the API never sends it back.
+  form.credentials.auth_token = ''
+  connected.value = !!s.has_credentials?.twilio
+  platformFallback.value = !!s.platform_fallback
 }
 
 async function load() {
@@ -37,12 +56,7 @@ async function load() {
   loadError.value = ''
   try {
     const { data } = await api.get('/settings/reminders')
-    const s = data.data || {}
-    form.enabled = !!s.enabled
-    form.channel = s.channel || 'whatsapp'
-    form.lead_hours = s.lead_hours ?? 24
-    hasCredentials.whatsapp = !!s.has_credentials?.whatsapp
-    hasCredentials.sms = !!s.has_credentials?.sms
+    apply(data.data)
   } catch (err) {
     loadError.value = parseApiError(err, 'Could not load settings.').message
   } finally {
@@ -56,11 +70,11 @@ async function save() {
   formMessage.value = ''
   formErrors.value = {}
   try {
-    // Only send credential fields the user actually typed; blanks are omitted
-    // so the backend keeps any stored secret.
+    // Blank fields are omitted so a masked auth token is never wiped by a
+    // re-save; identifiers are sent as typed.
     const credentials = {}
-    for (const [k, v] of Object.entries(form.credentials)) {
-      if (v !== '' && v != null) credentials[k] = v
+    for (const [key, value] of Object.entries(form.credentials)) {
+      if (value !== '' && value != null) credentials[key] = value
     }
 
     const { data } = await api.put('/settings/reminders', {
@@ -69,12 +83,7 @@ async function save() {
       lead_hours: Number(form.lead_hours),
       credentials,
     })
-    const s = data.data || {}
-    hasCredentials.whatsapp = !!s.has_credentials?.whatsapp
-    hasCredentials.sms = !!s.has_credentials?.sms
-    // Clear the secret inputs after a successful save (they are write-only).
-    form.credentials.access_token = ''
-    form.credentials.api_key = ''
+    apply(data.data)
     savedOk.value = true
   } catch (err) {
     const parsed = parseApiError(err, 'Could not save settings.')
@@ -99,8 +108,11 @@ onMounted(load)
       class="max-w-2xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
       @submit.prevent="save"
     >
-      <div class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        Reminders run in log/test mode until a live provider is connected.
+      <div v-if="dryRun" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        No Twilio account connected — reminders are written to the log instead of sent.
+      </div>
+      <div v-else-if="!connected" class="rounded-lg bg-sky-50 px-4 py-3 text-sm text-sky-800">
+        Sending through the SalonHub Twilio account. Connect your own below to send from your number.
       </div>
 
       <!-- Enable -->
@@ -120,6 +132,7 @@ onMounted(load)
             <input v-model="form.channel" type="radio" value="sms" class="text-indigo-600" /> SMS
           </label>
         </div>
+        <p class="mt-1 text-xs text-slate-500">Both ride the same Twilio account.</p>
         <p v-if="fieldError('channel')" class="mt-1 text-xs text-red-600">{{ fieldError('channel') }}</p>
       </div>
 
@@ -136,53 +149,73 @@ onMounted(load)
         <p v-if="fieldError('lead_hours')" class="mt-1 text-xs text-red-600">{{ fieldError('lead_hours') }}</p>
       </div>
 
-      <!-- WhatsApp connection -->
-      <fieldset v-if="form.channel === 'whatsapp'" class="space-y-3 rounded-xl border border-slate-200 p-4">
+      <!-- Twilio connection -->
+      <fieldset class="space-y-3 rounded-xl border border-slate-200 p-4">
         <legend class="px-1 text-sm font-semibold text-slate-700">
-          WhatsApp connection
-          <span v-if="hasCredentials.whatsapp" class="ml-2 text-xs font-normal text-emerald-600">connected</span>
+          Twilio account
+          <span v-if="connected" class="ml-2 text-xs font-normal text-emerald-600">connected</span>
         </legend>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Phone Number ID</label>
-          <input v-model="form.credentials.phone_number_id" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Access Token</label>
-          <input
-            v-model="form.credentials.access_token"
-            type="password"
-            :placeholder="hasCredentials.whatsapp ? '•••••••• (leave blank to keep)' : ''"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Template name</label>
-          <input v-model="form.credentials.template_name" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-      </fieldset>
 
-      <!-- SMS connection -->
-      <fieldset v-else class="space-y-3 rounded-xl border border-slate-200 p-4">
-        <legend class="px-1 text-sm font-semibold text-slate-700">
-          SMS connection
-          <span v-if="hasCredentials.sms" class="ml-2 text-xs font-normal text-emerald-600">connected</span>
-        </legend>
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Provider</label>
-          <input v-model="form.credentials.provider" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">From number</label>
-          <input v-model="form.credentials.from" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">API key</label>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Account SID</label>
           <input
-            v-model="form.credentials.api_key"
+            v-model="form.credentials.account_sid"
+            type="text"
+            placeholder="AC…"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+          />
+          <p v-if="fieldError('credentials.account_sid')" class="mt-1 text-xs text-red-600">
+            {{ fieldError('credentials.account_sid') }}
+          </p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Auth Token</label>
+          <input
+            v-model="form.credentials.auth_token"
             type="password"
-            :placeholder="hasCredentials.sms ? '•••••••• (leave blank to keep)' : ''"
+            :placeholder="connected ? '•••••••• (leave blank to keep)' : ''"
             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
+          <p v-if="fieldError('credentials.auth_token')" class="mt-1 text-xs text-red-600">
+            {{ fieldError('credentials.auth_token') }}
+          </p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">SMS sender</label>
+            <input
+              v-model="form.credentials.from"
+              type="text"
+              placeholder="+15550111"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">WhatsApp sender</label>
+            <input
+              v-model="form.credentials.whatsapp_from"
+              type="text"
+              placeholder="+14155238886"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">
+            Messaging Service SID <span class="font-normal text-slate-400">(optional)</span>
+          </label>
+          <input
+            v-model="form.credentials.messaging_service_sid"
+            type="text"
+            placeholder="MG…"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+          />
+          <p class="mt-1 text-xs text-slate-500">
+            When set, Twilio picks the sender and the numbers above are ignored.
+          </p>
         </div>
       </fieldset>
 

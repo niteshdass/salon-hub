@@ -28,6 +28,19 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+     * Platform Twilio account. Carries reminders for every salon that has
+     * not connected its own credentials in Settings → Reminders. Leave the
+     * values empty and reminders fall back to the log driver.
+     */
+    'twilio' => [
+        'account_sid' => env('TWILIO_ACCOUNT_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'from' => env('TWILIO_FROM'),
+        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
+        'messaging_service_sid' => env('TWILIO_MESSAGING_SERVICE_SID'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

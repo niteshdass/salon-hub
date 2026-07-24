@@ -22,13 +22,14 @@ class UpdateReminderSettingRequest extends FormRequest
             'enabled' => ['required', 'boolean'],
             'channel' => ['required', Rule::in(['whatsapp', 'sms'])],
             'lead_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            // Twilio carries both channels: the same account, a different
+            // sender and an address scheme for WhatsApp.
             'credentials' => ['nullable', 'array'],
-            'credentials.phone_number_id' => ['nullable', 'string', 'max:255'],
-            'credentials.access_token' => ['nullable', 'string', 'max:1024'],
-            'credentials.template_name' => ['nullable', 'string', 'max:255'],
-            'credentials.provider' => ['nullable', 'string', 'max:255'],
+            'credentials.account_sid' => ['nullable', 'string', 'max:255'],
+            'credentials.auth_token' => ['nullable', 'string', 'max:1024'],
             'credentials.from' => ['nullable', 'string', 'max:255'],
-            'credentials.api_key' => ['nullable', 'string', 'max:1024'],
+            'credentials.whatsapp_from' => ['nullable', 'string', 'max:255'],
+            'credentials.messaging_service_sid' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

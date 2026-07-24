@@ -44,7 +44,7 @@ class SendAppointmentReminder implements ShouldQueue
         }
 
         try {
-            $channels->for($settings->channel)->send($phone, $this->buildMessage($appointment));
+            $channels->for($settings)->send($phone, $this->buildMessage($appointment));
         } catch (Throwable $e) {
             Log::error('Appointment reminder send failed', [
                 'appointment_id' => $appointment->id,

@@ -49,23 +49,35 @@ class ReminderSettingController extends Controller
     }
 
     /**
-     * Safe public shape: config values + per-channel credential presence.
-     * Never includes secret values.
+     * Safe public shape: config values, the Twilio identifiers the form
+     * needs to render, and whether a secret is on file. The auth token
+     * itself never leaves the server.
      *
      * @return array<string, mixed>
      */
     private function payload(?ReminderSetting $settings): array
     {
         $credentials = $settings?->credentials ?? [];
+        $platform = array_filter((array) config('services.twilio', []), fn ($value) => filled($value));
 
         return [
             'enabled' => (bool) ($settings?->enabled ?? false),
             'channel' => $settings?->channel ?: 'whatsapp',
             'lead_hours' => (int) ($settings?->lead_hours ?? 24),
+
+            // Identifiers, not secrets — the form is not blank on return.
+            'account_sid' => $credentials['account_sid'] ?? null,
+            'from' => $credentials['from'] ?? null,
+            'whatsapp_from' => $credentials['whatsapp_from'] ?? null,
+            'messaging_service_sid' => $credentials['messaging_service_sid'] ?? null,
+
             'has_credentials' => [
-                'whatsapp' => filled($credentials['access_token'] ?? null),
-                'sms' => filled($credentials['api_key'] ?? null),
+                'twilio' => filled($credentials['auth_token'] ?? null),
             ],
+            // Reminders still go out without any of the above when the
+            // platform account is configured.
+            'platform_fallback' => filled($platform['account_sid'] ?? null)
+                && filled($platform['auth_token'] ?? null),
         ];
     }
 }

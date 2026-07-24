@@ -36,11 +36,11 @@ class ReminderSettingTest extends TestCase
             'enabled' => true,
             'channel' => 'whatsapp',
             'lead_hours' => 24,
-            'credentials' => ['access_token' => 'super-secret-token'],
+            'credentials' => ['auth_token' => 'super-secret-token'],
         ]);
 
         // Model round-trips the array.
-        $this->assertSame('super-secret-token', $settings->fresh()->credentials['access_token']);
+        $this->assertSame('super-secret-token', $settings->fresh()->credentials['auth_token']);
         $this->assertTrue($settings->fresh()->enabled);
         $this->assertSame(24, $settings->fresh()->lead_hours);
 
@@ -84,8 +84,25 @@ class ReminderSettingTest extends TestCase
         $res->assertJsonPath('data.enabled', false);
         $res->assertJsonPath('data.channel', 'whatsapp');
         $res->assertJsonPath('data.lead_hours', 24);
-        $res->assertJsonPath('data.has_credentials.whatsapp', false);
-        $res->assertJsonPath('data.has_credentials.sms', false);
+        $res->assertJsonPath('data.has_credentials.twilio', false);
+        $res->assertJsonPath('data.account_sid', null);
+        $res->assertJsonPath('data.from', null);
+    }
+
+    public function test_get_reports_whether_the_platform_can_send_without_setup(): void
+    {
+        [, $token] = $this->orgWithToken('platformfallback');
+        config(['services.twilio' => [
+            'account_sid' => 'ACplatform',
+            'auth_token' => 'platform-token',
+            'from' => '+15550999',
+        ]]);
+
+        $this->withToken($token)->getJson('/api/settings/reminders')
+            ->assertOk()
+            // The salon has connected nothing, but reminders will still go out.
+            ->assertJsonPath('data.has_credentials.twilio', false)
+            ->assertJsonPath('data.platform_fallback', true);
     }
 
     public function test_put_persists_settings_and_never_returns_secret(): void
@@ -97,16 +114,19 @@ class ReminderSettingTest extends TestCase
             'channel' => 'whatsapp',
             'lead_hours' => 48,
             'credentials' => [
-                'phone_number_id' => '123456',
-                'access_token' => 'top-secret',
-                'template_name' => 'reminder_util',
+                'account_sid' => 'AC123456',
+                'auth_token' => 'top-secret',
+                'whatsapp_from' => '+14155238886',
             ],
         ]);
 
         $res->assertOk();
         $res->assertJsonPath('data.enabled', true);
         $res->assertJsonPath('data.lead_hours', 48);
-        $res->assertJsonPath('data.has_credentials.whatsapp', true);
+        $res->assertJsonPath('data.has_credentials.twilio', true);
+        // Identifiers come back so the form is not blank on the next visit.
+        $res->assertJsonPath('data.account_sid', 'AC123456');
+        $res->assertJsonPath('data.whatsapp_from', '+14155238886');
         // Secret value is never present anywhere in the response body.
         $this->assertStringNotContainsString('top-secret', $res->getContent());
 
@@ -126,7 +146,7 @@ class ReminderSettingTest extends TestCase
             'enabled' => true,
             'channel' => 'whatsapp',
             'lead_hours' => 24,
-            'credentials' => ['access_token' => 'keep-me'],
+            'credentials' => ['auth_token' => 'keep-me'],
         ])->assertOk();
 
         // Second save re-submits with the secret field blank (masked form).
@@ -134,11 +154,11 @@ class ReminderSettingTest extends TestCase
             'enabled' => true,
             'channel' => 'whatsapp',
             'lead_hours' => 12,
-            'credentials' => ['access_token' => ''],
+            'credentials' => ['auth_token' => ''],
         ])->assertOk();
 
         $stored = ReminderSetting::where('organization_id', $org->id)->first();
-        $this->assertSame('keep-me', $stored->credentials['access_token']);
+        $this->assertSame('keep-me', $stored->credentials['auth_token']);
         $this->assertSame(12, $stored->lead_hours);
     }
 
