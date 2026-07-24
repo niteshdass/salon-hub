@@ -2,13 +2,14 @@
 
 namespace App\Http\Requests\Service;
 
+use App\Models\ServiceCategory;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreServiceCategoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('create', ServiceCategory::class);
     }
 
     /**

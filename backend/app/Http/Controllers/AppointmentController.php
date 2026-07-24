@@ -35,8 +35,15 @@ class AppointmentController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', Appointment::class);
+
+        // A staff member only ever sees their own schedule; a policy can
+        // gate a row but cannot narrow a collection, so filter here.
+        $user = $request->user();
+
         $appointments = Appointment::query()
             ->with(self::RELATIONS)
+            ->when($user->isStaff(), fn ($q) => $q->where('staff_id', $user->id))
             ->when($request->filled('date'), fn ($q) => $q->whereDate('booking_date', $request->query('date')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->when($request->filled('staff_id'), fn ($q) => $q->where('staff_id', $request->query('staff_id')))
@@ -87,6 +94,8 @@ class AppointmentController extends Controller
 
     public function show(Appointment $appointment): AppointmentResource
     {
+        $this->authorize('view', $appointment);
+
         return new AppointmentResource($appointment->load(self::RELATIONS));
     }
 
@@ -119,6 +128,8 @@ class AppointmentController extends Controller
 
     public function destroy(Appointment $appointment): Response
     {
+        $this->authorize('delete', $appointment);
+
         $appointment->delete();
 
         return response()->noContent();

@@ -27,6 +27,8 @@ class StaffController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', User::class);
+
         $staff = $this->baseQuery()
             ->with(['staffProfile', 'services'])
             ->latest('id')
@@ -77,6 +79,8 @@ class StaffController extends Controller
 
     public function show(string $staff): StaffResource
     {
+        $this->authorize('view', User::class);
+
         $user = $this->findStaffOrFail($staff);
 
         return new StaffResource($user->load(['staffProfile', 'services']));
@@ -121,6 +125,8 @@ class StaffController extends Controller
 
     public function destroy(string $staff): Response
     {
+        $this->authorize('delete', User::class);
+
         $user = $this->findStaffOrFail($staff);
 
         DB::transaction(function () use ($user) {

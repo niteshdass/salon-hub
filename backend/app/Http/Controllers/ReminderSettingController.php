@@ -17,6 +17,8 @@ class ReminderSettingController extends Controller
 {
     public function show(): JsonResponse
     {
+        $this->authorize('viewAny', ReminderSetting::class);
+
         $settings = ReminderSetting::query()->first();
 
         return response()->json(['data' => $this->payload($settings)]);

@@ -18,6 +18,8 @@ class ServiceCategoryController extends Controller
      */
     public function index(): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', ServiceCategory::class);
+
         return ServiceCategoryResource::collection(
             ServiceCategory::withCount('services')->latest('id')->get()
         );
@@ -33,6 +35,8 @@ class ServiceCategoryController extends Controller
 
     public function show(ServiceCategory $category): ServiceCategoryResource
     {
+        $this->authorize('view', $category);
+
         return new ServiceCategoryResource($category->loadCount('services'));
     }
 
@@ -45,6 +49,8 @@ class ServiceCategoryController extends Controller
 
     public function destroy(ServiceCategory $category): Response
     {
+        $this->authorize('delete', $category);
+
         $category->delete();
 
         return response()->noContent();

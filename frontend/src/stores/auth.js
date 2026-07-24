@@ -10,6 +10,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
 
+  // Mirrors the backend policies (app/Policies): the owner configures the
+  // organization, owner + manager run daily operations, staff only work
+  // their own schedule. Hiding controls here is UX — the API is the gate.
+  const role = computed(() => user.value?.role ?? null)
+  const isOwner = computed(() => role.value === 'owner')
+  const isStaff = computed(() => role.value === 'staff')
+  const canManageOperations = computed(() => role.value === 'owner' || role.value === 'manager')
+
   function setSession(data) {
     token.value = data.token
     user.value = data.user
@@ -69,6 +77,10 @@ export const useAuthStore = defineStore('auth', () => {
     organization,
     loading,
     isAuthenticated,
+    role,
+    isOwner,
+    isStaff,
+    canManageOperations,
     setSession,
     register,
     login,

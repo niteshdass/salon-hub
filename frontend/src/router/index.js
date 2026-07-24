@@ -82,20 +82,34 @@ const router = createRouter({
           path: 'settings',
           name: 'settings',
           component: () => import('@/views/SettingsView.vue'),
-          meta: { requiresAuth: true },
+          meta: { requiresAuth: true, ownerOnly: true },
         },
       ],
     },
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   // Instantiate the store inside the guard — pinia is active by the time
   // navigation runs (main.js registers it before mounting the router).
   const authStore = useAuthStore()
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return '/login'
+  }
+  if (to.meta.ownerOnly) {
+    // On a hard refresh the role is not loaded yet; fetch it before
+    // deciding, otherwise an owner would bounce off their own page.
+    if (!authStore.user) {
+      try {
+        await authStore.fetchMe()
+      } catch {
+        return '/login'
+      }
+    }
+    if (!authStore.isOwner) {
+      return '/dashboard'
+    }
   }
   if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
     return '/dashboard'

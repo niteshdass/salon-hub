@@ -1,9 +1,14 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+
+// The catalogue is maintained by owner/manager; staff read it only.
+const authStore = useAuthStore()
+const canWrite = computed(() => authStore.canManageOperations)
 
 /* ------------------------------ Categories ------------------------------ */
 const categories = ref([])
@@ -206,7 +211,7 @@ onMounted(() => {
         <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <h2 class="text-base font-semibold text-slate-900">Categories</h2>
 
-          <form class="mt-4 flex gap-2" @submit.prevent="addCategory">
+          <form v-if="canWrite" class="mt-4 flex gap-2" @submit.prevent="addCategory">
             <input
               v-model="newCategoryName"
               type="text"
@@ -236,6 +241,7 @@ onMounted(() => {
                   <p class="text-xs text-slate-400">{{ cat.services_count ?? 0 }} service(s)</p>
                 </div>
                 <button
+                  v-if="canWrite"
                   type="button"
                   class="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                   aria-label="Delete category"
@@ -256,6 +262,7 @@ onMounted(() => {
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-base font-semibold text-slate-900">All services</h2>
           <button
+            v-if="canWrite"
             type="button"
             class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
             @click="openCreate"
@@ -319,7 +326,7 @@ onMounted(() => {
                     </span>
                   </td>
                   <td class="px-5 py-3.5 text-right">
-                    <div class="flex justify-end gap-2">
+                    <div v-if="canWrite" class="flex justify-end gap-2">
                       <button
                         type="button"
                         class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"

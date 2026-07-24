@@ -2,15 +2,21 @@
 
 namespace App\Http\Requests\Staff;
 
+use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateStaffRequest extends FormRequest
 {
+    /**
+     * Class-level check: the staff row is resolved manually inside the
+     * controller (User has no tenant global scope), and the rule depends
+     * on the actor's role only.
+     */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('update', User::class);
     }
 
     /**

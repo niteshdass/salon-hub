@@ -59,6 +59,31 @@ class User extends Authenticatable
         ];
     }
 
+    public function isOwner(): bool
+    {
+        return $this->role === UserRole::OWNER;
+    }
+
+    public function isManager(): bool
+    {
+        return $this->role === UserRole::MANAGER;
+    }
+
+    public function isStaff(): bool
+    {
+        return $this->role === UserRole::STAFF;
+    }
+
+    /**
+     * Owner + manager both run day-to-day operations (appointments,
+     * customers, staff, services). Only the owner touches org-level
+     * configuration (branches, reminder settings).
+     */
+    public function isManagerOrOwner(): bool
+    {
+        return $this->isOwner() || $this->isManager();
+    }
+
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);

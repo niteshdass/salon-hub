@@ -48,6 +48,9 @@ const form = reactive({
   working_hours_end: '',
 })
 
+// Owner + manager maintain the team; staff only read it.
+const canWrite = computed(() => authStore.canManageOperations)
+
 const confirmTarget = ref(null)
 const deleting = ref(false)
 
@@ -227,7 +230,7 @@ onMounted(() => {
         <p class="mt-1 text-sm text-slate-500">Manage your team and their services.</p>
       </div>
       <button
-        v-if="!staffLimitReached"
+        v-if="canWrite && !staffLimitReached"
         type="button"
         class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -237,7 +240,7 @@ onMounted(() => {
         </svg>
         Add staff
       </button>
-      <p v-else class="text-xs text-slate-500">
+      <p v-else-if="canWrite" class="text-xs text-slate-500">
         Your free plan allows only 10 staff.
       </p>
     </div>
@@ -270,6 +273,7 @@ onMounted(() => {
       <p class="text-sm font-medium text-slate-900">No staff yet</p>
       <p class="mt-1 text-sm text-slate-500">Add your first team member to get started.</p>
       <button
+        v-if="canWrite"
         type="button"
         class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -322,7 +326,7 @@ onMounted(() => {
           </span>
         </div>
 
-        <div class="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <div v-if="canWrite" class="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
           <button
             type="button"
             class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"

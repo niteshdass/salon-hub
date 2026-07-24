@@ -20,6 +20,8 @@ class BranchController extends Controller
      */
     public function index(): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', Branch::class);
+
         return BranchResource::collection(Branch::query()->latest('id')->get());
     }
 
@@ -36,6 +38,8 @@ class BranchController extends Controller
 
     public function show(Branch $branch): BranchResource
     {
+        $this->authorize('view', $branch);
+
         return new BranchResource($branch);
     }
 
@@ -48,6 +52,8 @@ class BranchController extends Controller
 
     public function destroy(Branch $branch): Response
     {
+        $this->authorize('delete', $branch);
+
         $branch->delete();
 
         return response()->noContent();

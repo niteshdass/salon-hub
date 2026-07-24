@@ -4,6 +4,7 @@ namespace App\Http\Requests\Appointment;
 
 use App\Enums\AppointmentStatus;
 use App\Enums\UserRole;
+use App\Models\Appointment;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,7 +13,7 @@ class StoreAppointmentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('create', Appointment::class);
     }
 
     /**

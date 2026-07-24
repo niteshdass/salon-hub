@@ -20,6 +20,8 @@ class CustomerController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', Customer::class);
+
         return CustomerResource::collection(Customer::query()->latest('id')->get());
     }
 
@@ -32,6 +34,8 @@ class CustomerController extends Controller
 
     public function show(Customer $customer): CustomerResource
     {
+        $this->authorize('view', $customer);
+
         return new CustomerResource($customer);
     }
 
@@ -44,6 +48,8 @@ class CustomerController extends Controller
 
     public function destroy(Customer $customer): Response
     {
+        $this->authorize('delete', $customer);
+
         $customer->delete();
 
         return response()->noContent();

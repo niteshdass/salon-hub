@@ -10,9 +10,21 @@ use Illuminate\Validation\Rule;
 
 class UpdateAppointmentRequest extends FormRequest
 {
+    /**
+     * Two gates: who may touch this row (policy — staff are limited to
+     * their own schedule), and what they may change. A staff member may
+     * only move an appointment through its statuses; rescheduling,
+     * reassigning or re-pricing stays with owner/manager.
+     */
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+
+        if (! $user->can('update', $this->route('appointment'))) {
+            return false;
+        }
+
+        return ! $user->isStaff() || array_diff(array_keys($this->all()), ['status']) === [];
     }
 
     /**

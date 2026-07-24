@@ -19,6 +19,8 @@ class ServiceController extends Controller
      */
     public function index(): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', Service::class);
+
         return ServiceResource::collection(
             Service::with('category')->latest('id')->get()
         );
@@ -37,6 +39,8 @@ class ServiceController extends Controller
 
     public function show(Service $service): ServiceResource
     {
+        $this->authorize('view', $service);
+
         return new ServiceResource($service->load('category'));
     }
 
@@ -49,6 +53,8 @@ class ServiceController extends Controller
 
     public function destroy(Service $service): Response
     {
+        $this->authorize('delete', $service);
+
         $service->delete();
 
         return response()->noContent();

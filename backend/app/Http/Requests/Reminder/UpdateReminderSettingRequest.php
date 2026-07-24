@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Reminder;
 
+use App\Models\ReminderSetting;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +10,7 @@ class UpdateReminderSettingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('update', ReminderSetting::class);
     }
 
     /**

@@ -1,9 +1,14 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+
+// Staff may read the customer book but not edit it.
+const authStore = useAuthStore()
+const canWrite = computed(() => authStore.canManageOperations)
 
 const customers = ref([])
 const loading = ref(false)
@@ -127,6 +132,7 @@ onMounted(loadCustomers)
         <p class="mt-1 text-sm text-slate-500">Manage the people who book with you.</p>
       </div>
       <button
+        v-if="canWrite"
         type="button"
         class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -158,6 +164,7 @@ onMounted(loadCustomers)
       <p class="text-sm font-medium text-slate-900">No customers yet</p>
       <p class="mt-1 text-sm text-slate-500">Add your first customer to get started.</p>
       <button
+        v-if="canWrite"
         type="button"
         class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -191,7 +198,7 @@ onMounted(loadCustomers)
                 <span class="block truncate">{{ customer.notes || '—' }}</span>
               </td>
               <td class="px-5 py-3.5 text-right">
-                <div class="flex justify-end gap-2">
+                <div v-if="canWrite" class="flex justify-end gap-2">
                   <button
                     type="button"
                     class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"

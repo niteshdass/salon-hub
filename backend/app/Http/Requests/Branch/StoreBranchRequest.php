@@ -2,13 +2,19 @@
 
 namespace App\Http\Requests\Branch;
 
+use App\Models\Branch;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreBranchRequest extends FormRequest
 {
+    /**
+     * Authorized here rather than in the controller so a forbidden role
+     * gets a 403 before validation (or the plan-limit check) can turn it
+     * into a 422.
+     */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('create', Branch::class);
     }
 
     /**

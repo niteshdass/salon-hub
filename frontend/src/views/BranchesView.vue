@@ -52,6 +52,10 @@ const form = reactive({
   hours: defaultHours(),
 })
 
+// Branches are org-level configuration: the API only lets an owner write
+// them, so hide the controls for everyone else.
+const canWrite = computed(() => authStore.isOwner)
+
 const confirmTarget = ref(null)
 const deleting = ref(false)
 
@@ -212,7 +216,7 @@ onMounted(loadBranches)
         <p class="mt-1 text-sm text-slate-500">Manage your salon locations.</p>
       </div>
       <button
-        v-if="!branchLimitReached"
+        v-if="canWrite && !branchLimitReached"
         type="button"
         class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -222,7 +226,7 @@ onMounted(loadBranches)
         </svg>
         Add branch
       </button>
-      <p v-else class="text-xs text-slate-500">
+      <p v-else-if="canWrite" class="text-xs text-slate-500">
         Your free plan allows only 1 branch.
       </p>
     </div>
@@ -257,7 +261,7 @@ onMounted(loadBranches)
       <p class="text-sm font-medium text-slate-900">No branches yet</p>
       <p class="mt-1 text-sm text-slate-500">Add your first location to get started.</p>
       <button
-        v-if="!branchLimitReached"
+        v-if="canWrite && !branchLimitReached"
         type="button"
         class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -288,7 +292,7 @@ onMounted(loadBranches)
             <td class="hidden px-5 py-3.5 text-sm text-slate-600 md:table-cell">{{ branch.city || '—' }}</td>
             <td class="hidden px-5 py-3.5 text-sm text-slate-600 lg:table-cell">{{ branch.email || '—' }}</td>
             <td class="px-5 py-3.5 text-right">
-              <div class="flex justify-end gap-2">
+              <div v-if="canWrite" class="flex justify-end gap-2">
                 <button
                   type="button"
                   class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"

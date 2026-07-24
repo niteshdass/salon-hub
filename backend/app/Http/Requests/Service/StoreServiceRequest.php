@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Service;
 
 use App\Enums\ServiceStatus;
+use App\Models\Service;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -11,7 +12,7 @@ class StoreServiceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('create', Service::class);
     }
 
     /**

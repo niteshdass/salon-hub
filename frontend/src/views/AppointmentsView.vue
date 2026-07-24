@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import api from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -34,6 +35,11 @@ function statusBadge(status) {
 }
 
 /* ------------------------------ Day list ------------------------------ */
+// Staff see only their own schedule (the API filters the list) and may
+// only move an appointment through its statuses.
+const authStore = useAuthStore()
+const canWrite = computed(() => authStore.canManageOperations)
+
 const selectedDate = ref(todayStr())
 const statusFilter = ref('')
 
@@ -269,6 +275,7 @@ onMounted(loadAppointments)
         <p class="mt-1 text-sm text-slate-500">Book and manage your day's schedule.</p>
       </div>
       <button
+        v-if="canWrite"
         type="button"
         class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -326,6 +333,7 @@ onMounted(loadAppointments)
       <p class="text-sm font-medium text-slate-900">No appointments for this day</p>
       <p class="mt-1 text-sm text-slate-500">Pick another date or create a new booking.</p>
       <button
+        v-if="canWrite"
         type="button"
         class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
         @click="openCreate"
@@ -392,7 +400,7 @@ onMounted(loadAppointments)
               {{ statusLabel(action) }}
             </button>
           </div>
-          <div class="flex gap-2">
+          <div v-if="canWrite" class="flex gap-2">
             <button
               type="button"
               class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
