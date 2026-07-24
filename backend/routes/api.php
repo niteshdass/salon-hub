@@ -10,6 +10,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\HelloController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\SiteController;
 use App\Http\Controllers\ReminderSettingController;
@@ -56,6 +58,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 
     Route::apiResource('customers', CustomerController::class);
     Route::apiResource('appointments', AppointmentController::class);
+
+    // Money against a booking: payments taken and the computed invoice.
+    Route::get('appointments/{appointment}/payments', [PaymentController::class, 'index']);
+    Route::post('appointments/{appointment}/payments', [PaymentController::class, 'store']);
+    Route::delete('appointments/{appointment}/payments/{payment}', [PaymentController::class, 'destroy']);
+    Route::get('appointments/{appointment}/invoice', InvoiceController::class);
 
     Route::apiResource('branches', BranchController::class);
     Route::apiResource('categories', ServiceCategoryController::class)

@@ -28,6 +28,7 @@ class AppointmentFactory extends Factory
             'booking_date' => fake()->dateTimeBetween('-15 days', '+30 days')->format('Y-m-d'),
             'start_time' => $start,
             'end_time' => $end,
+            'price' => fake()->randomElement([20, 25, 40, 60, 90]),
             'status' => fake()->randomElement(AppointmentStatus::cases())->value,
             'notes' => fake()->optional()->sentence(8),
         ];

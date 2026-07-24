@@ -89,18 +89,17 @@ class DashboardController extends Controller
     }
 
     /**
-     * Money actually taken today: a booking only earns once it is marked
-     * completed, and the amount is the service price at read time.
+     * Money earned today: a booking earns once it is marked completed, at
+     * the price snapshotted onto it when it was booked.
      */
     protected function revenueFor(User $user, string $today): float
     {
-        // Columns are qualified because of the join — both tables carry a
-        // status-ish name space.
+        // The price frozen on the booking, not a menu price that may have
+        // changed since — a completed booking earns exactly what it quoted.
         $total = $this->scopedAppointments($user)
-            ->whereDate('appointments.booking_date', $today)
-            ->where('appointments.status', AppointmentStatus::COMPLETED->value)
-            ->join('services', 'services.id', '=', 'appointments.service_id')
-            ->sum('services.price');
+            ->whereDate('booking_date', $today)
+            ->where('status', AppointmentStatus::COMPLETED->value)
+            ->sum('price');
 
         return round((float) $total, 2);
     }

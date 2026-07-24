@@ -7,6 +7,7 @@ use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Appointment extends Model
@@ -23,6 +24,7 @@ class Appointment extends Model
         'booking_date',
         'start_time',
         'end_time',
+        'price',
         'status',
         'reminder_sent_at',
         'notes',
@@ -44,6 +46,7 @@ class Appointment extends Model
     {
         return [
             'booking_date' => 'date',
+            'price' => 'decimal:2',
             'status' => AppointmentStatus::class,
             'reminder_sent_at' => 'datetime',
         ];
@@ -72,5 +75,22 @@ class Appointment extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /** Total collected against this booking. */
+    public function amountPaid(): string
+    {
+        return number_format((float) $this->payments->sum('amount'), 2, '.', '');
+    }
+
+    /** Outstanding balance: quoted price less what has been collected. */
+    public function balanceDue(): string
+    {
+        return number_format((float) $this->price - (float) $this->amountPaid(), 2, '.', '');
     }
 }

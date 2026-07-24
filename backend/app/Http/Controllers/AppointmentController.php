@@ -74,7 +74,7 @@ class AppointmentController extends Controller
             return $this->conflictResponse();
         }
 
-        $appointment = DB::transaction(function () use ($data, $startTime, $endTime) {
+        $appointment = DB::transaction(function () use ($data, $service, $startTime, $endTime) {
             return Appointment::create([
                 'branch_id' => $data['branch_id'],
                 'customer_id' => $this->resolveCustomerId($data),
@@ -83,6 +83,8 @@ class AppointmentController extends Controller
                 'booking_date' => $data['booking_date'],
                 'start_time' => $startTime,
                 'end_time' => $endTime,
+                // Freeze what this booking owes at the price on the menu today.
+                'price' => $service->price,
                 'status' => $data['status'] ?? AppointmentStatus::PENDING->value,
                 'notes' => $data['notes'] ?? null,
             ]);

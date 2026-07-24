@@ -175,7 +175,7 @@ class BookingController extends Controller
 
         $branchId = $branch->id;
 
-        $appointment = DB::transaction(function () use ($data, $branchId, $startTime, $endTime) {
+        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime) {
             // Find-or-create by phone within the tenant. When the customer
             // already exists we keep their stored name/email (no overwrite).
             $customer = Customer::firstOrCreate(
@@ -194,6 +194,8 @@ class BookingController extends Controller
                 'booking_date' => $data['date'],
                 'start_time' => $startTime,
                 'end_time' => $endTime,
+                // Freeze what this booking owes at today's menu price.
+                'price' => $service->price,
                 'status' => AppointmentStatus::PENDING->value,
                 'notes' => null,
             ]);

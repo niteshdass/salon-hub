@@ -89,6 +89,8 @@ class DashboardTest extends TestCase
             'booking_date' => $date,
             'start_time' => $start,
             'end_time' => $start,
+            // Bookings snapshot the service price, as the real booking paths do.
+            'price' => $s['service']->price,
             'status' => $status,
         ]);
     }
@@ -134,6 +136,23 @@ class DashboardTest extends TestCase
         $this->book($s, '2026-08-10', '10:00:00', 'completed');
         $this->book($s, '2026-08-10', '14:00:00', 'confirmed'); // not earned yet
         $this->book($s, '2026-08-09', '14:00:00', 'completed'); // yesterday
+
+        $response = $this->actingAsRole($s, 'owner')->getJson('/api/dashboard');
+
+        $response->assertOk();
+        $response->assertJsonPath('today.revenue', 60);
+    }
+
+    public function test_revenue_uses_the_price_snapshotted_on_the_booking(): void
+    {
+        Carbon::setTestNow('2026-08-10 12:00:00');
+        $s = $this->scaffold(price: 30);
+
+        $this->book($s, '2026-08-10', '09:00:00', 'completed');
+        $this->book($s, '2026-08-10', '10:00:00', 'completed');
+
+        // Raising the menu price must not rewrite already-earned revenue.
+        $s['service']->update(['price' => 999]);
 
         $response = $this->actingAsRole($s, 'owner')->getJson('/api/dashboard');
 

@@ -20,6 +20,7 @@ class AppointmentResource extends JsonResource
                 : $this->booking_date,
             'start_time' => $this->formatTime($this->start_time),
             'end_time' => $this->formatTime($this->end_time),
+            'price' => $this->price,
             'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
             'notes' => $this->notes,
             'branch' => $this->branch ? [

@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Policies;
+
+use App\Models\Payment;
+use App\Models\User;
+
+/**
+ * Anyone on the team can see and take a payment at checkout; only an owner
+ * or manager can delete a recorded payment, since removing a money record
+ * is a correction that should not sit with front-desk staff.
+ */
+class PaymentPolicy
+{
+    public function viewAny(User $user): bool
+    {
+        return true;
+    }
+
+    public function create(User $user): bool
+    {
+        return true;
+    }
+
+    public function delete(User $user, Payment $payment): bool
+    {
+        return $user->isManagerOrOwner();
+    }
+}

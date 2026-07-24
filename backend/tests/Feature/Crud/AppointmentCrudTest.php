@@ -148,6 +148,35 @@ class AppointmentCrudTest extends TestCase
         ]);
     }
 
+    public function test_create_snapshots_service_price_onto_the_appointment(): void
+    {
+        $ctx = $this->scaffold('priced');
+
+        $response = $this->withToken($ctx['token'])->postJson('/api/appointments', $this->bookingPayload($ctx));
+
+        $response->assertCreated();
+        $response->assertJsonPath('data.price', '25.00');
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $response->json('data.id'),
+            'price' => 25,
+        ]);
+    }
+
+    public function test_price_snapshot_survives_a_later_service_price_change(): void
+    {
+        $ctx = $this->scaffold('frozen');
+
+        $id = $this->withToken($ctx['token'])
+            ->postJson('/api/appointments', $this->bookingPayload($ctx))
+            ->json('data.id');
+
+        // Raising the menu price must not rewrite what an existing booking owes.
+        $ctx['service']->update(['price' => 99]);
+
+        $this->assertDatabaseHas('appointments', ['id' => $id, 'price' => 25]);
+    }
+
     public function test_overlapping_booking_for_same_staff_conflicts(): void
     {
         $ctx = $this->scaffold('gamma');
