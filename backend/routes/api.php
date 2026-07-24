@@ -6,6 +6,7 @@ use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\Public\BookingController;
+use App\Http\Controllers\ReminderSettingController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\StaffController;
@@ -40,6 +41,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::apiResource('services', ServiceController::class);
     Route::apiResource('staff', StaffController::class)
         ->parameters(['staff' => 'staff']);
+
+    Route::get('settings/reminders', [ReminderSettingController::class, 'show']);
+    Route::put('settings/reminders', [ReminderSettingController::class, 'update']);
 });
 
 // Public (no-auth) customer booking site. `public.tenant` resolves the
