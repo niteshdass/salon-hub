@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\EmailVerificationController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\HelloController;
@@ -23,9 +25,23 @@ Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
 
+    // Password reset. Throttled hard: both endpoints are unauthenticated
+    // and both send or consume a token tied to a real account.
+    Route::post('forgot-password', [PasswordResetController::class, 'sendLink'])
+        ->middleware('throttle:6,1');
+    Route::post('reset-password', [PasswordResetController::class, 'reset'])
+        ->middleware('throttle:6,1');
+
+    // Signed, not authenticated — the link is clicked from an inbox.
+    Route::get('verify-email/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+        ->middleware(['signed', 'throttle:6,1'])
+        ->name('verification.verify');
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
+        Route::post('email/resend', [EmailVerificationController::class, 'resend'])
+            ->middleware('throttle:6,1');
     });
 });
 

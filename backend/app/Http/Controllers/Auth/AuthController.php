@@ -9,6 +9,7 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\OrganizationResource;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -23,6 +24,9 @@ class AuthController extends Controller
 
         $user = $result['user'];
         $organization = $result['organization'];
+
+        // Sends the verification email (User implements MustVerifyEmail).
+        event(new Registered($user));
 
         $token = $user->createToken('api')->plainTextToken;
 
