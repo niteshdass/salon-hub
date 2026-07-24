@@ -38,6 +38,8 @@ class SiteController extends Controller
                 'slug' => $organization->slug,
                 'email' => $organization->email,
                 'phone' => $organization->phone,
+                // Prices on the page are the salon's, not the visitor's.
+                'currency' => $organization->currency,
                 'logo_url' => $this->url($organization->logo),
                 'cover_image_url' => $this->url($organization->cover_image),
 

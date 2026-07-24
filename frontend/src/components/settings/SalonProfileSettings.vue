@@ -51,6 +51,10 @@ const bookingUrl = computed(() =>
   slug.value ? `${window.location.origin}/book/${slug.value}` : '',
 )
 
+const siteUrl = computed(() =>
+  slug.value ? `${window.location.origin}/salon/${slug.value}` : '',
+)
+
 function fieldError(key) {
   const e = formErrors.value[key]
   return Array.isArray(e) ? e[0] : e || ''
@@ -283,19 +287,29 @@ onMounted(load)
             </div>
           </div>
 
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-800">Booking link</label>
-            <div class="flex items-center gap-2">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-800">Public page</label>
+              <input
+                :value="siteUrl"
+                type="text"
+                readonly
+                class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
+              />
+              <a :href="siteUrl" target="_blank" rel="noopener" class="mt-1 inline-block text-xs font-medium text-indigo-600">
+                Open ↗
+              </a>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-800">Booking link</label>
               <input
                 :value="bookingUrl"
                 type="text"
                 readonly
                 class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
               />
+              <p class="mt-1 text-xs text-slate-500">Fixed — every link you have shared points here.</p>
             </div>
-            <p class="mt-1 text-xs text-slate-500">
-              Fixed — every link you have shared points here.
-            </p>
           </div>
         </section>
 

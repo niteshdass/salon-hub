@@ -33,6 +33,7 @@ class PublicSiteTest extends TestCase
             'slug' => $slug,
             'email' => "hello@{$slug}.test",
             'phone' => '+1 555 0100',
+            'currency' => 'USD',
             'logo' => "organizations/{$slug}/logo.png",
             'cover_image' => "organizations/{$slug}/cover.jpg",
             'subscription_plan' => 'free',
@@ -73,6 +74,7 @@ class PublicSiteTest extends TestCase
         $response->assertJsonPath('data.theme_color', '#ff0055');
         $response->assertJsonPath('data.email', 'hello@alpha.test');
         $response->assertJsonPath('data.phone', '+1 555 0100');
+        $response->assertJsonPath('data.currency', 'USD');
         $response->assertJsonPath('data.social.instagram', 'https://instagram.com/alpha');
         $this->assertStringContainsString('logo.png', $response->json('data.logo_url'));
         $this->assertStringContainsString('cover.jpg', $response->json('data.cover_image_url'));

@@ -41,6 +41,12 @@ const router = createRouter({
       component: () => import('@/views/VerifyEmailView.vue'),
     },
     {
+      // The salon's own shopfront: story, services, team, gallery, address.
+      path: '/salon/:slug',
+      name: 'salon-site',
+      component: () => import('@/views/SalonSiteView.vue'),
+    },
+    {
       // Public, standalone customer booking page (no auth, no dashboard shell).
       path: '/book/:slug',
       name: 'public-booking',
