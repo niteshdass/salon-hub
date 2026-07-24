@@ -57,7 +57,7 @@ class ReminderSettingTest extends TestCase
     }
 
     /**
-     * @return array{0: Organization, 1: User}
+     * @return array{0: Organization, 1: string}
      */
     private function orgWithToken(string $slug): array
     {
@@ -71,14 +71,14 @@ class ReminderSettingTest extends TestCase
             'status' => 'active',
         ]);
 
-        return [$org, $owner];
+        return [$org, $owner->createToken('api')->plainTextToken];
     }
 
     public function test_get_returns_defaults_when_no_settings_row_exists(): void
     {
-        [, $owner] = $this->orgWithToken('showdefaults');
+        [, $token] = $this->orgWithToken('showdefaults');
 
-        $res = $this->actingAs($owner, 'sanctum')->getJson('/api/settings/reminders');
+        $res = $this->withToken($token)->getJson('/api/settings/reminders');
 
         $res->assertOk();
         $res->assertJsonPath('data.enabled', false);
@@ -90,9 +90,9 @@ class ReminderSettingTest extends TestCase
 
     public function test_put_persists_settings_and_never_returns_secret(): void
     {
-        [$org, $owner] = $this->orgWithToken('savecreds');
+        [$org, $token] = $this->orgWithToken('savecreds');
 
-        $res = $this->actingAs($owner, 'sanctum')->putJson('/api/settings/reminders', [
+        $res = $this->withToken($token)->putJson('/api/settings/reminders', [
             'enabled' => true,
             'channel' => 'whatsapp',
             'lead_hours' => 48,
@@ -119,10 +119,10 @@ class ReminderSettingTest extends TestCase
 
     public function test_put_with_blank_credential_preserves_stored_secret(): void
     {
-        [$org, $owner] = $this->orgWithToken('preserve');
+        [$org, $token] = $this->orgWithToken('preserve');
 
         // First save writes the secret.
-        $this->actingAs($owner, 'sanctum')->putJson('/api/settings/reminders', [
+        $this->withToken($token)->putJson('/api/settings/reminders', [
             'enabled' => true,
             'channel' => 'whatsapp',
             'lead_hours' => 24,
@@ -130,7 +130,7 @@ class ReminderSettingTest extends TestCase
         ])->assertOk();
 
         // Second save re-submits with the secret field blank (masked form).
-        $this->actingAs($owner, 'sanctum')->putJson('/api/settings/reminders', [
+        $this->withToken($token)->putJson('/api/settings/reminders', [
             'enabled' => true,
             'channel' => 'whatsapp',
             'lead_hours' => 12,
@@ -144,15 +144,15 @@ class ReminderSettingTest extends TestCase
 
     public function test_settings_are_tenant_isolated(): void
     {
-        [, $ownerA] = $this->orgWithToken('tenanta');
-        [$orgB, $ownerB] = $this->orgWithToken('tenantb');
+        [, $tokenA] = $this->orgWithToken('tenanta');
+        [$orgB, $tokenB] = $this->orgWithToken('tenantb');
 
-        $this->actingAs($ownerB, 'sanctum')->putJson('/api/settings/reminders', [
+        $this->withToken($tokenB)->putJson('/api/settings/reminders', [
             'enabled' => true, 'channel' => 'sms', 'lead_hours' => 6,
         ])->assertOk();
 
         // Tenant A still sees its own defaults, not B's row.
-        $this->actingAs($ownerA, 'sanctum')->getJson('/api/settings/reminders')
+        $this->withToken($tokenA)->getJson('/api/settings/reminders')
             ->assertJsonPath('data.enabled', false)
             ->assertJsonPath('data.channel', 'whatsapp');
 
@@ -164,9 +164,9 @@ class ReminderSettingTest extends TestCase
 
     public function test_put_validates_channel_and_lead_hours(): void
     {
-        [, $owner] = $this->orgWithToken('validate');
+        [, $token] = $this->orgWithToken('validate');
 
-        $this->actingAs($owner, 'sanctum')->putJson('/api/settings/reminders', [
+        $this->withToken($token)->putJson('/api/settings/reminders', [
             'enabled' => true,
             'channel' => 'carrier-pigeon',
             'lead_hours' => 999,
