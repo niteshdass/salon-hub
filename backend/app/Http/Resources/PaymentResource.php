@@ -16,6 +16,8 @@ class PaymentResource extends JsonResource
             'id' => $this->id,
             'amount' => $this->amount,
             'method' => $this->method instanceof \BackedEnum ? $this->method->value : $this->method,
+            'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
+            'source' => $this->source instanceof \BackedEnum ? $this->source->value : $this->source,
             'reference' => $this->reference,
             'notes' => $this->notes,
             // The staff account may since be gone; fall back to a dash.

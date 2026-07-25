@@ -42,6 +42,7 @@ class InvoiceController extends Controller
             ]],
             'subtotal' => $appointment->price,
             'amount_paid' => $appointment->amountPaid(),
+            'amount_pending' => $appointment->amountPending(),
             'balance_due' => $appointment->balanceDue(),
             'paid_in_full' => (float) $appointment->balanceDue() <= 0,
 

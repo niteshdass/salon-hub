@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\PaymentMethod;
+use App\Enums\PaymentSource;
+use App\Enums\PaymentStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,6 +20,8 @@ class Payment extends Model
         'recorded_by',
         'amount',
         'method',
+        'status',
+        'source',
         'reference',
         'notes',
     ];
@@ -27,6 +31,8 @@ class Payment extends Model
         return [
             'amount' => 'decimal:2',
             'method' => PaymentMethod::class,
+            'status' => PaymentStatus::class,
+            'source' => PaymentSource::class,
         ];
     }
 

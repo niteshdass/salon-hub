@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\PaymentStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -82,13 +83,27 @@ class Appointment extends Model
         return $this->hasMany(Payment::class);
     }
 
-    /** Total collected against this booking. */
+    /** Total confirmed money against this booking — verified payments only. */
     public function amountPaid(): string
     {
-        return number_format((float) $this->payments->sum('amount'), 2, '.', '');
+        $sum = $this->payments
+            ->where('status', PaymentStatus::VERIFIED)
+            ->sum('amount');
+
+        return number_format((float) $sum, 2, '.', '');
     }
 
-    /** Outstanding balance: quoted price less what has been collected. */
+    /** Money submitted but not yet confirmed by the salon (awaiting verification). */
+    public function amountPending(): string
+    {
+        $sum = $this->payments
+            ->where('status', PaymentStatus::PENDING)
+            ->sum('amount');
+
+        return number_format((float) $sum, 2, '.', '');
+    }
+
+    /** Outstanding balance: quoted price less what has been confirmed collected. */
     public function balanceDue(): string
     {
         return number_format((float) $this->price - (float) $this->amountPaid(), 2, '.', '');

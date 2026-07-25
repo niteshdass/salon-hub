@@ -12,6 +12,7 @@ use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\SiteController;
 use App\Http\Controllers\ReminderSettingController;
@@ -63,6 +64,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('appointments/{appointment}/payments', [PaymentController::class, 'index']);
     Route::post('appointments/{appointment}/payments', [PaymentController::class, 'store']);
     Route::delete('appointments/{appointment}/payments/{payment}', [PaymentController::class, 'destroy']);
+    Route::post('appointments/{appointment}/payments/{payment}/verify', [PaymentController::class, 'verify']);
     Route::get('appointments/{appointment}/invoice', InvoiceController::class);
 
     Route::apiResource('branches', BranchController::class);
@@ -83,6 +85,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 
     Route::get('settings/reminders', [ReminderSettingController::class, 'show']);
     Route::put('settings/reminders', [ReminderSettingController::class, 'update']);
+
+    Route::get('settings/payments', [PaymentSettingController::class, 'show']);
+    Route::put('settings/payments', [PaymentSettingController::class, 'update']);
 });
 
 // Public (no-auth) customer booking site. `public.tenant` resolves the

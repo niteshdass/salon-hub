@@ -26,4 +26,13 @@ class PaymentPolicy
     {
         return $user->isManagerOrOwner();
     }
+
+    /**
+     * Confirming a customer's submitted deposit releases the booking's
+     * balance — a money decision reserved for an owner or manager.
+     */
+    public function verify(User $user, Payment $payment): bool
+    {
+        return $user->isManagerOrOwner();
+    }
 }

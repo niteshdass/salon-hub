@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PaymentSource;
+use App\Enums\PaymentStatus;
 use App\Http\Requests\Payment\StorePaymentRequest;
 use App\Http\Resources\PaymentResource;
 use App\Models\Appointment;
@@ -33,13 +35,33 @@ class PaymentController extends Controller
 
     public function store(StorePaymentRequest $request, Appointment $appointment): JsonResponse
     {
+        // Taken at the counter by a team member: confirmed money, not a
+        // customer-submitted deposit awaiting verification.
         $payment = $appointment->payments()->create([
             ...$request->validated(),
             'recorded_by' => $request->user()->id,
+            'status' => PaymentStatus::VERIFIED,
+            'source' => PaymentSource::STAFF,
         ]);
 
         return (new PaymentResource($payment->load('recorder')))
             ->response()->setStatusCode(201);
+    }
+
+    /**
+     * Confirm a customer-submitted deposit (e.g. a manual transfer reference)
+     * once the owner has checked the money arrived. Only then does it count
+     * toward the booking's balance.
+     */
+    public function verify(Appointment $appointment, Payment $payment): JsonResponse
+    {
+        abort_unless($payment->appointment_id === $appointment->id, 404);
+
+        $this->authorize('verify', $payment);
+
+        $payment->update(['status' => PaymentStatus::VERIFIED]);
+
+        return (new PaymentResource($payment->load('recorder')))->response();
     }
 
     public function destroy(Appointment $appointment, Payment $payment): Response
