@@ -143,6 +143,111 @@ class PaymentControllerTest extends TestCase
         $response->assertJsonPath('data.0.transaction_id', 'SHABC123');
     }
 
+    /** A captured online deposit on the appointment, ready to refund. */
+    private function gatewayDeposit(array $ctx): Payment
+    {
+        return $ctx['appointment']->payments()->create([
+            'organization_id' => $ctx['org']->id,
+            'amount' => 10,
+            'method' => \App\Enums\PaymentMethod::ONLINE,
+            'status' => \App\Enums\PaymentStatus::VERIFIED,
+            'source' => \App\Enums\PaymentSource::GATEWAY,
+            'transaction_id' => 'SHABC123',
+            'bank_tran_id' => 'BANK-77',
+        ]);
+    }
+
+    public function test_owner_refunds_a_gateway_deposit(): void
+    {
+        $ctx = $this->scaffold('gwrefund');
+        // The org needs SSLCommerz settings so the refund can be addressed.
+        \App\Models\PaymentSetting::create([
+            'organization_id' => $ctx['org']->id,
+            'deposit_type' => 'percent', 'deposit_value' => 20,
+            'gateway' => 'sslcommerz', 'gateway_sandbox' => true,
+            'credentials' => ['store_id' => 'store', 'store_passwd' => 'pass'],
+        ]);
+        $payment = $this->gatewayDeposit($ctx);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => \Illuminate\Support\Facades\Http::response([
+                'APIConnect' => 'DONE', 'status' => 'success', 'refund_ref_id' => 'RF-9',
+            ]),
+        ]);
+
+        $response = $this->withToken($ctx['ownerToken'])->postJson(
+            "/api/appointments/{$ctx['appointment']->id}/payments/{$payment->id}/refund",
+        );
+
+        $response->assertOk();
+        $response->assertJsonPath('data.status', 'refunded');
+
+        $fresh = $payment->fresh();
+        $this->assertSame('refunded', $fresh->status->value);
+        $this->assertSame('RF-9', $fresh->refund_ref);
+        $this->assertNotNull($fresh->refunded_at);
+
+        // The refund was addressed to the gateway's bank_tran_id.
+        \Illuminate\Support\Facades\Http::assertSent(fn ($request) => str_contains($request->url(), 'merchantTransIDvalidationAPI.php')
+            && $request['bank_tran_id'] === 'BANK-77'
+            && $request['refund_amount'] === '10.00');
+    }
+
+    public function test_staff_cannot_refund_a_gateway_deposit(): void
+    {
+        $ctx = $this->scaffold('gwrefund-staff');
+        $payment = $this->gatewayDeposit($ctx);
+
+        $this->withToken($ctx['staffToken'])->postJson(
+            "/api/appointments/{$ctx['appointment']->id}/payments/{$payment->id}/refund",
+        )->assertStatus(403);
+
+        $this->assertSame('verified', $payment->fresh()->status->value);
+    }
+
+    public function test_a_non_gateway_payment_cannot_be_refunded(): void
+    {
+        $ctx = $this->scaffold('gwrefund-cash');
+        $payment = $ctx['appointment']->payments()->create([
+            'organization_id' => $ctx['org']->id, 'amount' => 10,
+            'method' => \App\Enums\PaymentMethod::CASH,
+            'status' => \App\Enums\PaymentStatus::VERIFIED,
+            'source' => \App\Enums\PaymentSource::STAFF,
+        ]);
+
+        $this->withToken($ctx['ownerToken'])->postJson(
+            "/api/appointments/{$ctx['appointment']->id}/payments/{$payment->id}/refund",
+        )->assertStatus(422);
+
+        $this->assertSame('verified', $payment->fresh()->status->value);
+    }
+
+    public function test_a_declined_gateway_refund_leaves_the_payment_verified(): void
+    {
+        $ctx = $this->scaffold('gwrefund-fail');
+        \App\Models\PaymentSetting::create([
+            'organization_id' => $ctx['org']->id,
+            'deposit_type' => 'percent', 'deposit_value' => 20,
+            'gateway' => 'sslcommerz', 'gateway_sandbox' => true,
+            'credentials' => ['store_id' => 'store', 'store_passwd' => 'pass'],
+        ]);
+        $payment = $this->gatewayDeposit($ctx);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => \Illuminate\Support\Facades\Http::response([
+                'APIConnect' => 'DONE', 'status' => 'failed', 'errorReason' => 'Already refunded',
+            ]),
+        ]);
+
+        $this->withToken($ctx['ownerToken'])->postJson(
+            "/api/appointments/{$ctx['appointment']->id}/payments/{$payment->id}/refund",
+        )->assertStatus(422);
+
+        // Nothing was returned, so the deposit is still on the books.
+        $this->assertSame('verified', $payment->fresh()->status->value);
+        $this->assertNull($payment->fresh()->refunded_at);
+    }
+
     public function test_amount_and_method_are_validated(): void
     {
         $ctx = $this->scaffold('valpay');

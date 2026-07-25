@@ -74,4 +74,31 @@ class SslcommerzGatewayTest extends TestCase
             $request->url(), 'https://securepay.sslcommerz.com/validator',
         ));
     }
+
+    public function test_refund_posts_the_bank_transaction_amount_and_credentials(): void
+    {
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
+                'APIConnect' => 'DONE',
+                'status' => 'success',
+                'refund_ref_id' => 'RF-123',
+            ]),
+        ]);
+
+        $result = app(SslcommerzGateway::class)->refund(
+            $this->settings(true), 'BANK-99', '10.00', 'Booking cancelled',
+        );
+
+        $this->assertSame('success', $result['status']);
+        $this->assertSame('RF-123', $result['refund_ref_id']);
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), 'merchantTransIDvalidationAPI.php')
+                && $request['bank_tran_id'] === 'BANK-99'
+                && $request['refund_amount'] === '10.00'
+                && $request['refund_remarks'] === 'Booking cancelled'
+                && $request['store_id'] === 'store'
+                && $request['store_passwd'] === 'pass';
+        });
+    }
 }

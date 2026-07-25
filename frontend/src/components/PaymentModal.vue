@@ -15,6 +15,7 @@ const authStore = useAuthStore()
 // anyone may take a payment.
 const canDelete = computed(() => authStore.canManageOperations)
 const canVerify = computed(() => authStore.canManageOperations)
+const canRefund = computed(() => authStore.canManageOperations)
 
 const currency = computed(() => authStore.organization?.currency || 'USD')
 function money(amount) {
@@ -226,6 +227,24 @@ async function verify(payment) {
   }
 }
 
+/* ------------------------------ Refund ------------------------------ */
+// Return a captured online deposit to the customer through the gateway.
+const refundingId = ref(null)
+
+async function refund(payment) {
+  if (!window.confirm('Refund this online deposit to the customer?')) return
+  refundingId.value = payment.id
+  try {
+    await api.post(`${base.value}/payments/${payment.id}/refund`)
+    await load()
+    emit('changed')
+  } catch (err) {
+    loadError.value = parseApiError(err, 'Could not refund the payment.').message
+  } finally {
+    refundingId.value = null
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -314,6 +333,12 @@ onMounted(load)
               >
                 Pending
               </span>
+              <span
+                v-if="p.status === 'refunded'"
+                class="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+              >
+                Refunded
+              </span>
             </span>
             <span class="flex items-center gap-3">
               <span v-if="p.recorded_by" class="text-xs text-slate-400">{{ p.recorded_by }}</span>
@@ -325,6 +350,15 @@ onMounted(load)
                 @click="verify(p)"
               >
                 {{ verifyingId === p.id ? 'Verifying…' : 'Verify' }}
+              </button>
+              <button
+                v-if="canRefund && p.source === 'gateway' && p.status === 'verified'"
+                type="button"
+                :disabled="refundingId === p.id"
+                class="text-xs font-medium text-sky-600 hover:text-sky-700 disabled:opacity-50"
+                @click="refund(p)"
+              >
+                {{ refundingId === p.id ? 'Refunding…' : 'Refund' }}
               </button>
               <button
                 v-if="canDelete"

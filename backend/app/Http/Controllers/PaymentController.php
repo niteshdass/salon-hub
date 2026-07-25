@@ -8,6 +8,8 @@ use App\Http\Requests\Payment\StorePaymentRequest;
 use App\Http\Resources\PaymentResource;
 use App\Models\Appointment;
 use App\Models\Payment;
+use App\Models\PaymentSetting;
+use App\Services\SslcommerzGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -62,6 +64,54 @@ class PaymentController extends Controller
         $payment->update(['status' => PaymentStatus::VERIFIED]);
 
         return (new PaymentResource($payment->load('recorder')))->response();
+    }
+
+    /**
+     * Return a captured online deposit to the customer via the gateway. Only a
+     * verified gateway payment (with the bank_tran_id needed to address the
+     * refund) qualifies; counter and manual payments are settled off-platform.
+     * The deposit is marked refunded only once SSLCommerz accepts the request.
+     */
+    public function refund(Appointment $appointment, Payment $payment, SslcommerzGateway $gateway): JsonResponse
+    {
+        abort_unless($payment->appointment_id === $appointment->id, 404);
+
+        $this->authorize('refund', $payment);
+
+        if ($payment->source !== PaymentSource::GATEWAY
+            || $payment->status !== PaymentStatus::VERIFIED
+            || blank($payment->bank_tran_id)) {
+            return response()->json(['message' => 'This payment cannot be refunded.'], 422);
+        }
+
+        $settings = PaymentSetting::query()->first();
+        if (! $settings || ! $settings->gatewayEnabled()) {
+            return response()->json(['message' => 'The online gateway is not configured.'], 422);
+        }
+
+        $result = $gateway->refund(
+            $settings,
+            $payment->bank_tran_id,
+            (string) $payment->amount,
+            'Refund for booking #'.$appointment->id,
+        );
+
+        // SSLCommerz processes refunds asynchronously; success/processing means
+        // the request was accepted. Anything else leaves the money on the books.
+        $status = strtolower((string) ($result['status'] ?? ''));
+        if (! in_array($status, ['success', 'processing', 'initiated'], true)) {
+            return response()->json([
+                'message' => $result['errorReason'] ?? 'The gateway declined the refund.',
+            ], 422);
+        }
+
+        $payment->update([
+            'status' => PaymentStatus::REFUNDED,
+            'refund_ref' => $result['refund_ref_id'] ?? null,
+            'refunded_at' => now(),
+        ]);
+
+        return (new PaymentResource($payment->fresh()->load('recorder')))->response();
     }
 
     public function destroy(Appointment $appointment, Payment $payment): Response

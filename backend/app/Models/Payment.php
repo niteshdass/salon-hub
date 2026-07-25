@@ -24,6 +24,9 @@ class Payment extends Model
         'source',
         'reference',
         'transaction_id',
+        'bank_tran_id',
+        'refund_ref',
+        'refunded_at',
         'notes',
     ];
 
@@ -34,6 +37,7 @@ class Payment extends Model
             'method' => PaymentMethod::class,
             'status' => PaymentStatus::class,
             'source' => PaymentSource::class,
+            'refunded_at' => 'datetime',
         ];
     }
 

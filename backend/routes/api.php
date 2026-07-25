@@ -66,6 +66,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::post('appointments/{appointment}/payments', [PaymentController::class, 'store']);
     Route::delete('appointments/{appointment}/payments/{payment}', [PaymentController::class, 'destroy']);
     Route::post('appointments/{appointment}/payments/{payment}/verify', [PaymentController::class, 'verify']);
+    Route::post('appointments/{appointment}/payments/{payment}/refund', [PaymentController::class, 'refund']);
     Route::get('appointments/{appointment}/invoice', InvoiceController::class);
 
     Route::apiResource('branches', BranchController::class);

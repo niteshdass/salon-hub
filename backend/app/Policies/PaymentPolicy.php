@@ -35,4 +35,13 @@ class PaymentPolicy
     {
         return $user->isManagerOrOwner();
     }
+
+    /**
+     * Returning a captured online deposit to the customer — like deleting a
+     * money record, this is an owner/manager decision, not a front-desk one.
+     */
+    public function refund(User $user, Payment $payment): bool
+    {
+        return $user->isManagerOrOwner();
+    }
 }

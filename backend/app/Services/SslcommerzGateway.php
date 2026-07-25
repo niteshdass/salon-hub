@@ -80,4 +80,28 @@ class SslcommerzGateway
 
         return $response->json() ?? [];
     }
+
+    /**
+     * Request a refund of a captured transaction by its bank transaction id.
+     * Refunds are processed asynchronously by SSLCommerz; the response reports
+     * whether the request was accepted (status success / processing) and a
+     * refund_ref_id to track it.
+     *
+     * @return array<string, mixed>  the decoded refund response
+     */
+    public function refund(PaymentSetting $settings, string $bankTranId, string $amount, string $remarks): array
+    {
+        $creds = $settings->credentials ?? [];
+
+        $response = Http::get($this->baseUrl($settings).'/validator/api/merchantTransIDvalidationAPI.php', [
+            'bank_tran_id' => $bankTranId,
+            'refund_amount' => $amount,
+            'refund_remarks' => $remarks,
+            'store_id' => $creds['store_id'] ?? '',
+            'store_passwd' => $creds['store_passwd'] ?? '',
+            'format' => 'json',
+        ]);
+
+        return $response->json() ?? [];
+    }
 }

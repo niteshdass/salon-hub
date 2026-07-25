@@ -173,6 +173,30 @@ class PublicGatewayBookingTest extends TestCase
         $this->assertSame('verified', $payment->fresh()->status->value);
     }
 
+    public function test_a_validated_callback_stores_the_bank_transaction_id_for_refunds(): void
+    {
+        $payment = $this->bookOnline('gw-banktran');
+        $tran = $payment->transaction_id;
+
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
+                'status' => 'VALID',
+                'tran_id' => $tran,
+                'amount' => '10.00',
+                'bank_tran_id' => 'BANK-2026-XYZ',
+                'val_id' => 'VAL-OK',
+            ]),
+        ]);
+
+        $this->post("/api/public/gw-banktran/payment/{$tran}/callback/success", [
+            'val_id' => 'VAL-OK',
+            'tran_id' => $tran,
+        ])->assertRedirect();
+
+        // The gateway's bank_tran_id is needed later to refund this deposit.
+        $this->assertSame('BANK-2026-XYZ', $payment->fresh()->bank_tran_id);
+    }
+
     public function test_a_validated_callback_confirms_the_booking(): void
     {
         $payment = $this->bookOnline('gw-confirm');

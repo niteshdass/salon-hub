@@ -88,12 +88,27 @@ class PaymentCallbackController extends Controller
     {
         $settings = PaymentSetting::query()->first();
 
-        if (! $settings || $valId === '' || ! $this->isGenuinelyPaid($settings, $payment, $tran, $valId)) {
+        if (! $settings || $valId === '') {
             return false;
         }
 
+        $result = $this->gateway->validate($settings, $valId);
+
+        if (! $this->isGenuinelyPaid($result, $payment, $tran)) {
+            return false;
+        }
+
+        // Mark verified once, and record the gateway's bank_tran_id the first
+        // time we see it — it is what a later refund is issued against.
+        $attrs = [];
         if ($payment->status !== PaymentStatus::VERIFIED) {
-            $payment->update(['status' => PaymentStatus::VERIFIED]);
+            $attrs['status'] = PaymentStatus::VERIFIED;
+        }
+        if (filled($result['bank_tran_id'] ?? null) && blank($payment->bank_tran_id)) {
+            $attrs['bank_tran_id'] = $result['bank_tran_id'];
+        }
+        if ($attrs !== []) {
+            $payment->update($attrs);
         }
 
         // A captured online deposit confirms the booking outright — no owner
@@ -120,14 +135,14 @@ class PaymentCallbackController extends Controller
     }
 
     /**
-     * Confirm with SSLCommerz that the transaction is validated, matches this
-     * payment's own id, and covers at least the deposit amount owed. Guards
-     * against replayed / tampered browser callbacks.
+     * Confirm a validation response reports a real transaction that matches
+     * this payment's own id and covers at least the deposit amount owed.
+     * Guards against replayed / tampered browser callbacks.
+     *
+     * @param  array<string, mixed>  $result  the gateway's validation response
      */
-    protected function isGenuinelyPaid(PaymentSetting $settings, Payment $payment, string $tran, string $valId): bool
+    protected function isGenuinelyPaid(array $result, Payment $payment, string $tran): bool
     {
-        $result = $this->gateway->validate($settings, $valId);
-
         $status = strtoupper((string) ($result['status'] ?? ''));
         $tranMatches = (string) ($result['tran_id'] ?? '') === $tran;
         $amountCovered = isset($result['amount']) && (float) $result['amount'] >= (float) $payment->amount;
