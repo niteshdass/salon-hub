@@ -14,9 +14,8 @@ const formMessage = ref('')
 const formErrors = ref({})
 const savedOk = ref(false)
 
-// Reported by the API: whether an online gateway is configured (secrets never
-// come back — only their presence).
-const gateway = ref('none')
+// Reported by the API: whether gateway secrets are on file (they never come
+// back — only their presence).
 const hasGatewayCredentials = ref(false)
 
 const form = reactive({
@@ -25,6 +24,12 @@ const form = reactive({
   manual_enabled: false,
   manual_account_number: '',
   manual_instructions: '',
+  gateway: 'none',
+  gateway_sandbox: true,
+  credentials: {
+    store_id: '',
+    store_passwd: '',
+  },
 })
 
 function fieldError(key) {
@@ -40,7 +45,11 @@ function apply(settings) {
   form.manual_enabled = !!s.manual_enabled
   form.manual_account_number = s.manual_account_number || ''
   form.manual_instructions = s.manual_instructions || ''
-  gateway.value = s.gateway || 'none'
+  form.gateway = s.gateway || 'none'
+  form.gateway_sandbox = s.gateway_sandbox !== false
+  form.credentials.store_id = s.credentials?.store_id || ''
+  // Write-only: the API never returns the secret.
+  form.credentials.store_passwd = ''
   hasGatewayCredentials.value = !!s.has_gateway_credentials
 }
 
@@ -63,6 +72,13 @@ async function save() {
   formMessage.value = ''
   formErrors.value = {}
   try {
+    // Blank credential fields are omitted so a masked secret is never wiped
+    // by a re-save; identifiers go as typed.
+    const credentials = {}
+    for (const [key, value] of Object.entries(form.credentials)) {
+      if (value !== '' && value != null) credentials[key] = value
+    }
+
     const { data } = await api.put('/settings/payments', {
       deposit_type: form.deposit_type,
       // Only meaningful when a deposit is charged; the API forces it to 0 for "none".
@@ -70,6 +86,9 @@ async function save() {
       manual_enabled: form.manual_enabled,
       manual_account_number: form.manual_account_number || null,
       manual_instructions: form.manual_instructions || null,
+      gateway: form.gateway,
+      gateway_sandbox: form.gateway_sandbox,
+      credentials,
     })
     apply(data.data)
     savedOk.value = true
@@ -180,14 +199,67 @@ onMounted(load)
         </div>
       </fieldset>
 
-      <!-- Online gateway (next phase) -->
-      <fieldset class="space-y-2 rounded-xl border border-dashed border-slate-200 p-4">
-        <legend class="px-1 text-sm font-semibold text-slate-500">Online gateway</legend>
-        <p class="text-xs text-slate-500">
-          SSLCommerz card / mobile-banking payments
-          <span v-if="hasGatewayCredentials" class="ml-1 text-emerald-600">— connected</span>
-          <span v-else class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">coming soon</span>
-        </p>
+      <!-- Online gateway -->
+      <fieldset class="space-y-3 rounded-xl border border-slate-200 p-4">
+        <legend class="px-1 text-sm font-semibold text-slate-700">
+          Online gateway
+          <span v-if="form.gateway !== 'none' && hasGatewayCredentials" class="ml-2 text-xs font-normal text-emerald-600">
+            connected
+          </span>
+        </legend>
+        <p class="text-xs text-slate-500">Let customers pay the deposit by card or mobile banking.</p>
+
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Provider</label>
+          <select
+            v-model="form.gateway"
+            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm sm:w-64"
+          >
+            <option value="none">None</option>
+            <option value="sslcommerz">SSLCommerz</option>
+          </select>
+        </div>
+
+        <div v-if="form.gateway === 'sslcommerz'" class="space-y-3">
+          <label class="flex items-center gap-3">
+            <input v-model="form.gateway_sandbox" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" />
+            <span class="text-sm text-slate-800">
+              Sandbox (test) mode
+              <span class="text-xs text-slate-400">— turn off only with live credentials</span>
+            </span>
+          </label>
+
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">Store ID</label>
+            <input
+              v-model="form.credentials.store_id"
+              type="text"
+              placeholder="e.g. glow5f0a1b2c3"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+            />
+            <p v-if="fieldError('credentials.store_id')" class="mt-1 text-xs text-red-600">
+              {{ fieldError('credentials.store_id') }}
+            </p>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">Store password</label>
+            <input
+              v-model="form.credentials.store_passwd"
+              type="password"
+              :placeholder="hasGatewayCredentials ? '•••••••• (leave blank to keep)' : ''"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <p v-if="fieldError('credentials.store_passwd')" class="mt-1 text-xs text-red-600">
+              {{ fieldError('credentials.store_passwd') }}
+            </p>
+          </div>
+
+          <p class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            Get your sandbox Store ID and password from the SSLCommerz developer dashboard. You can
+            select the provider now and add the keys later.
+          </p>
+        </div>
       </fieldset>
 
       <p v-if="formMessage" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ formMessage }}</p>

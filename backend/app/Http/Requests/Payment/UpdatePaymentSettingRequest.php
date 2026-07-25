@@ -42,6 +42,15 @@ class UpdatePaymentSettingRequest extends FormRequest
                 'nullable', 'string', 'max:255',
             ],
             'manual_instructions' => ['nullable', 'string', 'max:2000'],
+
+            // Online gateway. Credentials are optional so the gateway can be
+            // selected now and its keys entered later; a blank secret on
+            // re-save keeps the stored one (handled in the controller).
+            'gateway' => ['nullable', Rule::in(['none', 'sslcommerz'])],
+            'gateway_sandbox' => ['nullable', 'boolean'],
+            'credentials' => ['nullable', 'array'],
+            'credentials.store_id' => ['nullable', 'string', 'max:255'],
+            'credentials.store_passwd' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

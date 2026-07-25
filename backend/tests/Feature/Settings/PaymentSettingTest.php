@@ -112,6 +112,66 @@ class PaymentSettingTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('manual_account_number');
     }
 
+    public function test_owner_connects_the_sslcommerz_gateway_and_secrets_never_return(): void
+    {
+        $ctx = $this->scaffold('pay-gw');
+
+        $save = $this->withToken($ctx['ownerToken'])->putJson('/api/settings/payments', [
+            'deposit_type' => 'none', 'deposit_value' => 0, 'manual_enabled' => false,
+            'gateway' => 'sslcommerz',
+            'gateway_sandbox' => true,
+            'credentials' => ['store_id' => 'glow-store', 'store_passwd' => 'super-secret'],
+        ]);
+
+        $save->assertOk();
+        $save->assertJsonPath('data.gateway', 'sslcommerz');
+        $save->assertJsonPath('data.gateway_sandbox', true);
+        $save->assertJsonPath('data.has_gateway_credentials', true);
+        // The secret is never echoed back — not the store_id, not the password.
+        $save->assertJsonMissing(['store_passwd' => 'super-secret']);
+        $this->assertStringNotContainsString('super-secret', $save->getContent());
+
+        $read = $this->withToken($ctx['ownerToken'])->getJson('/api/settings/payments');
+        $read->assertJsonPath('data.has_gateway_credentials', true);
+        $this->assertStringNotContainsString('super-secret', $read->getContent());
+    }
+
+    public function test_saving_again_without_a_password_keeps_the_stored_credentials(): void
+    {
+        $ctx = $this->scaffold('pay-gw-keep');
+
+        $this->withToken($ctx['ownerToken'])->putJson('/api/settings/payments', [
+            'deposit_type' => 'none', 'deposit_value' => 0, 'manual_enabled' => false,
+            'gateway' => 'sslcommerz', 'gateway_sandbox' => true,
+            'credentials' => ['store_id' => 'glow-store', 'store_passwd' => 'super-secret'],
+        ])->assertOk();
+
+        // Toggling to live mode without re-entering the password must not wipe it.
+        $response = $this->withToken($ctx['ownerToken'])->putJson('/api/settings/payments', [
+            'deposit_type' => 'none', 'deposit_value' => 0, 'manual_enabled' => false,
+            'gateway' => 'sslcommerz', 'gateway_sandbox' => false,
+            'credentials' => ['store_id' => 'glow-store', 'store_passwd' => ''],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.gateway_sandbox', false);
+        $response->assertJsonPath('data.has_gateway_credentials', true);
+    }
+
+    public function test_selecting_the_gateway_without_credentials_is_allowed_for_later_setup(): void
+    {
+        $ctx = $this->scaffold('pay-gw-later');
+
+        $response = $this->withToken($ctx['ownerToken'])->putJson('/api/settings/payments', [
+            'deposit_type' => 'none', 'deposit_value' => 0, 'manual_enabled' => false,
+            'gateway' => 'sslcommerz', 'gateway_sandbox' => true,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.gateway', 'sslcommerz');
+        $response->assertJsonPath('data.has_gateway_credentials', false);
+    }
+
     public function test_non_owner_cannot_read_or_write_payment_settings(): void
     {
         $ctx = $this->scaffold('pay-role');

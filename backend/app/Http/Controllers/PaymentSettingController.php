@@ -32,6 +32,24 @@ class PaymentSettingController extends Controller
         $settings->manual_enabled = $data['manual_enabled'];
         $settings->manual_account_number = $data['manual_account_number'] ?? null;
         $settings->manual_instructions = $data['manual_instructions'] ?? null;
+
+        if (array_key_exists('gateway', $data)) {
+            $settings->gateway = $data['gateway'] ?? 'none';
+        }
+        if (array_key_exists('gateway_sandbox', $data)) {
+            $settings->gateway_sandbox = (bool) $data['gateway_sandbox'];
+        }
+
+        // Merge only the secrets actually supplied: a blank field on re-save
+        // (a masked password left untouched) must keep the stored value.
+        $incoming = array_filter(
+            $data['credentials'] ?? [],
+            fn ($value) => $value !== null && $value !== '',
+        );
+        if ($incoming !== []) {
+            $settings->credentials = array_merge($settings->credentials ?? [], $incoming);
+        }
+
         $settings->save();
 
         return response()->json(['data' => $this->payload($settings->fresh())]);
@@ -51,6 +69,7 @@ class PaymentSettingController extends Controller
             'manual_account_number' => $settings?->manual_account_number,
             'manual_instructions' => $settings?->manual_instructions,
             'gateway' => $settings?->gateway ?? 'none',
+            'gateway_sandbox' => (bool) ($settings?->gateway_sandbox ?? true),
             'has_gateway_credentials' => filled($settings?->credentials ?? null),
         ];
     }

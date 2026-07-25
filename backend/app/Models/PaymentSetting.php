@@ -20,6 +20,7 @@ class PaymentSetting extends Model
         'manual_account_number',
         'manual_instructions',
         'gateway',
+        'gateway_sandbox',
         'credentials',
     ];
 
@@ -29,6 +30,7 @@ class PaymentSetting extends Model
             'deposit_type' => DepositType::class,
             'deposit_value' => 'decimal:2',
             'manual_enabled' => 'boolean',
+            'gateway_sandbox' => 'boolean',
             'credentials' => 'encrypted:array',
         ];
     }
