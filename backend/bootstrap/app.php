@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('reminders:send')->hourly();
+        $schedule->command('bookings:release-abandoned')->everyFifteenMinutes();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
