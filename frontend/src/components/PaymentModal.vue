@@ -92,6 +92,104 @@ async function record() {
   }
 }
 
+/* --------------------------- Print / download --------------------------- */
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"]/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+  )
+}
+
+// Render the invoice into its own document and open the print dialog, from
+// which the browser can save a PDF. Keeps us free of a server-side PDF stack.
+function printInvoice() {
+  const inv = invoice.value
+  if (!inv) return
+
+  const rows = inv.line_items
+    .map(
+      (item) =>
+        `<tr><td>${esc(item.description)}</td><td class="r">${esc(money(item.amount))}</td></tr>`,
+    )
+    .join('')
+
+  const payments = inv.payments.length
+    ? `<h3>Payments</h3><table class="pay">${inv.payments
+        .map(
+          (p) =>
+            `<tr><td>${esc(money(p.amount))}</td><td>${esc(methodLabel(p.method))}</td>` +
+            `<td>${esc(p.reference || '')}</td><td class="r">${esc(p.recorded_by || '')}</td></tr>`,
+        )
+        .join('')}</table>`
+    : ''
+
+  const balanceLine = inv.paid_in_full
+    ? `<div class="total paid">Paid in full</div>`
+    : `<div class="total">Balance due <span>${esc(money(inv.balance_due))}</span></div>`
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(inv.number)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; margin: 40px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin: 0; }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin: 24px 0 8px; }
+  .muted { color: #64748b; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  td, th { padding: 8px 4px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  .r { text-align: right; }
+  .totals { margin-top: 16px; margin-left: auto; width: 240px; }
+  .totals div { display: flex; justify-content: space-between; padding: 4px 0; color: #475569; }
+  .total { font-weight: 700; font-size: 16px; color: #0f172a; border-top: 2px solid #0f172a; margin-top: 8px; padding-top: 8px; }
+  .total.paid { color: #059669; border-color: #059669; }
+  .pay td { font-size: 13px; color: #475569; }
+  footer { margin-top: 40px; text-align: center; color: #94a3b8; font-size: 11px; }
+</style></head><body>
+  <header>
+    <div>
+      <h1>${esc(inv.salon.name || 'Salon')}</h1>
+      <div class="muted">${esc(inv.salon.email || '')}</div>
+      <div class="muted">${esc(inv.salon.phone || '')}</div>
+    </div>
+    <div class="r">
+      <h2>Invoice</h2>
+      <div><strong>${esc(inv.number)}</strong></div>
+      <div class="muted">${esc(inv.issued_on || '')}</div>
+    </div>
+  </header>
+
+  <div class="muted">Billed to</div>
+  <div><strong>${esc(inv.customer.name || '')}</strong></div>
+  <div class="muted">${esc(inv.customer.phone || '')}</div>
+  <div class="muted">${esc(inv.customer.email || '')}</div>
+
+  <table>
+    <thead><tr><th>Description</th><th class="r">Amount</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="totals">
+    <div>Subtotal <span>${esc(money(inv.subtotal))}</span></div>
+    <div>Paid <span>${esc(money(inv.amount_paid))}</span></div>
+    ${balanceLine}
+  </div>
+
+  ${payments}
+
+  <footer>Thank you for your visit.</footer>
+  <script>window.onload = function () { window.print(); }<\/script>
+</body></html>`
+
+  const w = window.open('', '_blank', 'width=720,height=900')
+  if (!w) {
+    loadError.value = 'Allow pop-ups to print the invoice.'
+    return
+  }
+  w.document.open()
+  w.document.write(html)
+  w.document.close()
+}
+
 /* ------------------------------ Delete ------------------------------ */
 const removingId = ref(null)
 
@@ -249,6 +347,17 @@ onMounted(load)
     </div>
 
     <template #footer>
+      <button
+        v-if="invoice"
+        type="button"
+        class="mr-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+        @click="printInvoice"
+      >
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.4 42.4 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
+        </svg>
+        Print / Download
+      </button>
       <button
         type="button"
         class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
