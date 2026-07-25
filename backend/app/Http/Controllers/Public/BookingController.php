@@ -104,8 +104,9 @@ class BookingController extends Controller
         $tenant = app(CurrentTenant::class)->get();
         $customer = $appointment->customer;
 
-        $callback = rtrim((string) config('app.url'), '/')
-            .'/api/public/'.$tenant?->slug.'/payment/'.$tranId.'/callback';
+        $base = rtrim((string) config('app.url'), '/')
+            .'/api/public/'.$tenant?->slug.'/payment/'.$tranId;
+        $callback = $base.'/callback';
 
         try {
             return app(SslcommerzGateway::class)->initiate($settings, [
@@ -115,6 +116,8 @@ class BookingController extends Controller
                 'success_url' => $callback.'/success',
                 'fail_url' => $callback.'/fail',
                 'cancel_url' => $callback.'/cancel',
+                // Server-to-server notification, independent of the browser.
+                'ipn_url' => $base.'/ipn',
                 'cus_name' => $customer?->name ?? 'Customer',
                 'cus_email' => $customer?->email ?? 'customer@example.com',
                 'cus_phone' => $customer?->phone ?? '0000000000',

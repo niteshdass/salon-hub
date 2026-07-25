@@ -113,4 +113,8 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     Route::post('payment/{tran}/callback/success', [PaymentCallbackController::class, 'success']);
     Route::post('payment/{tran}/callback/fail', [PaymentCallbackController::class, 'fail']);
     Route::post('payment/{tran}/callback/cancel', [PaymentCallbackController::class, 'cancel']);
+
+    // Server-to-server IPN: SSLCommerz POSTs here directly, so a captured
+    // payment is recorded even if the customer never returns to the browser.
+    Route::post('payment/{tran}/ipn', [PaymentCallbackController::class, 'ipn']);
 });

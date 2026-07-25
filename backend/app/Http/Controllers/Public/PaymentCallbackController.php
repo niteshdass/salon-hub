@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\PaymentSetting;
 use App\Services\SslcommerzGateway;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -39,26 +40,29 @@ class PaymentCallbackController extends Controller
             return $this->backToSpa($org, null, 'error');
         }
 
-        $settings = PaymentSetting::query()->first();
-        $valId = (string) $request->input('val_id', '');
+        $captured = $this->capture($payment, $tran, (string) $request->input('val_id', ''));
 
-        if ($settings && $valId !== '' && $this->isGenuinelyPaid($settings, $payment, $tran, $valId)) {
-            if ($payment->status !== PaymentStatus::VERIFIED) {
-                $payment->update(['status' => PaymentStatus::VERIFIED]);
-            }
+        return $this->backToSpa($org, $payment, $captured ? 'success' : 'failed');
+    }
 
-            // A captured online deposit confirms the booking outright — no
-            // owner review needed as there is with a manual transfer. Only a
-            // still-pending booking is moved; a cancelled one is left alone.
-            $appointment = $payment->appointment;
-            if ($appointment && $appointment->status === AppointmentStatus::PENDING) {
-                $appointment->update(['status' => AppointmentStatus::CONFIRMED]);
-            }
+    /**
+     * SSLCommerz Instant Payment Notification: a server-to-server POST the
+     * gateway sends directly, independent of the customer's browser. This is
+     * the safety net for a payment captured after the customer closed the tab
+     * — without it that deposit would sit pending forever. Same validation and
+     * capture as the browser success path, but the reply is a plain 200 the
+     * gateway can acknowledge, never a redirect. Always 200, even when the
+     * transaction doesn't validate, so the gateway stops retrying.
+     */
+    public function ipn(Request $request, string $org, string $tran): JsonResponse
+    {
+        $payment = $this->findPayment($tran);
 
-            return $this->backToSpa($org, $payment, 'success');
+        if ($payment) {
+            $this->capture($payment, $tran, (string) $request->input('val_id', ''));
         }
 
-        return $this->backToSpa($org, $payment, 'failed');
+        return response()->json(['received' => true]);
     }
 
     /** Payment failed at the gateway: the deposit stays pending. */
@@ -71,6 +75,36 @@ class PaymentCallbackController extends Controller
     public function cancel(string $org, string $tran): RedirectResponse
     {
         return $this->backToSpa($org, $this->findPayment($tran), 'cancelled');
+    }
+
+    /**
+     * Validate a returned transaction and, if genuine and fully paid, mark the
+     * deposit verified and confirm the booking. Idempotent: re-running for an
+     * already-verified payment is a no-op, so the browser callback and the IPN
+     * (which may both fire, and may fire twice) never double-apply. Returns
+     * whether the payment is captured.
+     */
+    protected function capture(Payment $payment, string $tran, string $valId): bool
+    {
+        $settings = PaymentSetting::query()->first();
+
+        if (! $settings || $valId === '' || ! $this->isGenuinelyPaid($settings, $payment, $tran, $valId)) {
+            return false;
+        }
+
+        if ($payment->status !== PaymentStatus::VERIFIED) {
+            $payment->update(['status' => PaymentStatus::VERIFIED]);
+        }
+
+        // A captured online deposit confirms the booking outright — no owner
+        // review needed as there is with a manual transfer. Only a still-pending
+        // booking is moved; a cancelled one is left alone.
+        $appointment = $payment->appointment;
+        if ($appointment && $appointment->status === AppointmentStatus::PENDING) {
+            $appointment->update(['status' => AppointmentStatus::CONFIRMED]);
+        }
+
+        return true;
     }
 
     /**

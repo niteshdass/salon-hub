@@ -210,6 +210,103 @@ class PublicGatewayBookingTest extends TestCase
         $this->assertSame('pending', $payment->appointment->fresh()->status->value);
     }
 
+    public function test_the_gateway_session_registers_an_ipn_url(): void
+    {
+        $this->bookOnline('gw-ipn-url');
+
+        // SSLCommerz needs a server-to-server IPN target so a captured payment
+        // is recorded even when the customer never returns to the browser.
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), 'gwprocess')
+                && str_contains((string) $request['ipn_url'], '/payment/')
+                && str_ends_with((string) $request['ipn_url'], '/ipn');
+        });
+    }
+
+    public function test_an_ipn_notification_verifies_and_confirms_the_booking(): void
+    {
+        $payment = $this->bookOnline('gw-ipn');
+        $tran = $payment->transaction_id;
+        $this->assertSame('pending', $payment->appointment->status->value);
+
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
+                'status' => 'VALID',
+                'tran_id' => $tran,
+                'amount' => '10.00',
+                'currency' => 'USD',
+                'val_id' => 'VAL-IPN',
+            ]),
+        ]);
+
+        // Server-to-server: SSLCommerz POSTs here directly. No browser, so the
+        // response is a plain acknowledgement, never a redirect.
+        $response = $this->post("/api/public/gw-ipn/payment/{$tran}/ipn", [
+            'val_id' => 'VAL-IPN',
+            'tran_id' => $tran,
+            'status' => 'VALID',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame('verified', $payment->fresh()->status->value);
+        $this->assertSame('confirmed', $payment->appointment->fresh()->status->value);
+    }
+
+    public function test_an_ipn_with_a_tampered_amount_leaves_the_payment_pending(): void
+    {
+        $payment = $this->bookOnline('gw-ipn-tamper');
+        $tran = $payment->transaction_id;
+
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
+                'status' => 'VALID',
+                'tran_id' => $tran,
+                'amount' => '1.00',
+                'currency' => 'USD',
+                'val_id' => 'VAL-IPN-BAD',
+            ]),
+        ]);
+
+        $response = $this->post("/api/public/gw-ipn-tamper/payment/{$tran}/ipn", [
+            'val_id' => 'VAL-IPN-BAD',
+            'tran_id' => $tran,
+        ]);
+
+        // Acknowledged (200 so the gateway stops retrying) but not captured.
+        $response->assertOk();
+        $this->assertSame('pending', $payment->fresh()->status->value);
+        $this->assertSame('pending', $payment->appointment->fresh()->status->value);
+    }
+
+    public function test_a_repeated_ipn_notification_is_idempotent(): void
+    {
+        $payment = $this->bookOnline('gw-ipn-twice');
+        $tran = $payment->transaction_id;
+
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
+                'status' => 'VALID',
+                'tran_id' => $tran,
+                'amount' => '10.00',
+                'currency' => 'USD',
+                'val_id' => 'VAL-IPN',
+            ]),
+        ]);
+
+        // The gateway may deliver the same IPN more than once, and it may race
+        // the browser success callback — processing twice must be harmless.
+        for ($i = 0; $i < 2; $i++) {
+            $this->post("/api/public/gw-ipn-twice/payment/{$tran}/ipn", [
+                'val_id' => 'VAL-IPN',
+                'tran_id' => $tran,
+            ])->assertOk();
+        }
+
+        $this->assertSame('verified', $payment->fresh()->status->value);
+        $this->assertSame('confirmed', $payment->appointment->fresh()->status->value);
+        $this->assertSame(1, $payment->appointment->payments()->count());
+    }
+
     public function test_a_tampered_amount_fails_validation_and_leaves_the_payment_pending(): void
     {
         $payment = $this->bookOnline('gw-tamper');
