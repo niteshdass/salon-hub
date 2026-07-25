@@ -11,8 +11,10 @@ const props = defineProps({
 const emit = defineEmits(['close', 'changed'])
 
 const authStore = useAuthStore()
-// Owner/manager may remove a recorded payment; anyone may take one.
+// Owner/manager may remove a recorded payment or confirm a pending deposit;
+// anyone may take a payment.
 const canDelete = computed(() => authStore.canManageOperations)
+const canVerify = computed(() => authStore.canManageOperations)
 
 const currency = computed(() => authStore.organization?.currency || 'USD')
 function money(amount) {
@@ -206,6 +208,24 @@ async function remove(payment) {
   }
 }
 
+/* ------------------------------ Verify ------------------------------ */
+// A customer's online deposit lands pending; confirming it (once the money is
+// seen) is what lets it count toward the balance.
+const verifyingId = ref(null)
+
+async function verify(payment) {
+  verifyingId.value = payment.id
+  try {
+    await api.post(`${base.value}/payments/${payment.id}/verify`)
+    await load()
+    emit('changed')
+  } catch (err) {
+    loadError.value = parseApiError(err, 'Could not verify the payment.').message
+  } finally {
+    verifyingId.value = null
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -253,6 +273,13 @@ onMounted(load)
           <dd>{{ money(invoice.amount_paid) }}</dd>
         </div>
         <div
+          v-if="Number(invoice.amount_pending) > 0"
+          class="flex justify-between text-amber-600"
+        >
+          <dt>Pending verification</dt>
+          <dd>{{ money(invoice.amount_pending) }}</dd>
+        </div>
+        <div
           class="flex justify-between border-t border-slate-200 pt-1.5 text-base font-semibold"
           :class="invoice.paid_in_full ? 'text-emerald-600' : 'text-slate-900'"
         >
@@ -274,9 +301,24 @@ onMounted(load)
               {{ money(p.amount) }}
               <span class="text-slate-400">· {{ methodLabel(p.method) }}</span>
               <span v-if="p.reference" class="text-slate-400">· {{ p.reference }}</span>
+              <span
+                v-if="p.status === 'pending'"
+                class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+              >
+                Pending
+              </span>
             </span>
             <span class="flex items-center gap-3">
               <span v-if="p.recorded_by" class="text-xs text-slate-400">{{ p.recorded_by }}</span>
+              <button
+                v-if="canVerify && p.status === 'pending'"
+                type="button"
+                :disabled="verifyingId === p.id"
+                class="text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                @click="verify(p)"
+              >
+                {{ verifyingId === p.id ? 'Verifying…' : 'Verify' }}
+              </button>
               <button
                 v-if="canDelete"
                 type="button"

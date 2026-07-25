@@ -1,12 +1,21 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import SalonProfileSettings from '@/components/settings/SalonProfileSettings.vue'
 import ReminderSettings from '@/components/settings/ReminderSettings.vue'
+import PaymentSettings from '@/components/settings/PaymentSettings.vue'
+import { useAuthStore } from '@/stores/auth'
 
-const tabs = [
+const authStore = useAuthStore()
+
+// Payments configure what money the salon collects and hold gateway secrets —
+// owner-only, matching the API policy.
+const tabs = computed(() => [
   { key: 'profile', label: 'Salon profile', blurb: 'Branding, contact details and the story on your public page.' },
   { key: 'reminders', label: 'Reminders', blurb: 'Appointment reminders and channel connection.' },
-]
+  ...(authStore.isOwner
+    ? [{ key: 'payments', label: 'Payments', blurb: 'Booking deposits and how customers pay them.' }]
+    : []),
+])
 
 const active = ref('profile')
 </script>
@@ -16,7 +25,7 @@ const active = ref('profile')
     <div class="mb-6">
       <h1 class="text-2xl font-semibold text-slate-900">Settings</h1>
       <p class="mt-1 text-sm text-slate-500">
-        {{ tabs.find((t) => t.key === active).blurb }}
+        {{ tabs.find((t) => t.key === active)?.blurb }}
       </p>
     </div>
 
@@ -39,6 +48,7 @@ const active = ref('profile')
 
     <!-- Each panel loads its own data, so mount it only when opened. -->
     <SalonProfileSettings v-if="active === 'profile'" />
+    <PaymentSettings v-else-if="active === 'payments'" />
     <ReminderSettings v-else />
   </div>
 </template>

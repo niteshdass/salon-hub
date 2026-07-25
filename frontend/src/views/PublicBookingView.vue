@@ -191,6 +191,26 @@ function selectSlot(slot) {
   step.value = 4
 }
 
+/* ------------------------------ Deposit ------------------------------ */
+// The salon's deposit policy, surfaced on the public profile. A deposit is
+// only collectable here when manual transfer is switched on (gateway is a
+// later phase); the amount shown is computed client-side but the server is
+// the authority on what is actually required.
+const paymentPolicy = computed(() => salon.value?.payment || null)
+const depositRequired = computed(
+  () => !!(paymentPolicy.value?.requires_deposit && paymentPolicy.value?.manual?.enabled),
+)
+const depositAmount = computed(() => {
+  const p = paymentPolicy.value
+  const price = Number(selectedService.value?.price || 0)
+  if (!p || !depositRequired.value || !price) return 0
+  const val = Number(p.deposit_value || 0)
+  if (p.deposit_type === 'percent') return Math.round(price * val) / 100
+  if (p.deposit_type === 'fixed') return Math.min(val, price)
+  return 0
+})
+const paymentReference = ref('')
+
 /* ------------------------------ Step 4: Details + booking ------------------------------ */
 const customer = reactive({ name: '', phone: '', email: '' })
 const booking = ref(false)
@@ -199,6 +219,12 @@ const bookingErrors = ref({})
 const confirmation = ref(null)
 
 async function submitBooking() {
+  // A deposit needs its transaction reference before we bother the server.
+  if (depositRequired.value && !paymentReference.value.trim()) {
+    bookingMessage.value = 'Enter the transaction reference for your deposit to confirm the booking.'
+    return
+  }
+
   booking.value = true
   bookingMessage.value = ''
   bookingErrors.value = {}
@@ -213,6 +239,9 @@ async function submitBooking() {
       phone: customer.phone.trim(),
       email: customer.email.trim() || undefined,
     },
+  }
+  if (depositRequired.value) {
+    payload.payment_reference = paymentReference.value.trim()
   }
   // Only send branch_id when it is unambiguous (a single branch).
   if (salon.value?.branches?.length === 1) {
@@ -265,6 +294,7 @@ function resetWizard() {
   customer.name = ''
   customer.phone = ''
   customer.email = ''
+  paymentReference.value = ''
   confirmation.value = null
   bookingMessage.value = ''
   bookingErrors.value = {}
@@ -555,7 +585,51 @@ onMounted(async () => {
                   {{ formatDate(selectedDate) }} · {{ formatTime(selectedSlot) }}
                 </dd>
               </div>
+              <div v-if="depositRequired && depositAmount" class="flex justify-between gap-4 border-t border-slate-200 pt-2">
+                <dt class="text-slate-500">Deposit to confirm</dt>
+                <dd class="text-right font-semibold text-indigo-700">{{ formatPrice(depositAmount) }}</dd>
+              </div>
             </dl>
+
+            <!-- Manual-transfer deposit -->
+            <div
+              v-if="depositRequired"
+              class="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4"
+            >
+              <h3 class="text-sm font-semibold text-indigo-900">Pay your deposit</h3>
+              <p class="mt-1 text-sm text-indigo-800">
+                Send <span class="font-semibold">{{ formatPrice(depositAmount) }}</span> to secure this booking, then
+                enter the transaction reference below.
+              </p>
+
+              <dl class="mt-3 space-y-1 text-sm">
+                <div v-if="paymentPolicy?.manual?.account_number" class="flex justify-between gap-4">
+                  <dt class="text-indigo-700">Send to</dt>
+                  <dd class="text-right font-medium text-indigo-900">{{ paymentPolicy.manual.account_number }}</dd>
+                </div>
+              </dl>
+              <p v-if="paymentPolicy?.manual?.instructions" class="mt-2 whitespace-pre-line text-xs text-indigo-700">
+                {{ paymentPolicy.manual.instructions }}
+              </p>
+
+              <div class="mt-3">
+                <label class="mb-1 block text-sm font-medium text-indigo-900">
+                  Transaction reference <span class="text-rose-500">*</span>
+                </label>
+                <input
+                  v-model="paymentReference"
+                  type="text"
+                  placeholder="e.g. TXN123456"
+                  class="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                />
+                <p v-if="bookingErrors['payment_reference']" class="mt-1 text-sm text-rose-600">
+                  {{ bookingErrors['payment_reference'][0] }}
+                </p>
+                <p class="mt-1 text-xs text-indigo-600">
+                  Your deposit is held as pending until the salon confirms it arrived.
+                </p>
+              </div>
+            </div>
 
             <div
               v-if="bookingMessage"
@@ -654,7 +728,23 @@ onMounted(async () => {
                 <dt class="text-slate-500">Status</dt>
                 <dd class="text-right font-medium capitalize text-slate-900">{{ confirmation.status }}</dd>
               </div>
+              <div
+                v-if="Number(confirmation.payment?.amount_pending) > 0"
+                class="flex justify-between gap-4 border-t border-slate-200 pt-2"
+              >
+                <dt class="text-slate-500">Deposit</dt>
+                <dd class="text-right font-medium text-amber-600">
+                  {{ formatPrice(confirmation.payment.amount_pending) }} · pending
+                </dd>
+              </div>
             </dl>
+
+            <p
+              v-if="Number(confirmation.payment?.amount_pending) > 0"
+              class="mx-auto mt-3 max-w-sm text-xs text-slate-500"
+            >
+              We've recorded your deposit reference. The salon will confirm it shortly.
+            </p>
 
             <p v-if="confirmation.public_token" class="mt-6 text-sm text-slate-500">
               Need to make a change?
