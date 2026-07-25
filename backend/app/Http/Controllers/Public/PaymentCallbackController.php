@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Enums\AppointmentStatus;
 use App\Enums\PaymentSource;
 use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
@@ -44,6 +45,14 @@ class PaymentCallbackController extends Controller
         if ($settings && $valId !== '' && $this->isGenuinelyPaid($settings, $payment, $tran, $valId)) {
             if ($payment->status !== PaymentStatus::VERIFIED) {
                 $payment->update(['status' => PaymentStatus::VERIFIED]);
+            }
+
+            // A captured online deposit confirms the booking outright — no
+            // owner review needed as there is with a manual transfer. Only a
+            // still-pending booking is moved; a cancelled one is left alone.
+            $appointment = $payment->appointment;
+            if ($appointment && $appointment->status === AppointmentStatus::PENDING) {
+                $appointment->update(['status' => AppointmentStatus::CONFIRMED]);
             }
 
             return $this->backToSpa($org, $payment, 'success');

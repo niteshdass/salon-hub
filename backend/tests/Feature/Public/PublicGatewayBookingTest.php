@@ -173,6 +173,43 @@ class PublicGatewayBookingTest extends TestCase
         $this->assertSame('verified', $payment->fresh()->status->value);
     }
 
+    public function test_a_validated_callback_confirms_the_booking(): void
+    {
+        $payment = $this->bookOnline('gw-confirm');
+        $tran = $payment->transaction_id;
+        $this->assertSame('pending', $payment->appointment->status->value);
+
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
+                'status' => 'VALID',
+                'tran_id' => $tran,
+                'amount' => '10.00',
+                'currency' => 'USD',
+                'val_id' => 'VAL-OK',
+            ]),
+        ]);
+
+        $this->post("/api/public/gw-confirm/payment/{$tran}/callback/success", [
+            'val_id' => 'VAL-OK',
+            'tran_id' => $tran,
+        ])->assertRedirect();
+
+        // A captured online deposit confirms the booking outright.
+        $this->assertSame('confirmed', $payment->appointment->fresh()->status->value);
+    }
+
+    public function test_a_failed_callback_does_not_confirm_the_booking(): void
+    {
+        $payment = $this->bookOnline('gw-fail-status');
+        $tran = $payment->transaction_id;
+
+        $this->post("/api/public/gw-fail-status/payment/{$tran}/callback/fail", [
+            'tran_id' => $tran,
+        ])->assertRedirect();
+
+        $this->assertSame('pending', $payment->appointment->fresh()->status->value);
+    }
+
     public function test_a_tampered_amount_fails_validation_and_leaves_the_payment_pending(): void
     {
         $payment = $this->bookOnline('gw-tamper');
