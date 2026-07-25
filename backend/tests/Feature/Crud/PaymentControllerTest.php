@@ -120,6 +120,29 @@ class PaymentControllerTest extends TestCase
         $response->assertJsonPath('data.1.amount', '10.00');
     }
 
+    public function test_listing_exposes_the_gateway_transaction_id_for_reconciliation(): void
+    {
+        $ctx = $this->scaffold('gwlist');
+
+        // An online deposit captured by the gateway, as the callback records it.
+        $ctx['appointment']->payments()->create([
+            'organization_id' => $ctx['org']->id,
+            'amount' => 10,
+            'method' => \App\Enums\PaymentMethod::ONLINE,
+            'status' => \App\Enums\PaymentStatus::VERIFIED,
+            'source' => \App\Enums\PaymentSource::GATEWAY,
+            'transaction_id' => 'SHABC123',
+        ]);
+
+        $response = $this->withToken($ctx['ownerToken'])
+            ->getJson("/api/appointments/{$ctx['appointment']->id}/payments");
+
+        $response->assertOk();
+        // The owner needs the transaction id to reconcile against SSLCommerz.
+        $response->assertJsonPath('data.0.source', 'gateway');
+        $response->assertJsonPath('data.0.transaction_id', 'SHABC123');
+    }
+
     public function test_amount_and_method_are_validated(): void
     {
         $ctx = $this->scaffold('valpay');

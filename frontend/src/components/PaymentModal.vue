@@ -301,6 +301,13 @@ onMounted(load)
               {{ money(p.amount) }}
               <span class="text-slate-400">· {{ methodLabel(p.method) }}</span>
               <span v-if="p.reference" class="text-slate-400">· {{ p.reference }}</span>
+              <span v-if="p.transaction_id" class="text-slate-400">· {{ p.transaction_id }}</span>
+              <span
+                v-if="p.source === 'gateway'"
+                class="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700"
+              >
+                Online
+              </span>
               <span
                 v-if="p.status === 'pending'"
                 class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700"

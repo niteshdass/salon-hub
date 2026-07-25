@@ -19,6 +19,9 @@ class PaymentResource extends JsonResource
             'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
             'source' => $this->source instanceof \BackedEnum ? $this->source->value : $this->source,
             'reference' => $this->reference,
+            // Gateway transaction id, for reconciling an online deposit against
+            // the SSLCommerz report. Null for counter / manual payments.
+            'transaction_id' => $this->transaction_id,
             'notes' => $this->notes,
             // The staff account may since be gone; fall back to a dash.
             'recorded_by' => $this->recorder?->name,
