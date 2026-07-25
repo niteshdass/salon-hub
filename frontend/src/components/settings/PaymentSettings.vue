@@ -256,8 +256,14 @@ onMounted(load)
           </div>
 
           <p class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            Get your sandbox Store ID and password from the SSLCommerz developer dashboard. You can
-            select the provider now and add the keys later.
+            <template v-if="form.gateway_sandbox">
+              Get your sandbox Store ID and password from the SSLCommerz developer dashboard. You can
+              select the provider now and add the keys later.
+            </template>
+            <template v-else>
+              Live mode charges real cards. Enter your live Store ID and password from the SSLCommerz
+              merchant panel — the sandbox keys will not work here.
+            </template>
           </p>
         </div>
       </fieldset>
