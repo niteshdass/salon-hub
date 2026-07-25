@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Public;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentSource;
+use App\Enums\PaymentStatus;
 use App\Enums\ServiceStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
@@ -11,6 +14,7 @@ use App\Http\Resources\ServiceResource;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\PaymentSetting;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\AppointmentScheduler;
@@ -55,8 +59,32 @@ class BookingController extends Controller
                     'address' => $branch->address,
                     'phone' => $branch->phone,
                 ])->values(),
+                'payment' => $this->publicPaymentPolicy(),
             ],
         ]);
+    }
+
+    /**
+     * The salon's public-facing deposit policy: whether a deposit is required,
+     * how it is computed, and the manual-transfer details a customer needs to
+     * pay it. Gateway secrets are never exposed.
+     *
+     * @return array<string, mixed>
+     */
+    protected function publicPaymentPolicy(): array
+    {
+        $settings = PaymentSetting::query()->first();
+
+        return [
+            'requires_deposit' => (bool) $settings?->requiresDeposit(),
+            'deposit_type' => $settings?->deposit_type?->value ?? 'none',
+            'deposit_value' => number_format((float) ($settings?->deposit_value ?? 0), 2, '.', ''),
+            'manual' => [
+                'enabled' => (bool) ($settings?->manual_enabled ?? false),
+                'account_number' => $settings?->manual_account_number,
+                'instructions' => $settings?->manual_instructions,
+            ],
+        ];
     }
 
     /**
@@ -173,9 +201,22 @@ class BookingController extends Controller
             return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
         }
 
+        // Deposit gate: when the salon requires a deposit collected by manual
+        // transfer, the customer must supply the transaction reference they
+        // paid with. The money is recorded pending until the owner verifies it.
+        $settings = PaymentSetting::query()->first();
+        $depositRequired = (bool) ($settings?->requiresDeposit() && $settings->manual_enabled);
+        $reference = $data['payment_reference'] ?? null;
+
+        if ($depositRequired && blank($reference)) {
+            return response()->json([
+                'message' => 'A deposit is required to confirm this booking. Enter the transaction reference for your transfer.',
+            ], 422);
+        }
+
         $branchId = $branch->id;
 
-        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime) {
+        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime, $settings, $depositRequired, $reference) {
             // Find-or-create by phone within the tenant. When the customer
             // already exists we keep their stored name/email (no overwrite).
             $customer = Customer::firstOrCreate(
@@ -186,7 +227,7 @@ class BookingController extends Controller
                 ],
             );
 
-            return Appointment::create([
+            $appointment = Appointment::create([
                 'branch_id' => $branchId,
                 'customer_id' => $customer->id,
                 'staff_id' => $data['staff_id'],
@@ -199,9 +240,22 @@ class BookingController extends Controller
                 'status' => AppointmentStatus::PENDING->value,
                 'notes' => null,
             ]);
+
+            if ($depositRequired) {
+                // Pending: the salon still has to confirm the transfer arrived.
+                $appointment->payments()->create([
+                    'amount' => $settings->depositFor((float) $service->price),
+                    'method' => PaymentMethod::BANK_TRANSFER,
+                    'status' => PaymentStatus::PENDING,
+                    'source' => PaymentSource::PUBLIC_MANUAL,
+                    'reference' => $reference,
+                ]);
+            }
+
+            return $appointment;
         });
 
-        $appointment->load(['service', 'staff', 'branch', 'customer']);
+        $appointment->load(['service', 'staff', 'branch', 'customer', 'payments']);
 
         $notifier->sendForNewBooking($appointment);
 
@@ -311,11 +365,21 @@ class BookingController extends Controller
     protected function bookingPayload(Appointment $appointment): array
     {
         $tenant = app(CurrentTenant::class)->get();
+        $appointment->loadMissing('payments');
+
+        $settings = PaymentSetting::query()->first();
+        $depositRequired = (bool) ($settings?->requiresDeposit() && $settings->manual_enabled);
 
         return [
             'id' => $appointment->id,
             'public_token' => $appointment->public_token,
             'salon' => ['name' => $tenant?->name, 'slug' => $tenant?->slug],
+            'payment' => [
+                'deposit_required' => $depositRequired,
+                'amount_paid' => $appointment->amountPaid(),
+                'amount_pending' => $appointment->amountPending(),
+                'balance_due' => $appointment->balanceDue(),
+            ],
             'date' => $appointment->booking_date->format('Y-m-d'),
             'start_time' => substr($appointment->start_time, 0, 5),
             'end_time' => substr($appointment->end_time, 0, 5),

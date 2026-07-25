@@ -48,6 +48,11 @@ class PublicBookingRequest extends FormRequest
             'customer.name' => ['required', 'string', 'max:255'],
             'customer.phone' => ['required', 'string', 'max:50'],
             'customer.email' => ['nullable', 'email', 'max:255'],
+
+            // Manual-transfer deposit reference (the transaction number the
+            // customer paid with). Whether it is *required* depends on the
+            // salon's deposit policy, enforced in the controller.
+            'payment_reference' => ['nullable', 'string', 'max:255'],
         ];
     }
 }
