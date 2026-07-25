@@ -58,6 +58,16 @@ const loading = ref(true)
 const notFound = ref(false)
 const loadError = ref('')
 
+// Outcome of an online deposit the customer just returned from paying. The
+// gateway sends them back here with ?payment=success|failed|cancelled.
+const PAYMENT_OUTCOME = {
+  success: { tone: 'ok', text: 'Payment received — your deposit is confirmed. Thank you!' },
+  failed: { tone: 'bad', text: 'That payment did not go through. Your booking is held; you can try paying again.' },
+  cancelled: { tone: 'bad', text: 'Payment was cancelled. Your booking is held but the deposit is still unpaid.' },
+  error: { tone: 'bad', text: 'We could not confirm that payment. Please contact the salon.' },
+}
+const paymentOutcome = computed(() => PAYMENT_OUTCOME[route.query.payment] || null)
+
 async function loadBooking() {
   loading.value = true
   loadError.value = ''
@@ -218,6 +228,17 @@ onMounted(loadBooking)
       </header>
 
       <main class="mx-auto -mt-6 w-full max-w-lg px-4 pb-16">
+        <!-- Online-deposit outcome, shown when returning from the gateway. -->
+        <div
+          v-if="paymentOutcome"
+          class="mb-4 rounded-xl px-4 py-3 text-sm font-medium ring-1"
+          :class="paymentOutcome.tone === 'ok'
+            ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+            : 'bg-rose-50 text-rose-700 ring-rose-200'"
+        >
+          {{ paymentOutcome.text }}
+        </div>
+
         <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
           <!-- Status + summary -->
           <div class="flex items-center justify-between gap-3">

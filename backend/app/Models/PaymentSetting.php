@@ -62,4 +62,25 @@ class PaymentSetting extends Model
         return $this->deposit_type !== DepositType::NONE
             && (float) $this->deposit_value > 0;
     }
+
+    /**
+     * Whether the online gateway is fully configured (provider selected and
+     * both store credentials on file), so it can actually charge a card.
+     */
+    public function gatewayEnabled(): bool
+    {
+        return $this->gateway === 'sslcommerz'
+            && filled($this->credentials['store_id'] ?? null)
+            && filled($this->credentials['store_passwd'] ?? null);
+    }
+
+    /**
+     * Whether a required deposit can actually be collected: the salon wants a
+     * deposit AND has at least one working way to take it.
+     */
+    public function depositCollectable(): bool
+    {
+        return $this->requiresDeposit()
+            && ((bool) $this->manual_enabled || $this->gatewayEnabled());
+    }
 }

@@ -20,11 +20,13 @@ use App\Models\User;
 use App\Services\AppointmentScheduler;
 use App\Services\BookingNotifier;
 use App\Services\SlotGenerator;
+use App\Services\SslcommerzGateway;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -84,7 +86,45 @@ class BookingController extends Controller
                 'account_number' => $settings?->manual_account_number,
                 'instructions' => $settings?->manual_instructions,
             ],
+            'gateway' => [
+                'enabled' => (bool) ($settings?->gatewayEnabled() ?? false),
+                'provider' => $settings?->gateway ?? 'none',
+            ],
         ];
+    }
+
+    /**
+     * Open an SSLCommerz hosted session for a booking's online deposit and
+     * return the redirect URL. The success/fail/cancel callbacks route back
+     * through the API, keyed by the payment's transaction id. Returns null if
+     * the gateway declines — the pending payment is left for follow-up.
+     */
+    protected function startGatewaySession(PaymentSetting $settings, Appointment $appointment, string $tranId, string $amount): ?string
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        $customer = $appointment->customer;
+
+        $callback = rtrim((string) config('app.url'), '/')
+            .'/api/public/'.$tenant?->slug.'/payment/'.$tranId.'/callback';
+
+        try {
+            return app(SslcommerzGateway::class)->initiate($settings, [
+                'total_amount' => $amount,
+                'currency' => $tenant?->currency ?: 'BDT',
+                'tran_id' => $tranId,
+                'success_url' => $callback.'/success',
+                'fail_url' => $callback.'/fail',
+                'cancel_url' => $callback.'/cancel',
+                'cus_name' => $customer?->name ?? 'Customer',
+                'cus_email' => $customer?->email ?? 'customer@example.com',
+                'cus_phone' => $customer?->phone ?? '0000000000',
+                'product_name' => $appointment->service?->name ?? 'Salon service',
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     /**
@@ -201,22 +241,50 @@ class BookingController extends Controller
             return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
         }
 
-        // Deposit gate: when the salon requires a deposit collected by manual
-        // transfer, the customer must supply the transaction reference they
-        // paid with. The money is recorded pending until the owner verifies it.
+        // Deposit gate. A deposit is only collected when the salon both wants
+        // one and has a working way to take it (manual transfer or gateway).
         $settings = PaymentSetting::query()->first();
-        $depositRequired = (bool) ($settings?->requiresDeposit() && $settings->manual_enabled);
-        $reference = $data['payment_reference'] ?? null;
+        $manualEnabled = (bool) ($settings?->manual_enabled ?? false);
+        $gatewayEnabled = (bool) ($settings?->gatewayEnabled() ?? false);
+        $collectDeposit = (bool) $settings?->depositCollectable();
 
-        if ($depositRequired && blank($reference)) {
-            return response()->json([
-                'message' => 'A deposit is required to confirm this booking. Enter the transaction reference for your transfer.',
-            ], 422);
+        $reference = $data['payment_reference'] ?? null;
+        $method = $data['payment_method'] ?? null;
+
+        if ($collectDeposit) {
+            // Resolve the collection method against what the salon actually offers.
+            if ($method === 'gateway' && ! $gatewayEnabled) {
+                return response()->json(['message' => 'Online payment is not available for this salon.'], 422);
+            }
+            if ($method === 'manual' && ! $manualEnabled) {
+                return response()->json(['message' => 'Manual transfer is not available for this salon.'], 422);
+            }
+            if ($method === null) {
+                if ($manualEnabled && ! $gatewayEnabled) {
+                    $method = 'manual';
+                } elseif ($gatewayEnabled && ! $manualEnabled) {
+                    $method = 'gateway';
+                } else {
+                    // Both are offered: the customer must choose one.
+                    return response()->json(['message' => 'Choose how you would like to pay the deposit.'], 422);
+                }
+            }
+
+            // Manual transfers must carry the reference the customer paid with.
+            if ($method === 'manual' && blank($reference)) {
+                return response()->json([
+                    'message' => 'A deposit is required to confirm this booking. Enter the transaction reference for your transfer.',
+                ], 422);
+            }
         }
 
         $branchId = $branch->id;
+        $depositAmount = $collectDeposit ? $settings->depositFor((float) $service->price) : null;
+        // A gateway payment is keyed by an unguessable transaction id echoed
+        // back on the callback; generated up front so it can seed the session.
+        $tranId = ($collectDeposit && $method === 'gateway') ? 'SH'.strtoupper(Str::random(18)) : null;
 
-        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime, $settings, $depositRequired, $reference) {
+        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime, $collectDeposit, $method, $depositAmount, $reference, $tranId) {
             // Find-or-create by phone within the tenant. When the customer
             // already exists we keep their stored name/email (no overwrite).
             $customer = Customer::firstOrCreate(
@@ -241,14 +309,25 @@ class BookingController extends Controller
                 'notes' => null,
             ]);
 
-            if ($depositRequired) {
+            if ($collectDeposit && $method === 'manual') {
                 // Pending: the salon still has to confirm the transfer arrived.
                 $appointment->payments()->create([
-                    'amount' => $settings->depositFor((float) $service->price),
+                    'amount' => $depositAmount,
                     'method' => PaymentMethod::BANK_TRANSFER,
                     'status' => PaymentStatus::PENDING,
                     'source' => PaymentSource::PUBLIC_MANUAL,
                     'reference' => $reference,
+                ]);
+            }
+
+            if ($collectDeposit && $method === 'gateway') {
+                // Pending until the gateway callback validates the payment.
+                $appointment->payments()->create([
+                    'amount' => $depositAmount,
+                    'method' => PaymentMethod::ONLINE,
+                    'status' => PaymentStatus::PENDING,
+                    'source' => PaymentSource::GATEWAY,
+                    'transaction_id' => $tranId,
                 ]);
             }
 
@@ -259,7 +338,15 @@ class BookingController extends Controller
 
         $notifier->sendForNewBooking($appointment);
 
-        return response()->json(['data' => $this->bookingPayload($appointment)], 201);
+        $payload = $this->bookingPayload($appointment);
+
+        // Online deposit: open the hosted session and hand back the URL the
+        // customer's browser must be redirected to.
+        if ($collectDeposit && $method === 'gateway') {
+            $payload['gateway_url'] = $this->startGatewaySession($settings, $appointment, $tranId, $depositAmount);
+        }
+
+        return response()->json(['data' => $payload], 201);
     }
 
     /**
@@ -368,7 +455,7 @@ class BookingController extends Controller
         $appointment->loadMissing('payments');
 
         $settings = PaymentSetting::query()->first();
-        $depositRequired = (bool) ($settings?->requiresDeposit() && $settings->manual_enabled);
+        $depositRequired = (bool) $settings?->depositCollectable();
 
         return [
             'id' => $appointment->id,

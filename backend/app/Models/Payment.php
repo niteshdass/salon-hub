@@ -23,6 +23,7 @@ class Payment extends Model
         'status',
         'source',
         'reference',
+        'transaction_id',
         'notes',
     ];
 

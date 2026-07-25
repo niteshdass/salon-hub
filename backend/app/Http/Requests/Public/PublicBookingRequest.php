@@ -49,6 +49,12 @@ class PublicBookingRequest extends FormRequest
             'customer.phone' => ['required', 'string', 'max:50'],
             'customer.email' => ['nullable', 'email', 'max:255'],
 
+            // How the deposit is paid: 'manual' (bank/wallet transfer, needs a
+            // reference) or 'gateway' (SSLCommerz online). Which methods are on
+            // offer, and whether a choice is required, is enforced in the
+            // controller against the salon's deposit policy.
+            'payment_method' => ['nullable', Rule::in(['manual', 'gateway'])],
+
             // Manual-transfer deposit reference (the transaction number the
             // customer paid with). Whether it is *required* depends on the
             // salon's deposit policy, enforced in the controller.

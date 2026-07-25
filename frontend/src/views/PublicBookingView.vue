@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
@@ -193,13 +193,19 @@ function selectSlot(slot) {
 
 /* ------------------------------ Deposit ------------------------------ */
 // The salon's deposit policy, surfaced on the public profile. A deposit is
-// only collectable here when manual transfer is switched on (gateway is a
-// later phase); the amount shown is computed client-side but the server is
-// the authority on what is actually required.
+// collectable when the salon wants one and offers a way to pay it — manual
+// transfer, the online gateway, or both. The amount shown is computed
+// client-side but the server is the authority on what is actually required.
 const paymentPolicy = computed(() => salon.value?.payment || null)
-const depositRequired = computed(
+const manualEnabled = computed(
   () => !!(paymentPolicy.value?.requires_deposit && paymentPolicy.value?.manual?.enabled),
 )
+const gatewayEnabled = computed(
+  () => !!(paymentPolicy.value?.requires_deposit && paymentPolicy.value?.gateway?.enabled),
+)
+const depositRequired = computed(() => manualEnabled.value || gatewayEnabled.value)
+const bothMethods = computed(() => manualEnabled.value && gatewayEnabled.value)
+
 const depositAmount = computed(() => {
   const p = paymentPolicy.value
   const price = Number(selectedService.value?.price || 0)
@@ -209,6 +215,20 @@ const depositAmount = computed(() => {
   if (p.deposit_type === 'fixed') return Math.min(val, price)
   return 0
 })
+
+// The chosen way to pay the deposit. Fixed automatically when only one method
+// is offered; the customer picks when both are.
+const depositMethod = ref('')
+watchEffect(() => {
+  if (!depositRequired.value) {
+    depositMethod.value = ''
+  } else if (manualEnabled.value && !gatewayEnabled.value) {
+    depositMethod.value = 'manual'
+  } else if (gatewayEnabled.value && !manualEnabled.value) {
+    depositMethod.value = 'gateway'
+  }
+})
+
 const paymentReference = ref('')
 
 /* ------------------------------ Step 4: Details + booking ------------------------------ */
@@ -218,9 +238,20 @@ const bookingMessage = ref('')
 const bookingErrors = ref({})
 const confirmation = ref(null)
 
+// Submit button copy shifts for the online path (a redirect, not a save).
+const submitLabel = computed(() => {
+  if (booking.value) return depositMethod.value === 'gateway' ? 'Redirecting…' : 'Booking…'
+  return depositMethod.value === 'gateway' ? 'Pay deposit online' : 'Confirm booking'
+})
+
 async function submitBooking() {
-  // A deposit needs its transaction reference before we bother the server.
-  if (depositRequired.value && !paymentReference.value.trim()) {
+  // Deposit guards before we bother the server: a method must be chosen, and a
+  // manual transfer needs its transaction reference.
+  if (depositRequired.value && !depositMethod.value) {
+    bookingMessage.value = 'Choose how you would like to pay your deposit.'
+    return
+  }
+  if (depositMethod.value === 'manual' && !paymentReference.value.trim()) {
     bookingMessage.value = 'Enter the transaction reference for your deposit to confirm the booking.'
     return
   }
@@ -241,7 +272,10 @@ async function submitBooking() {
     },
   }
   if (depositRequired.value) {
-    payload.payment_reference = paymentReference.value.trim()
+    payload.payment_method = depositMethod.value
+    if (depositMethod.value === 'manual') {
+      payload.payment_reference = paymentReference.value.trim()
+    }
   }
   // Only send branch_id when it is unambiguous (a single branch).
   if (salon.value?.branches?.length === 1) {
@@ -250,6 +284,12 @@ async function submitBooking() {
 
   try {
     const { data } = await api.post(`/public/${slug}/book`, payload)
+    // Online deposit: hand off to the gateway's hosted checkout. It returns the
+    // customer to the manage page (with a ?payment= outcome) when done.
+    if (data.data?.gateway_url) {
+      window.location.href = data.data.gateway_url
+      return
+    }
     confirmation.value = data.data
     step.value = 5
   } catch (err) {
@@ -591,43 +631,83 @@ onMounted(async () => {
               </div>
             </dl>
 
-            <!-- Manual-transfer deposit -->
+            <!-- Deposit payment -->
             <div
               v-if="depositRequired"
               class="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4"
             >
               <h3 class="text-sm font-semibold text-indigo-900">Pay your deposit</h3>
               <p class="mt-1 text-sm text-indigo-800">
-                Send <span class="font-semibold">{{ formatPrice(depositAmount) }}</span> to secure this booking, then
-                enter the transaction reference below.
+                A <span class="font-semibold">{{ formatPrice(depositAmount) }}</span> deposit secures this booking.
               </p>
 
-              <dl class="mt-3 space-y-1 text-sm">
-                <div v-if="paymentPolicy?.manual?.account_number" class="flex justify-between gap-4">
-                  <dt class="text-indigo-700">Send to</dt>
-                  <dd class="text-right font-medium text-indigo-900">{{ paymentPolicy.manual.account_number }}</dd>
-                </div>
-              </dl>
-              <p v-if="paymentPolicy?.manual?.instructions" class="mt-2 whitespace-pre-line text-xs text-indigo-700">
-                {{ paymentPolicy.manual.instructions }}
-              </p>
-
-              <div class="mt-3">
-                <label class="mb-1 block text-sm font-medium text-indigo-900">
-                  Transaction reference <span class="text-rose-500">*</span>
+              <!-- Method chooser: only when the salon offers both. -->
+              <div v-if="bothMethods" class="mt-3 grid gap-2 sm:grid-cols-2">
+                <label
+                  :class="[
+                    'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition',
+                    depositMethod === 'gateway'
+                      ? 'border-indigo-500 bg-white text-indigo-900 shadow-sm'
+                      : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300',
+                  ]"
+                >
+                  <input v-model="depositMethod" type="radio" value="gateway" class="text-indigo-600" />
+                  Pay online
                 </label>
-                <input
-                  v-model="paymentReference"
-                  type="text"
-                  placeholder="e.g. TXN123456"
-                  class="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                />
-                <p v-if="bookingErrors['payment_reference']" class="mt-1 text-sm text-rose-600">
-                  {{ bookingErrors['payment_reference'][0] }}
+                <label
+                  :class="[
+                    'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition',
+                    depositMethod === 'manual'
+                      ? 'border-indigo-500 bg-white text-indigo-900 shadow-sm'
+                      : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300',
+                  ]"
+                >
+                  <input v-model="depositMethod" type="radio" value="manual" class="text-indigo-600" />
+                  Bank / wallet transfer
+                </label>
+              </div>
+
+              <!-- Online gateway -->
+              <div v-if="depositMethod === 'gateway'" class="mt-3 rounded-lg bg-white/70 px-3 py-3 text-sm text-indigo-800">
+                You'll be sent to a secure page to pay
+                <span class="font-semibold">{{ formatPrice(depositAmount) }}</span>
+                by card or mobile banking. Your booking is confirmed as soon as the payment succeeds.
+              </div>
+
+              <!-- Manual transfer -->
+              <div v-if="depositMethod === 'manual'" class="mt-3">
+                <p class="text-sm text-indigo-800">
+                  Send <span class="font-semibold">{{ formatPrice(depositAmount) }}</span>, then enter the
+                  transaction reference below.
                 </p>
-                <p class="mt-1 text-xs text-indigo-600">
-                  Your deposit is held as pending until the salon confirms it arrived.
+
+                <dl class="mt-3 space-y-1 text-sm">
+                  <div v-if="paymentPolicy?.manual?.account_number" class="flex justify-between gap-4">
+                    <dt class="text-indigo-700">Send to</dt>
+                    <dd class="text-right font-medium text-indigo-900">{{ paymentPolicy.manual.account_number }}</dd>
+                  </div>
+                </dl>
+                <p v-if="paymentPolicy?.manual?.instructions" class="mt-2 whitespace-pre-line text-xs text-indigo-700">
+                  {{ paymentPolicy.manual.instructions }}
                 </p>
+
+                <div class="mt-3">
+                  <label class="mb-1 block text-sm font-medium text-indigo-900">
+                    Transaction reference <span class="text-rose-500">*</span>
+                  </label>
+                  <input
+                    v-model="paymentReference"
+                    type="text"
+                    placeholder="e.g. TXN123456"
+                    class="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                  />
+                  <p v-if="bookingErrors['payment_reference']" class="mt-1 text-sm text-rose-600">
+                    {{ bookingErrors['payment_reference'][0] }}
+                  </p>
+                  <p class="mt-1 text-xs text-indigo-600">
+                    Your deposit is held as pending until the salon confirms it arrived.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -685,7 +765,7 @@ onMounted(async () => {
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  {{ booking ? 'Booking…' : 'Confirm booking' }}
+                  {{ submitLabel }}
                 </button>
               </div>
             </form>
