@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\BusinessHour;
 use App\Models\Gallery;
 use App\Models\Organization;
+use App\Models\Review;
 use App\Models\Setting;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -56,8 +57,86 @@ class SiteController extends Controller
                 'branches' => $this->branches($organization),
                 'team' => $this->team($organization),
                 'gallery' => $this->gallery(),
+
+                // Social proof: only published reviews are ever exposed.
+                'rating' => $this->ratingSummary(),
+                'reviews' => $this->reviewsList(),
             ],
         ]);
+    }
+
+    /**
+     * Average + count over the salon's published reviews. Average is null when
+     * there are none, so the page can hide the stars entirely.
+     *
+     * @return array{average: float|null, count: int}
+     */
+    protected function ratingSummary(): array
+    {
+        $query = Review::query()->where('status', 'published');
+        $count = (clone $query)->count();
+
+        return [
+            'average' => $count > 0 ? round((float) (clone $query)->avg('rating'), 1) : null,
+            'count' => $count,
+        ];
+    }
+
+    /**
+     * The most recent published reviews, names softened to "First L." so the
+     * public page never shows a customer's full name.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function reviewsList(): array
+    {
+        return Review::query()
+            ->where('status', 'published')
+            ->latest()
+            ->limit(20)
+            ->get()
+            ->map(fn (Review $review) => [
+                'id' => $review->id,
+                'rating' => $review->rating,
+                'comment' => $review->comment,
+                'name' => $this->shortName($review->reviewer_name),
+                'created_at' => $review->created_at,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * "Sarah Miller" => "Sarah M."; a single name is left as-is.
+     */
+    protected function shortName(string $name): string
+    {
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+        $first = $parts[0] ?? '';
+
+        if (count($parts) < 2) {
+            return $first;
+        }
+
+        $lastInitial = strtoupper(substr((string) end($parts), 0, 1));
+
+        return trim("{$first} {$lastInitial}.");
+    }
+
+    /**
+     * Per-staff published-review aggregate, keyed by staff id.
+     *
+     * @return Collection<int, object{avg_rating: mixed, cnt: int}>
+     */
+    protected function staffRatings(): Collection
+    {
+        return Review::query()
+            ->where('status', 'published')
+            ->whereNotNull('staff_id')
+            ->selectRaw('staff_id, AVG(rating) as avg_rating, COUNT(*) as cnt')
+            ->groupBy('staff_id')
+            ->get()
+            ->keyBy('staff_id');
     }
 
     /**
@@ -108,6 +187,8 @@ class SiteController extends Controller
      */
     protected function team(Organization $organization): array
     {
+        $ratings = $this->staffRatings();
+
         return User::query()
             // Users carry no tenant scope of their own — logging in has to
             // find an account before an organization is known.
@@ -124,9 +205,24 @@ class SiteController extends Controller
                 'bio' => $member->staffProfile?->bio,
                 // Free text on the profile: already a URL more often than a path.
                 'photo_url' => $member->staffProfile?->profile_image,
+                'rating' => $this->memberRating($ratings->get($member->id)),
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Shape one staff member's rating from a grouped aggregate row (or null
+     * when they have no published reviews).
+     *
+     * @return array{average: float|null, count: int}
+     */
+    protected function memberRating(?object $row): array
+    {
+        return [
+            'average' => $row ? round((float) $row->avg_rating, 1) : null,
+            'count' => $row ? (int) $row->cnt : 0,
+        ];
     }
 
     /**
