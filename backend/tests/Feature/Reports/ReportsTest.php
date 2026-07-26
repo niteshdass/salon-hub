@@ -176,4 +176,58 @@ class ReportsTest extends TestCase
             ->getJson('/api/reports?from=not-a-date')
             ->assertStatus(422);
     }
+
+    public function test_summary_counts_only_completed_in_range(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $branch = $this->makeBranch($org);
+        $service = $this->makeService($org, 'Cut', 30);
+        $staff = $this->makeStaff($org);
+
+        // Two completed in range (30 + 30 = 60).
+        $this->makeAppointment($org, ['date' => '2026-07-10', 'price' => 30, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        $this->makeAppointment($org, ['date' => '2026-07-12', 'price' => 30, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        // Excluded: pending in range, and completed outside range.
+        $this->makeAppointment($org, ['date' => '2026-07-11', 'price' => 99, 'status' => 'pending', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        $this->makeAppointment($org, ['date' => '2026-06-01', 'price' => 99, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+
+        $res->assertJsonPath('data.summary.bookings', 2);
+        $this->assertSame(60.0, (float) $res->json('data.summary.earned'));
+        $this->assertSame(30.0, (float) $res->json('data.summary.avg_ticket'));
+    }
+
+    public function test_summary_delta_compares_previous_equal_window(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $branch = $this->makeBranch($org);
+        $service = $this->makeService($org);
+        $staff = $this->makeStaff($org);
+
+        // Current window 2026-07-08..2026-07-14 (7 days): earned 100.
+        $this->makeAppointment($org, ['date' => '2026-07-10', 'price' => 100, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        // Previous window 2026-07-01..2026-07-07 (7 days): earned 50.
+        $this->makeAppointment($org, ['date' => '2026-07-03', 'price' => 50, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-08&to=2026-07-14');
+
+        $this->assertSame(50.0, (float) $res->json('data.summary.previous.earned'));
+        // (100 - 50) / 50 * 100 = 100%.
+        $this->assertSame(100.0, (float) $res->json('data.summary.delta.earned_pct'));
+    }
+
+    public function test_summary_delta_is_null_without_baseline(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+
+        $this->makeAppointment($org, ['date' => '2026-07-10', 'price' => 40, 'status' => 'completed']);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-08&to=2026-07-14');
+
+        $this->assertNull($res->json('data.summary.delta.earned_pct'));
+    }
 }
