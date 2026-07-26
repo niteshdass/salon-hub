@@ -16,6 +16,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\PaymentCallbackController;
+use App\Http\Controllers\Public\ReviewController;
 use App\Http\Controllers\Public\SiteController;
 use App\Http\Controllers\ReminderSettingController;
 use App\Http\Controllers\ServiceCategoryController;
@@ -115,6 +116,7 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     Route::get('manage/{token}', [BookingController::class, 'manage']);
     Route::post('manage/{token}/reschedule', [BookingController::class, 'reschedule']);
     Route::post('manage/{token}/cancel', [BookingController::class, 'cancel']);
+    Route::post('manage/{token}/review', [ReviewController::class, 'store']);
 
     // SSLCommerz browser callbacks for an online deposit, keyed by the
     // payment's transaction id. The gateway POSTs the customer here after

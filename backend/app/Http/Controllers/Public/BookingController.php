@@ -15,6 +15,7 @@ use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\PaymentSetting;
+use App\Models\Review;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\AppointmentScheduler;
@@ -447,6 +448,18 @@ class BookingController extends Controller
     }
 
     /**
+     * A finished visit — the only state a customer may review.
+     */
+    protected function isCompleted(Appointment $appointment): bool
+    {
+        $status = $appointment->status instanceof AppointmentStatus
+            ? $appointment->status
+            : AppointmentStatus::from($appointment->status);
+
+        return $status === AppointmentStatus::COMPLETED;
+    }
+
+    /**
      * Public-facing shape of a booking, shared by book / manage / reschedule /
      * cancel. `changeable` tells the customer UI whether to offer edits.
      *
@@ -459,6 +472,9 @@ class BookingController extends Controller
 
         $settings = PaymentSetting::query()->first();
         $depositRequired = (bool) $settings?->depositCollectable();
+
+        // Reviewing is offered once the visit is completed and not yet reviewed.
+        $review = Review::query()->where('appointment_id', $appointment->id)->first();
 
         return [
             'id' => $appointment->id,
@@ -477,6 +493,13 @@ class BookingController extends Controller
                 ? $appointment->status->value
                 : $appointment->status,
             'changeable' => $this->isChangeable($appointment),
+            'can_review' => $review === null && $this->isCompleted($appointment),
+            'review' => $review ? [
+                'id' => $review->id,
+                'rating' => $review->rating,
+                'comment' => $review->comment,
+                'created_at' => $review->created_at,
+            ] : null,
             'service' => $appointment->service ? [
                 'id' => $appointment->service->id,
                 'name' => $appointment->service->name,
