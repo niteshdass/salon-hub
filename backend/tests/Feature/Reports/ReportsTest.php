@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Organization;
+use App\Models\Review;
 use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\User;
@@ -334,5 +335,39 @@ class ReportsTest extends TestCase
         $this->assertSame(80.0, (float) $rows[0]['earned']);
         $this->assertSame('Cut', $rows[1]['name']);
         $this->assertSame(2, $rows[1]['bookings']);
+    }
+
+    public function test_staff_performance_with_rating_in_range(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $branch = $this->makeBranch($org);
+        $service = $this->makeService($org, 'Cut', 40);
+        $alice = $this->makeStaff($org, 'Alice Wong');
+        $bob = $this->makeStaff($org, 'Bob Stone');
+
+        // Alice: 2 completed x 40 = 80. Bob: 1 x 40 = 40.
+        $a1 = $this->makeAppointment($org, ['date' => '2026-07-05', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $alice]);
+        $this->makeAppointment($org, ['date' => '2026-07-06', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $alice]);
+        $this->makeAppointment($org, ['date' => '2026-07-07', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $bob]);
+
+        Review::create([
+            'organization_id' => $org->id,
+            'appointment_id' => $a1->id,
+            'staff_id' => $alice->id,
+            'rating' => 5,
+            'comment' => 'Great',
+            'reviewer_name' => 'Casey Customer',
+            'status' => 'published',
+        ]);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+
+        $rows = collect($res->json('data.staff'))->keyBy('name');
+        $this->assertSame(80.0, (float) $rows['Alice Wong']['earned']);
+        $this->assertSame(2, $rows['Alice Wong']['bookings']);
+        $this->assertSame(5.0, (float) $rows['Alice Wong']['rating']['average']);
+        $this->assertSame(1, $rows['Alice Wong']['rating']['count']);
+        $this->assertNull($rows['Bob Stone']['rating']['average']);
     }
 }

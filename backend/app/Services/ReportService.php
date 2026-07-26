@@ -3,8 +3,12 @@
 namespace App\Services;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\UserRole;
 use App\Models\Appointment;
+use App\Models\Review;
 use App\Models\Service;
+use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Carbon;
 
 /**
@@ -24,7 +28,7 @@ class ReportService
             'summary' => $this->summary($from, $to),
             'revenue' => $this->revenueSeries($from, $to),
             'top_services' => $this->topServices($from, $to),
-            'staff' => [],
+            'staff' => $this->staffPerformance($from, $to),
             'bookings' => [],
         ];
     }
@@ -219,5 +223,70 @@ class ReportService
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Completed bookings + earned per staff member, ranked by earned, each
+     * with their average review rating over the same window.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function staffPerformance(string $from, string $to): array
+    {
+        $rows = Appointment::query()
+            ->where('status', AppointmentStatus::COMPLETED->value)
+            ->whereDate('booking_date', '>=', $from)
+            ->whereDate('booking_date', '<=', $to)
+            ->selectRaw('staff_id, COUNT(*) as bookings, SUM(price) as earned')
+            ->groupBy('staff_id')
+            ->get();
+
+        // Staff names: User carries no tenant scope, so filter explicitly.
+        $names = User::query()
+            ->where('organization_id', app(CurrentTenant::class)->id())
+            ->where('role', UserRole::STAFF->value)
+            ->pluck('name', 'id');
+
+        $ratings = $this->staffRatings($from, $to);
+
+        return $rows
+            ->sortByDesc(fn ($row) => (float) $row->earned)
+            ->map(fn ($row) => [
+                'staff_id' => (int) $row->staff_id,
+                'name' => $names->get($row->staff_id, 'Unknown'),
+                'bookings' => (int) $row->bookings,
+                'earned' => round((float) $row->earned, 2),
+                'rating' => $this->ratingFor($ratings->get($row->staff_id)),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Per-staff review aggregate over the range, keyed by staff id.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    protected function staffRatings(string $from, string $to): \Illuminate\Support\Collection
+    {
+        return Review::query()
+            ->whereNotNull('staff_id')
+            ->whereDate('created_at', '>=', $from)
+            ->whereDate('created_at', '<=', $to)
+            ->selectRaw('staff_id, AVG(rating) as avg_rating, COUNT(*) as cnt')
+            ->groupBy('staff_id')
+            ->get()
+            ->keyBy('staff_id');
+    }
+
+    /**
+     * @return array{average: float|null, count: int}
+     */
+    protected function ratingFor(?object $row): array
+    {
+        return [
+            'average' => $row ? round((float) $row->avg_rating, 1) : null,
+            'count' => $row ? (int) $row->cnt : 0,
+        ];
     }
 }
