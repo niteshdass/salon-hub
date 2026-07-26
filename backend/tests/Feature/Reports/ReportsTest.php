@@ -259,13 +259,25 @@ class ReportsTest extends TestCase
         $this->makeAppointment($org, ['date' => '2026-01-15', 'price' => 100, 'status' => 'completed']);
         $this->makeAppointment($org, ['date' => '2026-03-10', 'price' => 200, 'status' => 'completed']);
 
-        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-01-01&to=2026-03-31');
+        // A > 182-day span buckets by month.
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-01-01&to=2026-12-31');
 
         $res->assertJsonPath('data.revenue.granularity', 'month');
         $points = collect($res->json('data.revenue.points'));
-        $this->assertSame(3, $points->count()); // Jan, Feb, Mar.
+        $this->assertSame(12, $points->count()); // Jan..Dec, zero-filled.
         $this->assertSame(100.0, (float) $points->firstWhere('period', '2026-01')['earned']);
         $this->assertSame(0.0, (float) $points->firstWhere('period', '2026-02')['earned']);
         $this->assertSame(200.0, (float) $points->firstWhere('period', '2026-03')['earned']);
+    }
+
+    public function test_revenue_series_is_weekly_for_mid_range(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+
+        // A ~120-day span (>31, <=182) buckets by week.
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-01-01&to=2026-04-30');
+
+        $res->assertJsonPath('data.revenue.granularity', 'week');
     }
 }

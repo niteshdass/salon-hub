@@ -136,7 +136,7 @@ class ReportService
         if ($days <= 31) {
             return 'day';
         }
-        if ($days < 89) {
+        if ($days <= 182) {
             return 'week';
         }
 
