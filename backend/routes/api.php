@@ -19,6 +19,7 @@ use App\Http\Controllers\Public\PaymentCallbackController;
 use App\Http\Controllers\Public\ReviewController as PublicReviewController;
 use App\Http\Controllers\Public\SiteController;
 use App\Http\Controllers\ReminderSettingController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
@@ -91,6 +92,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('reviews', [ReviewController::class, 'index']);
     Route::patch('reviews/{review}', [ReviewController::class, 'update']);
     Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
+
+    Route::get('reports', ReportController::class);
 
     Route::get('settings/organization', [OrganizationSettingController::class, 'show']);
     Route::put('settings/organization', [OrganizationSettingController::class, 'update']);
