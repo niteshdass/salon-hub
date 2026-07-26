@@ -270,6 +270,7 @@ class ReportService
     protected function staffRatings(string $from, string $to): \Illuminate\Support\Collection
     {
         return Review::query()
+            ->where('status', 'published')
             ->whereNotNull('staff_id')
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)

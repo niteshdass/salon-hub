@@ -364,10 +364,50 @@ class ReportsTest extends TestCase
         $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
 
         $rows = collect($res->json('data.staff'))->keyBy('name');
+        // Ranked by earned desc: Alice (80) before Bob (40).
+        $this->assertSame('Alice Wong', $res->json('data.staff.0.name'));
         $this->assertSame(80.0, (float) $rows['Alice Wong']['earned']);
         $this->assertSame(2, $rows['Alice Wong']['bookings']);
         $this->assertSame(5.0, (float) $rows['Alice Wong']['rating']['average']);
         $this->assertSame(1, $rows['Alice Wong']['rating']['count']);
         $this->assertNull($rows['Bob Stone']['rating']['average']);
+    }
+
+    public function test_staff_rating_excludes_hidden_reviews(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $branch = $this->makeBranch($org);
+        $service = $this->makeService($org, 'Cut', 40);
+        $alice = $this->makeStaff($org, 'Alice Wong');
+
+        $a1 = $this->makeAppointment($org, ['date' => '2026-07-05', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $alice]);
+        $a2 = $this->makeAppointment($org, ['date' => '2026-07-06', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $alice]);
+
+        // A published 5-star and a hidden 1-star: only the published one counts.
+        Review::create([
+            'organization_id' => $org->id,
+            'appointment_id' => $a1->id,
+            'staff_id' => $alice->id,
+            'rating' => 5,
+            'comment' => 'Great',
+            'reviewer_name' => 'Casey Customer',
+            'status' => 'published',
+        ]);
+        Review::create([
+            'organization_id' => $org->id,
+            'appointment_id' => $a2->id,
+            'staff_id' => $alice->id,
+            'rating' => 1,
+            'comment' => 'Hidden',
+            'reviewer_name' => 'Casey Customer',
+            'status' => 'hidden',
+        ]);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+
+        $rows = collect($res->json('data.staff'))->keyBy('name');
+        $this->assertSame(5.0, (float) $rows['Alice Wong']['rating']['average']); // hidden 1-star excluded
+        $this->assertSame(1, $rows['Alice Wong']['rating']['count']);
     }
 }
