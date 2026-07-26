@@ -16,9 +16,10 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\PaymentCallbackController;
-use App\Http\Controllers\Public\ReviewController;
+use App\Http\Controllers\Public\ReviewController as PublicReviewController;
 use App\Http\Controllers\Public\SiteController;
 use App\Http\Controllers\ReminderSettingController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\StaffController;
@@ -87,6 +88,10 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
 
     Route::apiResource('gallery', GalleryController::class)->except('show');
 
+    Route::get('reviews', [ReviewController::class, 'index']);
+    Route::patch('reviews/{review}', [ReviewController::class, 'update']);
+    Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
+
     Route::get('settings/organization', [OrganizationSettingController::class, 'show']);
     Route::put('settings/organization', [OrganizationSettingController::class, 'update']);
     Route::post('settings/organization/logo', [OrganizationSettingController::class, 'uploadLogo']);
@@ -116,7 +121,7 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     Route::get('manage/{token}', [BookingController::class, 'manage']);
     Route::post('manage/{token}/reschedule', [BookingController::class, 'reschedule']);
     Route::post('manage/{token}/cancel', [BookingController::class, 'cancel']);
-    Route::post('manage/{token}/review', [ReviewController::class, 'store']);
+    Route::post('manage/{token}/review', [PublicReviewController::class, 'store']);
 
     // SSLCommerz browser callbacks for an online deposit, keyed by the
     // payment's transaction id. The gateway POSTs the customer here after
