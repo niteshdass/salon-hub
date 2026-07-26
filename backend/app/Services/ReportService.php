@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
+use App\Models\Service;
 use Illuminate\Support\Carbon;
 
 /**
@@ -22,7 +23,7 @@ class ReportService
             'range' => ['from' => $from, 'to' => $to],
             'summary' => $this->summary($from, $to),
             'revenue' => $this->revenueSeries($from, $to),
-            'top_services' => [],
+            'top_services' => $this->topServices($from, $to),
             'staff' => [],
             'bookings' => [],
         ];
@@ -185,5 +186,38 @@ class ReportService
         }
 
         return $cursors;
+    }
+
+    /**
+     * Completed bookings grouped by service, ranked by earned. Group-by-id +
+     * SUM is portable SQL; names are resolved with a tenant-scoped lookup.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function topServices(string $from, string $to): array
+    {
+        $rows = Appointment::query()
+            ->where('status', AppointmentStatus::COMPLETED->value)
+            ->whereDate('booking_date', '>=', $from)
+            ->whereDate('booking_date', '<=', $to)
+            ->selectRaw('service_id, COUNT(*) as bookings, SUM(price) as earned')
+            ->groupBy('service_id')
+            ->get();
+
+        $total = (float) $rows->sum('earned');
+        $names = Service::query()->pluck('name', 'id');
+
+        return $rows
+            ->sortByDesc(fn ($row) => (float) $row->earned)
+            ->take(10)
+            ->map(fn ($row) => [
+                'service_id' => (int) $row->service_id,
+                'name' => $names->get($row->service_id, 'Unknown'),
+                'bookings' => (int) $row->bookings,
+                'earned' => round((float) $row->earned, 2),
+                'share_pct' => $total > 0 ? round((float) $row->earned / $total * 100, 1) : 0.0,
+            ])
+            ->values()
+            ->all();
     }
 }

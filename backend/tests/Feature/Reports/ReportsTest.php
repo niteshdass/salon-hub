@@ -312,4 +312,27 @@ class ReportsTest extends TestCase
         $this->withToken($token)->getJson('/api/reports?from=2026-01-01&to=2026-07-03')
             ->assertJsonPath('data.revenue.granularity', 'month');
     }
+
+    public function test_top_services_ranked_by_earned(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $branch = $this->makeBranch($org);
+        $staff = $this->makeStaff($org);
+        $cut = $this->makeService($org, 'Cut', 20);
+        $colour = $this->makeService($org, 'Colour', 80);
+
+        // Colour: 1 x 80 = 80. Cut: 2 x 20 = 40.
+        $this->makeAppointment($org, ['date' => '2026-07-05', 'price' => 80, 'status' => 'completed', 'branch' => $branch, 'service' => $colour, 'staff' => $staff]);
+        $this->makeAppointment($org, ['date' => '2026-07-06', 'price' => 20, 'status' => 'completed', 'branch' => $branch, 'service' => $cut, 'staff' => $staff]);
+        $this->makeAppointment($org, ['date' => '2026-07-07', 'price' => 20, 'status' => 'completed', 'branch' => $branch, 'service' => $cut, 'staff' => $staff]);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+
+        $rows = $res->json('data.top_services');
+        $this->assertSame('Colour', $rows[0]['name']);
+        $this->assertSame(80.0, (float) $rows[0]['earned']);
+        $this->assertSame('Cut', $rows[1]['name']);
+        $this->assertSame(2, $rows[1]['bookings']);
+    }
 }
