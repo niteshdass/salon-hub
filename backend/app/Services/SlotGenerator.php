@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Branch;
+use App\Models\BranchClosure;
 use App\Models\Service;
 use App\Models\StaffTimeOff;
 use App\Models\User;
@@ -44,6 +45,23 @@ class SlotGenerator
     {
         $profile = $staff->staffProfile;
         $weekday = Carbon::parse($date)->dayOfWeekIso; // 1=Mon .. 7=Sun
+
+        // A holiday / one-off closure of the whole salon (null branch) or this
+        // branch removes every slot for the covered dates.
+        $closed = BranchClosure::query()
+            ->whereDate('start_date', '<=', $date)
+            ->whereDate('end_date', '>=', $date)
+            ->where(function ($query) use ($branch): void {
+                $query->whereNull('branch_id');
+                if ($branch !== null) {
+                    $query->orWhere('branch_id', $branch->id);
+                }
+            })
+            ->exists();
+
+        if ($closed) {
+            return [];
+        }
 
         // Closed on this weekday when the profile lists working days and this
         // one is not among them. An empty/absent list means "open every day".
