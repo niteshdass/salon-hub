@@ -205,7 +205,108 @@ async function confirmDelete() {
   }
 }
 
-onMounted(loadBranches)
+// ── Closures ────────────────────────────────────────────────────────────────
+// Whole-day closures for one branch or the whole salon (null branch). Blocks
+// online booking for the covered dates (SlotGenerator returns no slots).
+const closures = ref([])
+const closuresLoading = ref(false)
+const closuresError = ref('')
+
+const showClosureForm = ref(false)
+const closureSaving = ref(false)
+const closureFormErrors = ref({})
+
+const closureForm = reactive({
+  branch_id: '', // '' => all branches (org-wide)
+  start_date: '',
+  end_date: '',
+  reason: '',
+})
+
+const closureConfirmTarget = ref(null)
+const closureDeleting = ref(false)
+
+const branchName = computed(() => {
+  const map = {}
+  for (const b of branches.value) map[b.id] = b.name
+  return (id) => (id == null ? 'All branches' : map[id] || `Branch #${id}`)
+})
+
+async function loadClosures() {
+  closuresLoading.value = true
+  closuresError.value = ''
+  try {
+    const { data } = await api.get('/branch-closures')
+    closures.value = data.data || []
+  } catch (err) {
+    closuresError.value = parseApiError(err, 'Could not load closures.').message
+  } finally {
+    closuresLoading.value = false
+  }
+}
+
+function openClosureForm() {
+  Object.assign(closureForm, { branch_id: '', start_date: '', end_date: '', reason: '' })
+  closureFormErrors.value = {}
+  showClosureForm.value = true
+}
+
+function closeClosureForm() {
+  showClosureForm.value = false
+}
+
+async function submitClosure() {
+  closureSaving.value = true
+  closureFormErrors.value = {}
+  try {
+    await api.post('/branch-closures', {
+      branch_id: closureForm.branch_id === '' ? null : closureForm.branch_id,
+      start_date: closureForm.start_date,
+      end_date: closureForm.end_date,
+      reason: closureForm.reason || null,
+    })
+    closeClosureForm()
+    await loadClosures()
+  } catch (err) {
+    closureFormErrors.value = parseApiError(err).errors
+  } finally {
+    closureSaving.value = false
+  }
+}
+
+async function confirmDeleteClosure() {
+  if (!closureConfirmTarget.value) return
+  closureDeleting.value = true
+  try {
+    await api.delete(`/branch-closures/${closureConfirmTarget.value.id}`)
+    closureConfirmTarget.value = null
+    await loadClosures()
+  } catch (err) {
+    closuresError.value = parseApiError(err, 'Could not delete closure.').message
+    closureConfirmTarget.value = null
+  } finally {
+    closureDeleting.value = false
+  }
+}
+
+// "25 Dec 2026" from a YYYY-MM-DD string, and a range collapsed when equal.
+function formatDate(value) {
+  if (!value) return '—'
+  const d = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function closureRange(entry) {
+  return entry.start_date === entry.end_date
+    ? formatDate(entry.start_date)
+    : `${formatDate(entry.start_date)} → ${formatDate(entry.end_date)}`
+}
+
+onMounted(() => {
+  loadBranches()
+  loadClosures()
+})
 </script>
 
 <template>
@@ -313,6 +414,164 @@ onMounted(loadBranches)
         </tbody>
       </table>
     </div>
+
+    <!-- Closures -->
+    <div class="mt-10">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Closures &amp; holidays</h2>
+          <p class="mt-1 text-sm text-slate-500">Block online booking for whole days, per branch or salon-wide.</p>
+        </div>
+        <button
+          v-if="canWrite"
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+          @click="openClosureForm"
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add closure
+        </button>
+      </div>
+
+      <div
+        v-if="closuresError"
+        class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+      >
+        {{ closuresError }}
+      </div>
+
+      <div v-if="closuresLoading" class="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+        Loading closures…
+      </div>
+      <div
+        v-else-if="closures.length === 0"
+        class="rounded-2xl bg-white p-8 text-center ring-1 ring-slate-200"
+      >
+        <p class="text-sm font-medium text-slate-900">No closures scheduled</p>
+        <p class="mt-1 text-sm text-slate-500">Add holidays or one-off closed days.</p>
+      </div>
+      <div v-else class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Dates</th>
+              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Branch</th>
+              <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:table-cell">Reason</th>
+              <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="entry in closures" :key="entry.id" class="hover:bg-slate-50">
+              <td class="px-5 py-3.5 text-sm font-medium text-slate-900">{{ closureRange(entry) }}</td>
+              <td class="px-5 py-3.5 text-sm text-slate-600">
+                <span
+                  v-if="entry.branch_id == null"
+                  class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700"
+                >
+                  All branches
+                </span>
+                <span v-else>{{ branchName(entry.branch_id) }}</span>
+              </td>
+              <td class="hidden px-5 py-3.5 text-sm text-slate-600 sm:table-cell">{{ entry.reason || '—' }}</td>
+              <td class="px-5 py-3.5 text-right">
+                <button
+                  v-if="canWrite"
+                  type="button"
+                  class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                  @click="closureConfirmTarget = entry"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add closure form -->
+    <Modal
+      v-if="showClosureForm"
+      title="Add closure"
+      size="md"
+      @close="closeClosureForm"
+    >
+      <form id="closure-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="submitClosure">
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-sm font-medium text-slate-700">Branch</label>
+          <select
+            v-model="closureForm.branch_id"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          >
+            <option value="">All branches (salon-wide)</option>
+            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+          </select>
+          <p v-if="closureFormErrors.branch_id" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.branch_id[0] }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">From <span class="text-rose-500">*</span></label>
+          <input
+            v-model="closureForm.start_date"
+            type="date"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p v-if="closureFormErrors.start_date" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.start_date[0] }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">To <span class="text-rose-500">*</span></label>
+          <input
+            v-model="closureForm.end_date"
+            type="date"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p class="mt-1 text-xs text-slate-400">Same day for a single-day closure.</p>
+          <p v-if="closureFormErrors.end_date" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.end_date[0] }}</p>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-sm font-medium text-slate-700">Reason</label>
+          <input
+            v-model="closureForm.reason"
+            type="text"
+            maxlength="255"
+            placeholder="Public holiday, renovation…"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p v-if="closureFormErrors.reason" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.reason[0] }}</p>
+        </div>
+      </form>
+
+      <template #footer>
+        <button
+          type="button"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          @click="closeClosureForm"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          form="closure-form"
+          :disabled="closureSaving"
+          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {{ closureSaving ? 'Saving…' : 'Add closure' }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- Closure delete confirm -->
+    <ConfirmDialog
+      v-if="closureConfirmTarget"
+      title="Delete closure"
+      :message="`Delete the closure on ${closureRange(closureConfirmTarget)}? This cannot be undone.`"
+      :loading="closureDeleting"
+      @confirm="confirmDeleteClosure"
+      @cancel="closureConfirmTarget = null"
+    />
 
     <!-- Create / edit form -->
     <Modal

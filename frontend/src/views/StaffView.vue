@@ -192,6 +192,96 @@ async function confirmDelete() {
   }
 }
 
+// ── Time off ──────────────────────────────────────────────────────────────
+// One member's time-off is managed in its own modal. Blocks book online
+// during the range (SlotGenerator drops those slots).
+const timeOffTarget = ref(null)
+const timeOffList = ref([])
+const timeOffLoading = ref(false)
+const timeOffError = ref('')
+const timeOffSaving = ref(false)
+const timeOffFormErrors = ref({})
+const timeOffDeletingId = ref(null)
+
+const timeOffForm = reactive({
+  start_at: '',
+  end_at: '',
+  reason: '',
+})
+
+function openTimeOff(member) {
+  timeOffTarget.value = member
+  timeOffList.value = []
+  timeOffError.value = ''
+  timeOffFormErrors.value = {}
+  Object.assign(timeOffForm, { start_at: '', end_at: '', reason: '' })
+  loadTimeOff()
+}
+
+function closeTimeOff() {
+  timeOffTarget.value = null
+}
+
+async function loadTimeOff() {
+  if (!timeOffTarget.value) return
+  timeOffLoading.value = true
+  timeOffError.value = ''
+  try {
+    const { data } = await api.get(`/staff/${timeOffTarget.value.id}/time-off`)
+    timeOffList.value = data.data || []
+  } catch (err) {
+    timeOffError.value = parseApiError(err, 'Could not load time off.').message
+  } finally {
+    timeOffLoading.value = false
+  }
+}
+
+async function submitTimeOff() {
+  if (!timeOffTarget.value) return
+  timeOffSaving.value = true
+  timeOffFormErrors.value = {}
+  try {
+    await api.post(`/staff/${timeOffTarget.value.id}/time-off`, {
+      start_at: timeOffForm.start_at,
+      end_at: timeOffForm.end_at,
+      reason: timeOffForm.reason || null,
+    })
+    Object.assign(timeOffForm, { start_at: '', end_at: '', reason: '' })
+    await loadTimeOff()
+  } catch (err) {
+    timeOffFormErrors.value = parseApiError(err).errors
+  } finally {
+    timeOffSaving.value = false
+  }
+}
+
+async function deleteTimeOff(id) {
+  if (!timeOffTarget.value) return
+  timeOffDeletingId.value = id
+  try {
+    await api.delete(`/staff/${timeOffTarget.value.id}/time-off/${id}`)
+    await loadTimeOff()
+  } catch (err) {
+    timeOffError.value = parseApiError(err, 'Could not delete time off.').message
+  } finally {
+    timeOffDeletingId.value = null
+  }
+}
+
+// "3 Aug 2026, 12:00" from an ISO datetime.
+function formatDateTime(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function toggleService(id) {
   const idx = form.service_ids.indexOf(id)
   if (idx === -1) form.service_ids.push(id)
@@ -327,6 +417,13 @@ onMounted(() => {
         </div>
 
         <div v-if="canWrite" class="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button
+            type="button"
+            class="mr-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+            @click="openTimeOff(member)"
+          >
+            Time off
+          </button>
           <button
             type="button"
             class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
@@ -506,6 +603,105 @@ onMounted(() => {
           class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Create staff' }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- Time off -->
+    <Modal
+      v-if="timeOffTarget"
+      :title="`Time off — ${timeOffTarget.name}`"
+      size="lg"
+      @close="closeTimeOff"
+    >
+      <div
+        v-if="timeOffError"
+        class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+      >
+        {{ timeOffError }}
+      </div>
+
+      <!-- Add form -->
+      <form class="grid grid-cols-1 gap-3 sm:grid-cols-2" @submit.prevent="submitTimeOff">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Starts <span class="text-rose-500">*</span></label>
+          <input
+            v-model="timeOffForm.start_at"
+            type="datetime-local"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p v-if="timeOffFormErrors.start_at" class="mt-1 text-sm text-rose-600">{{ timeOffFormErrors.start_at[0] }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Ends <span class="text-rose-500">*</span></label>
+          <input
+            v-model="timeOffForm.end_at"
+            type="datetime-local"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p v-if="timeOffFormErrors.end_at" class="mt-1 text-sm text-rose-600">{{ timeOffFormErrors.end_at[0] }}</p>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-sm font-medium text-slate-700">Reason</label>
+          <input
+            v-model="timeOffForm.reason"
+            type="text"
+            maxlength="255"
+            placeholder="Vacation, sick leave…"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          />
+          <p v-if="timeOffFormErrors.reason" class="mt-1 text-sm text-rose-600">{{ timeOffFormErrors.reason[0] }}</p>
+        </div>
+        <div class="sm:col-span-2">
+          <button
+            type="submit"
+            :disabled="timeOffSaving"
+            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {{ timeOffSaving ? 'Adding…' : 'Add time off' }}
+          </button>
+        </div>
+      </form>
+
+      <!-- List -->
+      <div class="mt-6 border-t border-slate-100 pt-4">
+        <p v-if="timeOffLoading" class="text-sm text-slate-500">Loading…</p>
+        <p v-else-if="timeOffList.length === 0" class="text-sm text-slate-400">
+          No time off scheduled.
+        </p>
+        <ul v-else class="space-y-2">
+          <li
+            v-for="entry in timeOffList"
+            :key="entry.id"
+            class="flex items-start justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5"
+          >
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-slate-900">
+                {{ formatDateTime(entry.start_at) }} → {{ formatDateTime(entry.end_at) }}
+              </p>
+              <p v-if="entry.reason" class="truncate text-xs text-slate-500">{{ entry.reason }}</p>
+            </div>
+            <button
+              type="button"
+              :disabled="timeOffDeletingId === entry.id"
+              class="shrink-0 rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+              @click="deleteTimeOff(entry.id)"
+            >
+              {{ timeOffDeletingId === entry.id ? 'Removing…' : 'Remove' }}
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <template #footer>
+        <button
+          type="button"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          @click="closeTimeOff"
+        >
+          Close
         </button>
       </template>
     </Modal>
