@@ -20,6 +20,7 @@ use App\Http\Controllers\ReminderSettingController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\StaffTimeOffController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +76,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::apiResource('services', ServiceController::class);
     Route::apiResource('staff', StaffController::class)
         ->parameters(['staff' => 'staff']);
+    Route::get('staff/{staff}/time-off', [StaffTimeOffController::class, 'index']);
+    Route::post('staff/{staff}/time-off', [StaffTimeOffController::class, 'store']);
+    Route::delete('staff/{staff}/time-off/{timeOff}', [StaffTimeOffController::class, 'destroy']);
 
     Route::apiResource('gallery', GalleryController::class)->except('show');
 
