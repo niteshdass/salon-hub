@@ -230,4 +230,42 @@ class ReportsTest extends TestCase
 
         $this->assertNull($res->json('data.summary.delta.earned_pct'));
     }
+
+    public function test_revenue_series_is_daily_and_zero_filled_for_short_range(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+
+        $this->makeAppointment($org, ['date' => '2026-07-02', 'price' => 20, 'status' => 'completed']);
+        $this->makeAppointment($org, ['date' => '2026-07-02', 'price' => 30, 'status' => 'completed']);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-03');
+
+        $res->assertJsonPath('data.revenue.granularity', 'day');
+        $points = $res->json('data.revenue.points');
+        $this->assertCount(3, $points); // Jul 1, 2, 3 — zero-filled.
+        $this->assertSame('2026-07-01', $points[0]['period']);
+        $this->assertSame(0.0, (float) $points[0]['earned']);
+        $this->assertSame('2026-07-02', $points[1]['period']);
+        $this->assertSame(50.0, (float) $points[1]['earned']);
+        $this->assertSame(2, $points[1]['bookings']);
+    }
+
+    public function test_revenue_series_is_monthly_for_long_range(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+
+        $this->makeAppointment($org, ['date' => '2026-01-15', 'price' => 100, 'status' => 'completed']);
+        $this->makeAppointment($org, ['date' => '2026-03-10', 'price' => 200, 'status' => 'completed']);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-01-01&to=2026-03-31');
+
+        $res->assertJsonPath('data.revenue.granularity', 'month');
+        $points = collect($res->json('data.revenue.points'));
+        $this->assertSame(3, $points->count()); // Jan, Feb, Mar.
+        $this->assertSame(100.0, (float) $points->firstWhere('period', '2026-01')['earned']);
+        $this->assertSame(0.0, (float) $points->firstWhere('period', '2026-02')['earned']);
+        $this->assertSame(200.0, (float) $points->firstWhere('period', '2026-03')['earned']);
+    }
 }
