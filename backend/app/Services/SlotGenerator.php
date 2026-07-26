@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Branch;
 use App\Models\Service;
+use App\Models\StaffTimeOff;
 use App\Models\User;
 use Carbon\Carbon;
 
@@ -76,6 +77,14 @@ class SlotGenerator
         $isToday = Carbon::parse($date)->isToday();
         $now = Carbon::now();
 
+        // One-off time off that intersects this date. A candidate is dropped
+        // when its service window overlaps any of these ranges.
+        $timeOff = StaffTimeOff::query()
+            ->where('user_id', $staff->id)
+            ->where('start_at', '<', Carbon::parse($date)->endOfDay())
+            ->where('end_at', '>', Carbon::parse($date)->startOfDay())
+            ->get(['start_at', 'end_at']);
+
         $slots = [];
         $candidate = $dayStart->copy();
 
@@ -84,7 +93,14 @@ class SlotGenerator
 
             $passed = $isToday && $candidate->lessThan($now);
 
-            if (! $passed && ! $this->scheduler->hasConflict(
+            // Half-open overlap: a window that ends exactly when the time off
+            // starts (or starts when it ends) is still bookable.
+            $blockedByTimeOff = $timeOff->contains(
+                fn ($off) => $candidate->lessThan($off->end_at)
+                    && $candidateEnd->greaterThan($off->start_at),
+            );
+
+            if (! $passed && ! $blockedByTimeOff && ! $this->scheduler->hasConflict(
                 $staff->id,
                 $date,
                 $candidate->format('H:i'),
