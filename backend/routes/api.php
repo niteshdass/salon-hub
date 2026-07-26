@@ -4,6 +4,7 @@ use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\BranchClosureController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
@@ -71,6 +72,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('appointments/{appointment}/invoice', InvoiceController::class);
 
     Route::apiResource('branches', BranchController::class);
+    Route::get('branch-closures', [BranchClosureController::class, 'index']);
+    Route::post('branch-closures', [BranchClosureController::class, 'store']);
+    Route::delete('branch-closures/{branchClosure}', [BranchClosureController::class, 'destroy']);
     Route::apiResource('categories', ServiceCategoryController::class)
         ->parameters(['categories' => 'category']);
     Route::apiResource('services', ServiceController::class);
