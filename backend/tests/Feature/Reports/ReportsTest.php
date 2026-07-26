@@ -166,4 +166,14 @@ class ReportsTest extends TestCase
             ->getJson('/api/reports?from=2025-01-01&to=2026-06-01')
             ->assertStatus(422);
     }
+
+    public function test_malformed_date_is_rejected_cleanly(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+
+        $this->withToken($this->token($owner))
+            ->getJson('/api/reports?from=not-a-date')
+            ->assertStatus(422);
+    }
 }

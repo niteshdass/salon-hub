@@ -31,6 +31,12 @@ class ReportRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
+            // Bad/absent dates were already flagged by the rules above;
+            // don't re-parse raw input (Carbon::parse would throw on garbage).
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
             ['from' => $from, 'to' => $to] = $this->range();
             if (Carbon::parse($from)->diffInDays(Carbon::parse($to)) > 366) {
                 $validator->errors()->add('to', 'The date range must be 366 days or fewer.');
