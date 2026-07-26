@@ -172,6 +172,32 @@ async function confirmCancel() {
   }
 }
 
+/* ------------------------------ Review ------------------------------ */
+const reviewRating = ref(0)
+const reviewHover = ref(0)
+const reviewComment = ref('')
+const submittingReview = ref(false)
+const reviewError = ref('')
+
+async function submitReview() {
+  if (!reviewRating.value) return
+  submittingReview.value = true
+  reviewError.value = ''
+  try {
+    const { data } = await api.post(`/public/${slug}/manage/${token}/review`, {
+      rating: reviewRating.value,
+      comment: reviewComment.value || null,
+    })
+    // Reflect the new review in place so the form gives way to a thank-you.
+    booking.value.review = data.data
+    booking.value.can_review = false
+  } catch (err) {
+    reviewError.value = parseApiError(err, 'Could not submit your review.').message
+  } finally {
+    submittingReview.value = false
+  }
+}
+
 const bookAnotherLink = computed(() => `/book/${slug}`)
 
 onMounted(loadBooking)
@@ -404,6 +430,87 @@ onMounted(loadBooking)
               </button>
             </div>
           </div>
+        </div>
+
+        <!-- Already reviewed: show a thank-you with the rating they left. -->
+        <div
+          v-if="booking.review"
+          class="mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7"
+        >
+          <h2 class="text-lg font-semibold text-slate-900">Your review</h2>
+          <div class="mt-3 flex text-amber-400">
+            <svg
+              v-for="star in 5"
+              :key="star"
+              class="h-6 w-6"
+              :fill="star <= booking.review.rating ? 'currentColor' : 'none'"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+            </svg>
+          </div>
+          <p v-if="booking.review.comment" class="mt-3 text-sm text-slate-600">{{ booking.review.comment }}</p>
+          <p class="mt-3 text-sm text-slate-500">Thanks for your feedback!</p>
+        </div>
+
+        <!-- Reviewable completed booking: invite a rating. -->
+        <div
+          v-else-if="booking.can_review"
+          class="mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7"
+        >
+          <h2 class="text-lg font-semibold text-slate-900">How was your visit?</h2>
+          <p class="mt-1 text-sm text-slate-500">Leave a rating to help others find great service.</p>
+
+          <div class="mt-4 flex gap-1" @mouseleave="reviewHover = 0">
+            <button
+              v-for="star in 5"
+              :key="star"
+              type="button"
+              class="text-amber-400 transition"
+              @mouseenter="reviewHover = star"
+              @click="reviewRating = star"
+            >
+              <svg
+                class="h-9 w-9"
+                :fill="star <= (reviewHover || reviewRating) ? 'currentColor' : 'none'"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+              </svg>
+            </button>
+          </div>
+
+          <textarea
+            v-model="reviewComment"
+            rows="3"
+            maxlength="1000"
+            placeholder="Tell us about your experience (optional)"
+            class="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          ></textarea>
+
+          <div
+            v-if="reviewError"
+            class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+          >
+            {{ reviewError }}
+          </div>
+
+          <button
+            type="button"
+            :disabled="!reviewRating || submittingReview"
+            class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            @click="submitReview"
+          >
+            <svg v-if="submittingReview" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            {{ submittingReview ? 'Submitting…' : 'Submit review' }}
+          </button>
         </div>
 
         <p class="mt-6 text-center text-sm">
