@@ -156,7 +156,7 @@ class ReportService
     {
         return match ($granularity) {
             'day' => $date->format('M j'),                       // Jul 24
-            'week' => $date->copy()->startOfWeek()->format('M j'), // week of Jul 20
+            'week' => $date->copy()->startOfWeek()->format('M j'), // Jul 20 (Monday of the week)
             'month' => $date->format('M Y'),                      // Jul 2026
         };
     }

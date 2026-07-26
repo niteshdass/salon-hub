@@ -246,6 +246,7 @@ class ReportsTest extends TestCase
         $this->assertCount(3, $points); // Jul 1, 2, 3 — zero-filled.
         $this->assertSame('2026-07-01', $points[0]['period']);
         $this->assertSame(0.0, (float) $points[0]['earned']);
+        $this->assertSame(0, $points[0]['bookings']);
         $this->assertSame('2026-07-02', $points[1]['period']);
         $this->assertSame(50.0, (float) $points[1]['earned']);
         $this->assertSame(2, $points[1]['bookings']);
@@ -275,9 +276,40 @@ class ReportsTest extends TestCase
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
 
+        // ISO weeks in 2026: Jan 5 (Mon) & Jan 6 (Tue) are in 2026-W02; Jan 15 is in 2026-W03.
+        $this->makeAppointment($org, ['date' => '2026-01-05', 'price' => 40, 'status' => 'completed']);
+        $this->makeAppointment($org, ['date' => '2026-01-06', 'price' => 60, 'status' => 'completed']);
+        $this->makeAppointment($org, ['date' => '2026-01-15', 'price' => 30, 'status' => 'completed']);
+
         // A ~120-day span (>31, <=182) buckets by week.
         $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-01-01&to=2026-04-30');
 
         $res->assertJsonPath('data.revenue.granularity', 'week');
+        $points = collect($res->json('data.revenue.points'));
+        // Bookings land in the correct ISO-week buckets, summed.
+        $this->assertSame(100.0, (float) $points->firstWhere('period', '2026-W02')['earned']);
+        $this->assertSame(2, $points->firstWhere('period', '2026-W02')['bookings']);
+        $this->assertSame(30.0, (float) $points->firstWhere('period', '2026-W03')['earned']);
+        // Weeks with no bookings are zero-filled.
+        $this->assertSame(0.0, (float) $points->firstWhere('period', '2026-W01')['earned']);
+    }
+
+    public function test_revenue_series_granularity_band_boundaries(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $token = $this->token($owner);
+
+        // 31-day span -> day; 32 -> week.
+        $this->withToken($token)->getJson('/api/reports?from=2026-01-01&to=2026-02-01')
+            ->assertJsonPath('data.revenue.granularity', 'day');
+        $this->withToken($token)->getJson('/api/reports?from=2026-01-01&to=2026-02-02')
+            ->assertJsonPath('data.revenue.granularity', 'week');
+
+        // 182-day span -> week; 183 -> month.
+        $this->withToken($token)->getJson('/api/reports?from=2026-01-01&to=2026-07-02')
+            ->assertJsonPath('data.revenue.granularity', 'week');
+        $this->withToken($token)->getJson('/api/reports?from=2026-01-01&to=2026-07-03')
+            ->assertJsonPath('data.revenue.granularity', 'month');
     }
 }
