@@ -14,6 +14,7 @@ use App\Http\Resources\ServiceResource;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\CustomerAccount;
 use App\Models\PaymentSetting;
 use App\Models\Review;
 use App\Models\Service;
@@ -298,6 +299,17 @@ class BookingController extends Controller
                     'email' => $data['customer']['email'] ?? null,
                 ],
             );
+
+            // If this customer's email belongs to a verified platform account,
+            // link the row now so the booking shows on their dashboard without
+            // waiting for a re-login.
+            if ($customer->email && ! $customer->customer_account_id) {
+                $accountId = CustomerAccount::whereNotNull('email_verified_at')
+                    ->where('email', $customer->email)->value('id');
+                if ($accountId) {
+                    $customer->forceFill(['customer_account_id' => $accountId])->save();
+                }
+            }
 
             $appointment = Appointment::create([
                 'branch_id' => $branchId,

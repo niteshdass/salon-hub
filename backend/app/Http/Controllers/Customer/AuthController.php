@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Mail\CustomerLoginCodeMail;
+use App\Models\Customer;
 use App\Models\CustomerAccount;
 use App\Models\CustomerLoginCode;
 use Illuminate\Http\JsonResponse;
@@ -68,7 +69,20 @@ class AuthController extends Controller
         $account = CustomerAccount::firstOrCreate(['email' => $email]);
         $account->forceFill(['email_verified_at' => now()])->save();
 
-        // Task 3 inserts the auto-claim call here.
+        // Link every per-salon customer row that shares this verified email,
+        // across all organizations. No tenant is bound here, so the tenant
+        // global scope is inert and this reaches all salons. Idempotent via
+        // the whereNull guard; also backfill the account name from a row.
+        Customer::whereNull('customer_account_id')
+            ->where('email', $email)
+            ->update(['customer_account_id' => $account->id]);
+
+        if (blank($account->name)) {
+            $name = Customer::where('customer_account_id', $account->id)->whereNotNull('name')->value('name');
+            if ($name) {
+                $account->forceFill(['name' => $name])->save();
+            }
+        }
 
         $token = $account->createToken('customer')->plainTextToken;
 
