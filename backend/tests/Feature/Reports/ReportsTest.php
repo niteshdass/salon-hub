@@ -463,4 +463,55 @@ class ReportsTest extends TestCase
         $this->assertNull($res->json('data.bookings.busiest_day'));
         $this->assertNull($res->json('data.bookings.busiest_hour'));
     }
+
+    public function test_reports_show_only_the_callers_organization_data(): void
+    {
+        // Foreign org: rich data in the SAME date range that must NEVER appear
+        // in the caller's report — only the tenant scope keeps it out.
+        $foreign = $this->makeOrg('foreign');
+        $fBranch = $this->makeBranch($foreign);
+        $fService = $this->makeService($foreign, 'Foreign Cut', 99);
+        $fStaff = $this->makeStaff($foreign, 'Foreign Stylist');
+        $fAppt = $this->makeAppointment($foreign, ['date' => '2026-07-10', 'price' => 99, 'status' => 'completed', 'branch' => $fBranch, 'service' => $fService, 'staff' => $fStaff]);
+        Review::create([
+            'organization_id' => $foreign->id,
+            'appointment_id' => $fAppt->id,
+            'staff_id' => $fStaff->id,
+            'rating' => 5,
+            'comment' => 'Foreign review',
+            'reviewer_name' => 'Foreign Customer',
+            'status' => 'published',
+        ]);
+
+        // Caller org: its own modest data.
+        $mine = $this->makeOrg('mine');
+        $owner = $this->makeUser($mine, 'owner');
+        $myBranch = $this->makeBranch($mine);
+        $myService = $this->makeService($mine, 'Local Cut', 25);
+        $myStaff = $this->makeStaff($mine, 'Local Stylist');
+        $this->makeAppointment($mine, ['date' => '2026-07-12', 'price' => 25, 'status' => 'completed', 'branch' => $myBranch, 'service' => $myService, 'staff' => $myStaff]);
+
+        // ONE authenticated request. The codebase tests endpoint isolation with a
+        // single request (see TenantScopingTest::test_customers_endpoint_returns_only_authed_org):
+        // two authenticated requests in one test hit Laravel's auth-guard user cache
+        // (the guard memoises the resolved user across HTTP calls that share the test's
+        // app instance) — an artifact that never occurs in production, where each request
+        // boots fresh. Foreign data present + never requested is the real isolation proof.
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+        $res->assertOk();
+
+        // Caller sees ONLY its own numbers — not 99 (foreign), not 124 (foreign + own).
+        $this->assertSame(25.0, (float) $res->json('data.summary.earned'));
+        $this->assertSame(1, (int) $res->json('data.summary.bookings'));
+        $res->assertJsonPath('data.bookings.by_status.completed', 1);
+
+        // Foreign service/staff never leak into the caller's tables.
+        $serviceNames = collect($res->json('data.top_services'))->pluck('name')->all();
+        $this->assertSame(['Local Cut'], $serviceNames);
+        $this->assertNotContains('Foreign Cut', $serviceNames);
+
+        $staffNames = collect($res->json('data.staff'))->pluck('name')->all();
+        $this->assertSame(['Local Stylist'], $staffNames);
+        $this->assertNotContains('Foreign Stylist', $staffNames);
+    }
 }
