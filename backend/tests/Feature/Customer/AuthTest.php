@@ -198,4 +198,37 @@ class AuthTest extends TestCase
         // A staff-only route (tenant group) must reject the customer token.
         $this->withToken($customerToken)->getJson('/api/dashboard')->assertUnauthorized();
     }
+
+    public function test_request_code_is_throttled_per_email_after_five_requests(): void
+    {
+        Mail::fake();
+
+        // Email unique to this test so the RateLimiter cache key cannot
+        // collide with any other test in the suite.
+        $email = 'throttle-target@x.test';
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->postJson('/api/customer/auth/request-code', ['email' => $email])
+                ->assertOk()
+                ->assertJson(['message' => 'If that email is valid, a code has been sent.']);
+        }
+
+        // Exactly 5 real sends happened; the 6th returned the same generic
+        // 200 but created nothing — non-enumerating even under throttling.
+        $this->assertSame(5, CustomerLoginCode::where('email', $email)->count());
+
+        // Step past the route's separate per-IP throttle window (throttle:6,1
+        // decays after 60s) so this next call isn't blocked by that unrelated
+        // limiter — it has nothing to do with the per-email limit under test.
+        // The per-email limiter's 10-minute decay is unaffected by 61s.
+        $this->travel(61)->seconds();
+
+        // The limiter is keyed per-email, not global: a different email is
+        // unaffected and still gets a code created.
+        $otherEmail = 'throttle-other@x.test';
+        $this->postJson('/api/customer/auth/request-code', ['email' => $otherEmail])
+            ->assertOk()
+            ->assertJson(['message' => 'If that email is valid, a code has been sent.']);
+        $this->assertSame(1, CustomerLoginCode::where('email', $otherEmail)->count());
+    }
 }

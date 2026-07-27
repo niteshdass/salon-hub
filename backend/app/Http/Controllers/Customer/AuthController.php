@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Passwordless customer authentication. No tenant is bound on these routes,
@@ -24,6 +25,18 @@ class AuthController extends Controller
     {
         $data = $request->validate(['email' => ['required', 'email']]);
         $email = strtolower($data['email']);
+
+        // Per-email limiter, distinct from the route's per-IP throttle: max 5
+        // requests per 10 minutes for a given address. When exceeded we still
+        // return the identical generic 200 below — never a 429 or a different
+        // body — so the endpoint stays non-enumerating.
+        $key = 'customer-otp-request:'.$email;
+
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            return response()->json(['message' => 'If that email is valid, a code has been sent.']);
+        }
+
+        RateLimiter::hit($key, 600);
 
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
