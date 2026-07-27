@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useCustomerAuthStore } from '@/stores/customerAuth'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
@@ -22,6 +23,11 @@ const router = createRouter({
       path: '/register',
       name: 'register',
       component: RegisterView,
+    },
+    {
+      path: '/account/login',
+      name: 'customer-login',
+      component: () => import('@/views/CustomerLoginView.vue'),
     },
     {
       // Emailed-link landing pages. Reachable signed-out by design: the
@@ -162,6 +168,15 @@ router.beforeEach(async (to) => {
   }
   if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
     return '/dashboard'
+  }
+  if (to.meta.requiresCustomerAuth) {
+    const customerAuth = useCustomerAuthStore()
+    if (!customerAuth.isAuthenticated) {
+      return '/account/login'
+    }
+  }
+  if (to.path === '/account/login' && useCustomerAuthStore().isAuthenticated) {
+    return '/account'
   }
   return true
 })
