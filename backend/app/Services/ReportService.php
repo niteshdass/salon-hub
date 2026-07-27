@@ -29,7 +29,7 @@ class ReportService
             'revenue' => $this->revenueSeries($from, $to),
             'top_services' => $this->topServices($from, $to),
             'staff' => $this->staffPerformance($from, $to),
-            'bookings' => [],
+            'bookings' => $this->bookingsBreakdown($from, $to),
         ];
     }
 
@@ -289,5 +289,65 @@ class ReportService
             'average' => $row ? round((float) $row->avg_rating, 1) : null,
             'count' => $row ? (int) $row->cnt : 0,
         ];
+    }
+
+    /**
+     * Status mix over the range (all statuses, zero-filled) plus the busiest
+     * weekday and hour across non-cancelled appointments (computed PHP-side).
+     *
+     * @return array<string, mixed>
+     */
+    protected function bookingsBreakdown(string $from, string $to): array
+    {
+        $counts = Appointment::query()
+            ->whereDate('booking_date', '>=', $from)
+            ->whereDate('booking_date', '<=', $to)
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        $byStatus = [];
+        foreach (AppointmentStatus::cases() as $status) {
+            $byStatus[$status->value] = (int) $counts->get($status->value, 0);
+        }
+
+        // Busiest day/hour ignore cancellations — they never happened.
+        $active = Appointment::query()
+            ->where('status', '!=', AppointmentStatus::CANCELLED->value)
+            ->whereDate('booking_date', '>=', $from)
+            ->whereDate('booking_date', '<=', $to)
+            ->get(['booking_date', 'start_time']);
+
+        $dayCounts = [];  // weekday 0-6 => count
+        $hourCounts = []; // hour 0-23 => count
+        foreach ($active as $appt) {
+            $weekday = Carbon::parse($appt->booking_date)->dayOfWeek; // 0=Sun
+            $hour = (int) Carbon::parse($appt->start_time)->format('G');
+            $dayCounts[$weekday] = ($dayCounts[$weekday] ?? 0) + 1;
+            $hourCounts[$hour] = ($hourCounts[$hour] ?? 0) + 1;
+        }
+
+        return [
+            'by_status' => $byStatus,
+            'busiest_day' => $this->peak($dayCounts, 'weekday'),
+            'busiest_hour' => $this->peak($hourCounts, 'hour'),
+        ];
+    }
+
+    /**
+     * Highest-count key in a {key => count} map, or null when empty.
+     *
+     * @param  array<int, int>  $counts
+     * @return array<string, int>|null
+     */
+    protected function peak(array $counts, string $keyName): ?array
+    {
+        if ($counts === []) {
+            return null;
+        }
+
+        $topKey = array_keys($counts, max($counts))[0];
+
+        return [$keyName => (int) $topKey, 'count' => (int) $counts[$topKey]];
     }
 }

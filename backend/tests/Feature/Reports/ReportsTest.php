@@ -410,4 +410,57 @@ class ReportsTest extends TestCase
         $this->assertSame(5.0, (float) $rows['Alice Wong']['rating']['average']); // hidden 1-star excluded
         $this->assertSame(1, $rows['Alice Wong']['rating']['count']);
     }
+
+    public function test_bookings_breakdown_counts_all_statuses(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $branch = $this->makeBranch($org);
+        $service = $this->makeService($org);
+        $staff = $this->makeStaff($org);
+
+        $this->makeAppointment($org, ['date' => '2026-07-05', 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        $this->makeAppointment($org, ['date' => '2026-07-06', 'status' => 'cancelled', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        $this->makeAppointment($org, ['date' => '2026-07-07', 'status' => 'no_show', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+
+        $res->assertJsonPath('data.bookings.by_status.completed', 1);
+        $res->assertJsonPath('data.bookings.by_status.cancelled', 1);
+        $res->assertJsonPath('data.bookings.by_status.no_show', 1);
+        $res->assertJsonPath('data.bookings.by_status.pending', 0);
+    }
+
+    public function test_bookings_breakdown_busiest_day_and_hour(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $branch = $this->makeBranch($org);
+        $service = $this->makeService($org);
+        $staff = $this->makeStaff($org);
+
+        // 2026-07-06 is a Monday (weekday 1). Two appointments at 14:00.
+        $this->makeAppointment($org, ['date' => '2026-07-06', 'start_time' => '14:00:00', 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        $this->makeAppointment($org, ['date' => '2026-07-06', 'start_time' => '14:30:00', 'status' => 'confirmed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+        // 2026-07-07 (Tuesday) at 09:00 — a single, lighter day.
+        $this->makeAppointment($org, ['date' => '2026-07-07', 'start_time' => '09:00:00', 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $staff]);
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+
+        $res->assertJsonPath('data.bookings.busiest_day.weekday', 1); // Monday
+        $res->assertJsonPath('data.bookings.busiest_day.count', 2);
+        $res->assertJsonPath('data.bookings.busiest_hour.hour', 14);
+        $res->assertJsonPath('data.bookings.busiest_hour.count', 2);
+    }
+
+    public function test_bookings_breakdown_busiest_is_null_when_empty(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+
+        $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
+
+        $this->assertNull($res->json('data.bookings.busiest_day'));
+        $this->assertNull($res->json('data.bookings.busiest_hour'));
+    }
 }
