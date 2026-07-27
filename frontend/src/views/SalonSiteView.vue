@@ -209,6 +209,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           >
             Book
           </RouterLink>
+          <router-link to="/account/login" class="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+            Manage my bookings
+          </router-link>
         </div>
       </nav>
 

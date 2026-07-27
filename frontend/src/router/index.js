@@ -4,6 +4,7 @@ import { useCustomerAuthStore } from '@/stores/customerAuth'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
+import CustomerLayout from '../layouts/CustomerLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
 import BranchesView from '../views/BranchesView.vue'
 import ServicesView from '../views/ServicesView.vue'
@@ -28,6 +29,18 @@ const router = createRouter({
       path: '/account/login',
       name: 'customer-login',
       component: () => import('@/views/CustomerLoginView.vue'),
+    },
+    {
+      path: '/account',
+      component: CustomerLayout,
+      children: [
+        {
+          path: '',
+          name: 'customer-dashboard',
+          component: () => import('@/views/CustomerDashboardView.vue'),
+          meta: { requiresCustomerAuth: true },
+        },
+      ],
     },
     {
       // Emailed-link landing pages. Reachable signed-out by design: the
