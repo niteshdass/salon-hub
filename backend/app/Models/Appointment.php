@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Appointment extends Model
@@ -83,6 +84,11 @@ class Appointment extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function review(): HasOne
+    {
+        return $this->hasOne(Review::class);
+    }
+
     /** Total confirmed money against this booking — verified payments only. */
     public function amountPaid(): string
     {
@@ -107,5 +113,17 @@ class Appointment extends Model
     public function balanceDue(): string
     {
         return number_format((float) $this->price - (float) $this->amountPaid(), 2, '.', '');
+    }
+
+    /** Still customer-editable (pending or confirmed). */
+    public function isChangeable(): bool
+    {
+        return in_array($this->status, [AppointmentStatus::PENDING, AppointmentStatus::CONFIRMED], true);
+    }
+
+    /** A finished visit — the only state a customer may review. */
+    public function isCompleted(): bool
+    {
+        return $this->status === AppointmentStatus::COMPLETED;
     }
 }

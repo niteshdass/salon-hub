@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\BranchClosureController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\Customer\AuthController as CustomerAuthController;
+use App\Http\Controllers\Customer\BookingController as CustomerBookingController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GalleryController;
@@ -149,5 +150,6 @@ Route::prefix('customer')->group(function () {
     Route::middleware('auth:customer')->group(function () {
         Route::get('auth/me', [CustomerAuthController::class, 'me']);
         Route::post('auth/logout', [CustomerAuthController::class, 'logout']);
+        Route::get('bookings', [CustomerBookingController::class, 'index']);
     });
 });
