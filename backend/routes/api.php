@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\BranchClosureController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GalleryController;
@@ -136,4 +137,17 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     // Server-to-server IPN: SSLCommerz POSTs here directly, so a captured
     // payment is recorded even if the customer never returns to the browser.
     Route::post('payment/{tran}/ipn', [PaymentCallbackController::class, 'ipn']);
+});
+
+// Platform-wide customer accounts. No `tenant` middleware: the account is a
+// global identity, so the tenant scope is intentionally inert and every query
+// filters by the account's own customers rows.
+Route::prefix('customer')->group(function () {
+    Route::post('auth/request-code', [CustomerAuthController::class, 'requestCode'])->middleware('throttle:6,1');
+    Route::post('auth/verify-code', [CustomerAuthController::class, 'verifyCode'])->middleware('throttle:10,1');
+
+    Route::middleware('auth:customer')->group(function () {
+        Route::get('auth/me', [CustomerAuthController::class, 'me']);
+        Route::post('auth/logout', [CustomerAuthController::class, 'logout']);
+    });
 });
