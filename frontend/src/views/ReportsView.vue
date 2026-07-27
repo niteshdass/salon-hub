@@ -181,11 +181,11 @@ onMounted(() => applyPreset('30d'))
       <!-- Revenue chart -->
       <div class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 class="text-sm font-semibold text-slate-900">Revenue over time</h2>
-        <div v-if="report.revenue.points.length" class="mt-4 flex h-48 items-end gap-1 overflow-x-auto">
+        <div v-if="report.revenue.points.length" class="mt-4 flex h-48 items-stretch gap-1 overflow-x-auto">
           <div
             v-for="point in report.revenue.points"
             :key="point.period"
-            class="group relative flex min-w-[8px] flex-1 flex-col items-center justify-end"
+            class="group relative flex h-full min-w-[8px] flex-1 flex-col items-center justify-end"
             :title="`${point.label}: ${money(point.earned)}`"
           >
             <div
