@@ -188,6 +188,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
             >
               {{ site.phone }}
             </a>
+            <RouterLink
+              to="/account/login"
+              class="text-sm font-medium text-white/80 underline-offset-4 transition hover:text-white hover:underline"
+            >
+              Manage my bookings
+            </RouterLink>
           </div>
         </div>
       </header>
@@ -209,9 +215,6 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
           >
             Book
           </RouterLink>
-          <router-link to="/account/login" class="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-            Manage my bookings
-          </router-link>
         </div>
       </nav>
 
