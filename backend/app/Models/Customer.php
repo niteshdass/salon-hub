@@ -14,6 +14,7 @@ class Customer extends Model
 
     protected $fillable = [
         'organization_id',
+        'customer_account_id',
         'name',
         'phone',
         'email',
@@ -23,6 +24,11 @@ class Customer extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(CustomerAccount::class, 'customer_account_id');
     }
 
     public function appointments(): HasMany
