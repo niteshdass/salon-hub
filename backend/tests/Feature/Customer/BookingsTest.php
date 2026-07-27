@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Customer;
 
+use App\Enums\AppointmentStatus;
 use App\Mail\CustomerLoginCodeMail;
 use App\Models\Appointment;
 use App\Models\Branch;
@@ -141,5 +142,113 @@ class BookingsTest extends TestCase
         $res = $this->withToken($this->tokenFor($account))->getJson('/api/customer/bookings');
         $this->assertFalse($res->json('data.past.0.can_review'));
         $this->assertSame(5, $res->json('data.past.0.review.rating'));
+    }
+
+    public function test_cancel_owned_upcoming_booking(): void
+    {
+        $org = $this->makeOrg('acme');
+        $account = $this->account('jane@x.test');
+        $appt = $this->makeBooking($org, $account, ['date' => '2999-01-01', 'status' => 'confirmed']);
+
+        $res = $this->withToken($this->tokenFor($account))->postJson("/api/customer/bookings/{$appt->id}/cancel");
+
+        $res->assertOk()->assertJsonPath('data.status', 'cancelled');
+        $this->assertSame('cancelled', $appt->fresh()->status->value);
+    }
+
+    public function test_cannot_cancel_completed_booking(): void
+    {
+        $org = $this->makeOrg('acme');
+        $account = $this->account('jane@x.test');
+        $appt = $this->makeBooking($org, $account, ['date' => '2000-01-01', 'status' => 'completed']);
+
+        $this->withToken($this->tokenFor($account))->postJson("/api/customer/bookings/{$appt->id}/cancel")
+            ->assertStatus(422);
+    }
+
+    public function test_cannot_cancel_foreign_booking(): void
+    {
+        $org = $this->makeOrg('acme');
+        $mine = $this->account('jane@x.test');
+        $theirs = $this->account('bob@x.test');
+        $appt = $this->makeBooking($org, $theirs, ['date' => '2999-01-01', 'status' => 'confirmed']);
+
+        $this->withToken($this->tokenFor($mine))->postJson("/api/customer/bookings/{$appt->id}/cancel")
+            ->assertNotFound();
+    }
+
+    public function test_slots_and_reschedule_owned_booking(): void
+    {
+        $org = $this->makeOrg('acme');
+        $account = $this->account('jane@x.test');
+        // Monday, in the future relative to nothing-scheduled; staff works Mon–Fri.
+        $appt = $this->makeBooking($org, $account, ['date' => '2026-08-10', 'start_time' => '10:00:00', 'status' => 'confirmed']);
+        $token = $this->tokenFor($account);
+
+        $slots = $this->withToken($token)->getJson("/api/customer/bookings/{$appt->id}/slots?date=2026-08-10");
+        $slots->assertOk()->assertJsonStructure(['data' => ['date', 'slots']]);
+        $open = $slots->json('data.slots');
+        $this->assertNotEmpty($open);
+
+        $target = $open[count($open) - 1];
+        $res = $this->withToken($token)->postJson("/api/customer/bookings/{$appt->id}/reschedule", ['date' => '2026-08-10', 'start_time' => $target]);
+        $res->assertOk()->assertJsonPath('data.start_time', $target);
+        $this->assertSame($target, substr($appt->fresh()->start_time, 0, 5));
+    }
+
+    public function test_reschedule_foreign_booking_is_404(): void
+    {
+        $org = $this->makeOrg('acme');
+        $theirs = $this->account('bob@x.test');
+        $mine = $this->account('jane@x.test');
+        $appt = $this->makeBooking($org, $theirs, ['date' => '2026-08-10', 'status' => 'confirmed']);
+
+        $this->withToken($this->tokenFor($mine))->postJson("/api/customer/bookings/{$appt->id}/reschedule", ['date' => '2026-08-10', 'start_time' => '11:00'])
+            ->assertNotFound();
+    }
+
+    public function test_review_completed_booking(): void
+    {
+        $org = $this->makeOrg('acme');
+        $account = $this->account('jane@x.test');
+        $appt = $this->makeBooking($org, $account, ['date' => '2000-01-01', 'status' => 'completed']);
+
+        $res = $this->withToken($this->tokenFor($account))->postJson("/api/customer/bookings/{$appt->id}/review", ['rating' => 5, 'comment' => 'Loved it']);
+
+        $res->assertCreated();
+        $this->assertDatabaseHas('reviews', ['appointment_id' => $appt->id, 'rating' => 5, 'organization_id' => $org->id]);
+    }
+
+    public function test_cannot_review_non_completed_booking(): void
+    {
+        $org = $this->makeOrg('acme');
+        $account = $this->account('jane@x.test');
+        $appt = $this->makeBooking($org, $account, ['date' => '2999-01-01', 'status' => 'confirmed']);
+
+        $this->withToken($this->tokenFor($account))->postJson("/api/customer/bookings/{$appt->id}/review", ['rating' => 5])
+            ->assertStatus(422);
+    }
+
+    public function test_cannot_review_twice(): void
+    {
+        $org = $this->makeOrg('acme');
+        $account = $this->account('jane@x.test');
+        $appt = $this->makeBooking($org, $account, ['date' => '2000-01-01', 'status' => 'completed']);
+        $token = $this->tokenFor($account);
+        $this->withToken($token)->postJson("/api/customer/bookings/{$appt->id}/review", ['rating' => 5])->assertCreated();
+
+        $this->withToken($token)->postJson("/api/customer/bookings/{$appt->id}/review", ['rating' => 4])
+            ->assertStatus(409);
+    }
+
+    public function test_cannot_review_foreign_booking(): void
+    {
+        $org = $this->makeOrg('acme');
+        $theirs = $this->account('bob@x.test');
+        $mine = $this->account('jane@x.test');
+        $appt = $this->makeBooking($org, $theirs, ['date' => '2000-01-01', 'status' => 'completed']);
+
+        $this->withToken($this->tokenFor($mine))->postJson("/api/customer/bookings/{$appt->id}/review", ['rating' => 5])
+            ->assertNotFound();
     }
 }

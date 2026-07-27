@@ -151,5 +151,9 @@ Route::prefix('customer')->group(function () {
         Route::get('auth/me', [CustomerAuthController::class, 'me']);
         Route::post('auth/logout', [CustomerAuthController::class, 'logout']);
         Route::get('bookings', [CustomerBookingController::class, 'index']);
+        Route::post('bookings/{appointment}/cancel', [CustomerBookingController::class, 'cancel']);
+        Route::get('bookings/{appointment}/slots', [CustomerBookingController::class, 'slots']);
+        Route::post('bookings/{appointment}/reschedule', [CustomerBookingController::class, 'reschedule']);
+        Route::post('bookings/{appointment}/review', [CustomerBookingController::class, 'review']);
     });
 });
