@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useCustomerAuthStore } from '@/stores/customerAuth'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import LandingView from '../views/LandingView.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import CustomerLayout from '../layouts/CustomerLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -78,12 +79,18 @@ const router = createRouter({
       component: () => import('@/views/ManageBookingView.vue'),
     },
     {
+      // Public SaaS marketing home. Declared before the DashboardLayout record
+      // so bare `/` renders the landing page, not the authenticated shell.
+      path: '/',
+      name: 'landing',
+      component: LandingView,
+    },
+    {
       // Authenticated app shell — every child renders inside DashboardLayout.
       path: '/',
       component: DashboardLayout,
       meta: { requiresAuth: true },
       children: [
-        { path: '', redirect: '/dashboard' },
         {
           path: 'dashboard',
           name: 'dashboard',
@@ -179,7 +186,10 @@ router.beforeEach(async (to) => {
       return '/dashboard'
     }
   }
-  if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
+  if (
+    (to.name === 'landing' || to.path === '/login' || to.path === '/register') &&
+    authStore.isAuthenticated
+  ) {
     return '/dashboard'
   }
   if (to.meta.requiresCustomerAuth) {
