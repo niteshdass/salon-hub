@@ -1,1 +1,29 @@
 @import 'tailwindcss';
+
+/*
+ * SalonHub platform brand — modern SaaS with a warm terracotta/rose accent.
+ * Distinct from the per-salon microsite (stone/editorial). Display = Fraunces
+ * (characterful serif), body = Manrope (clean humanist sans). Fonts are
+ * self-hosted via @fontsource-variable (imported in main.js).
+ */
+@theme {
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-body: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-paper: #faf6f1;
+  --color-ink: #241c18;
+
+  --color-brand-50: #fbf3ef;
+  --color-brand-100: #f6e3da;
+  --color-brand-200: #edc6b4;
+  --color-brand-300: #e1a288;
+  --color-brand-400: #d47e5d;
+  --color-brand-500: #c65d3b;
+  --color-brand-600: #a8482c;
+  --color-brand-700: #863824;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-ink);
+}
