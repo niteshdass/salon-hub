@@ -115,4 +115,16 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Platform Contact Address
+    |--------------------------------------------------------------------------
+    |
+    | Where the public marketing-site contact form delivers messages. Kept in
+    | config (not hardcoded) so it is env-driven per environment.
+    |
+    */
+
+    'contact_address' => env('CONTACT_EMAIL', 'hello@salonhub.com'),
+
 ];

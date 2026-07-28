@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\BranchClosureController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Customer\BookingController as CustomerBookingController;
 use App\Http\Controllers\CustomerController;
@@ -139,6 +140,10 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     // payment is recorded even if the customer never returns to the browser.
     Route::post('payment/{tran}/ipn', [PaymentCallbackController::class, 'ipn']);
 });
+
+// Public marketing-site contact form. No auth, not tenant-scoped. Rate-limited
+// against spam: 5 requests per minute per IP.
+Route::post('contact', [ContactController::class, 'store'])->middleware('throttle:5,1');
 
 // Platform-wide customer accounts. No `tenant` middleware: the account is a
 // global identity, so the tenant scope is intentionally inert and every query
