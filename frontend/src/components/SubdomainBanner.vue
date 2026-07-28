@@ -27,9 +27,14 @@ const visitUrl = computed(() => {
 const copied = ref(false)
 async function copy() {
   if (!domain.value) return
-  await navigator.clipboard.writeText(domain.value)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
+  try {
+    await navigator.clipboard.writeText(domain.value)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 1500)
+  } catch {
+    // Clipboard unavailable (insecure context / denied permission) — the
+    // domain stays visible for manual copy; no confirmation to show.
+  }
 }
 </script>
 

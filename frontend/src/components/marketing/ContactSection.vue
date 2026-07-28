@@ -71,13 +71,15 @@ async function submit() {
                   v-model="form.name"
                   type="text"
                   autocomplete="name"
+                  :aria-invalid="!!fieldError('name')"
+                  :aria-describedby="fieldError('name') ? 'contact-name-error' : undefined"
                   :class="[
                     'mt-1.5 w-full rounded-xl border bg-white px-4 py-3 text-ink placeholder-ink/40 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-200',
                     fieldError('name') ? 'border-rose-400 focus:border-rose-400' : 'border-brand-200 focus:border-brand-400',
                   ]"
                   placeholder="Your name"
                 />
-                <p v-if="fieldError('name')" class="mt-1.5 text-sm text-rose-600">{{ fieldError('name') }}</p>
+                <p v-if="fieldError('name')" id="contact-name-error" class="mt-1.5 text-sm text-rose-600">{{ fieldError('name') }}</p>
               </div>
 
               <div>
@@ -87,13 +89,15 @@ async function submit() {
                   v-model="form.email"
                   type="email"
                   autocomplete="email"
+                  :aria-invalid="!!fieldError('email')"
+                  :aria-describedby="fieldError('email') ? 'contact-email-error' : undefined"
                   :class="[
                     'mt-1.5 w-full rounded-xl border bg-white px-4 py-3 text-ink placeholder-ink/40 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-200',
                     fieldError('email') ? 'border-rose-400 focus:border-rose-400' : 'border-brand-200 focus:border-brand-400',
                   ]"
                   placeholder="you@salon.com"
                 />
-                <p v-if="fieldError('email')" class="mt-1.5 text-sm text-rose-600">{{ fieldError('email') }}</p>
+                <p v-if="fieldError('email')" id="contact-email-error" class="mt-1.5 text-sm text-rose-600">{{ fieldError('email') }}</p>
               </div>
 
               <div>
@@ -102,13 +106,15 @@ async function submit() {
                   id="contact-message"
                   v-model="form.message"
                   rows="4"
+                  :aria-invalid="!!fieldError('message')"
+                  :aria-describedby="fieldError('message') ? 'contact-message-error' : undefined"
                   :class="[
                     'mt-1.5 w-full resize-y rounded-xl border bg-white px-4 py-3 text-ink placeholder-ink/40 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-200',
                     fieldError('message') ? 'border-rose-400 focus:border-rose-400' : 'border-brand-200 focus:border-brand-400',
                   ]"
                   placeholder="How can we help your salon?"
                 ></textarea>
-                <p v-if="fieldError('message')" class="mt-1.5 text-sm text-rose-600">{{ fieldError('message') }}</p>
+                <p v-if="fieldError('message')" id="contact-message-error" class="mt-1.5 text-sm text-rose-600">{{ fieldError('message') }}</p>
               </div>
 
               <p v-if="formError" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ formError }}</p>

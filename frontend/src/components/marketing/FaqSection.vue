@@ -56,9 +56,11 @@ function toggle(i) {
         >
           <h3>
             <button
+              :id="`faq-trigger-${i}`"
               type="button"
               class="flex w-full items-center justify-between gap-4 px-6 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400"
               :aria-expanded="openIndex === i"
+              :aria-controls="`faq-panel-${i}`"
               @click="toggle(i)"
             >
               <span class="font-display text-lg font-semibold text-ink">{{ item.q }}</span>
@@ -75,6 +77,9 @@ function toggle(i) {
             </button>
           </h3>
           <div
+            :id="`faq-panel-${i}`"
+            role="region"
+            :aria-labelledby="`faq-trigger-${i}`"
             :class="[
               'grid transition-all duration-300 ease-out',
               openIndex === i ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',

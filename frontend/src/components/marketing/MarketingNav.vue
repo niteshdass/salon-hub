@@ -75,7 +75,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
           to="/register"
           class="inline-flex items-center rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-brand-500/25 transition-colors hover:bg-brand-600"
         >
-          Register
+          Register a salon
         </RouterLink>
         <button
           type="button"
