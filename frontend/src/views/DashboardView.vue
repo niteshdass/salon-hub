@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
+import SubdomainBanner from '@/components/SubdomainBanner.vue'
 
 const authStore = useAuthStore()
 
@@ -128,6 +129,8 @@ onMounted(async () => {
 
 <template>
   <div>
+    <SubdomainBanner />
+
     <div
       v-if="loadError"
       class="mb-6 flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
