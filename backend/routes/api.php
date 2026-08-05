@@ -38,8 +38,16 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::prefix('auth')->group(function () {
-    Route::post('register', [AuthController::class, 'register']);
-    Route::post('login', [AuthController::class, 'login']);
+    // Creating an organization is expensive (org + owner + domain + branch +
+    // settings rows, plus a verification email). Three per minute per IP is
+    // far above any human signup rate and well below a spam run.
+    Route::post('register', [AuthController::class, 'register'])
+        ->middleware('throttle:3,1');
+
+    // The per-email lockout lives in AuthController::login; this per-IP cap
+    // is the second layer, bounding an attacker spraying many accounts.
+    Route::post('login', [AuthController::class, 'login'])
+        ->middleware('throttle:20,1');
 
     // Password reset. Throttled hard: both endpoints are unauthenticated
     // and both send or consume a token tied to a real account.
