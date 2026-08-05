@@ -12,7 +12,7 @@ const faqs = [
   },
   {
     q: 'Does it send reminders?',
-    a: 'Automatic SMS and WhatsApp reminders go out before each appointment.',
+    a: 'Yes — connect a Twilio account in Settings and SMS or WhatsApp reminders go out before each appointment, to clients who left a phone number.',
   },
   {
     q: 'Can I manage more than one location?',

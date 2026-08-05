@@ -17,7 +17,7 @@ const free = {
     'Your own booking website',
     'Calendar & appointments',
     'Reports',
-    'SMS & WhatsApp reminders',
+    'SMS & WhatsApp reminders (bring your own Twilio account)',
   ],
 }
 </script>

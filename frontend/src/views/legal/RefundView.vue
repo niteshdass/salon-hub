@@ -18,9 +18,9 @@ import LegalPage from '@/components/legal/LegalPage.vue'
       A customer can cancel or reschedule a changeable booking from the manage-booking
       link sent with their confirmation, or from their SalonHub customer account. Whether
       a cancellation entitles the customer to a refund of their deposit is set by the
-      individual salon's own cancellation policy, which is shown to the customer at the
-      time of booking. SalonHub does not set or enforce a single cancellation policy across
-      salons, because deposit terms vary with the salon's own business.
+      individual salon's own cancellation policy. SalonHub does not collect, display or
+      enforce a cancellation policy on a salon's behalf, so ask the salon for theirs
+      before you pay a deposit — deposit terms vary with the salon's own business.
     </p>
 
     <h2>3. How refunds are issued</h2>

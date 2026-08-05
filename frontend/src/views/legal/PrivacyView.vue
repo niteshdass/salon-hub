@@ -18,8 +18,9 @@ import LegalPage from '@/components/legal/LegalPage.vue'
     <h2>2. Why we collect it</h2>
     <p>
       We use this information to operate the booking service: creating and managing
-      appointments, sending booking confirmations and reminders by email, SMS or
-      WhatsApp, and providing customer support to the salon and its customers. We do not
+      appointments, emailing booking confirmations and changes, sending appointment
+      reminders by SMS or WhatsApp to customers who gave a phone number, and providing
+      customer support to the salon and its customers. We do not
       use booking data to build advertising profiles, and we do not use it for any purpose
       the salon has not asked us to perform.
     </p>
@@ -30,15 +31,25 @@ import LegalPage from '@/components/legal/LegalPage.vue'
       <li>Our email delivery provider, to send confirmations and receipts.</li>
       <li>Our SMS/WhatsApp provider, only when a salon has reminders enabled for that channel.</li>
       <li>The relevant payment gateway, only when a deposit is taken for a booking.</li>
+      <li>
+        Our error-monitoring provider, Sentry, when the application hits a technical error.
+        Those reports identify the salon whose request failed and can contain data from the
+        request that failed.
+      </li>
+      <li>
+        The hosting and network providers that run the service — the server SalonHub is
+        installed on, and Cloudflare, which every request to salonhub.com passes through.
+      </li>
     </ul>
-    <p>We share data with no one else, and we never sell customer or salon data.</p>
+    <p>We do not sell customer or salon data, and we do not share it for advertising.</p>
 
     <h2>4. How long we keep it</h2>
     <p>
-      We keep account and booking data for the life of the salon's SalonHub account. If a
-      salon closes its account, we delete its data, including its customers' records,
-      within 30 days — except where we are required by law to retain particular records,
-      such as payment references, for longer.
+      We keep account and booking data for the life of the salon's SalonHub account. There
+      is no self-service delete: to close an account and have its data removed, write to us
+      at the address in section 7. We handle those requests by hand and aim to complete
+      them within 30 days — except where we are required by law to retain particular
+      records, such as payment references, for longer.
     </p>
 
     <h2>5. Your rights</h2>
@@ -52,8 +63,9 @@ import LegalPage from '@/components/legal/LegalPage.vue'
 
     <h2>6. Cookies</h2>
     <p>
-      SalonHub stores a single first-party authentication token in your browser's local
-      storage to keep you signed in between visits. We do not use advertising cookies, and
+      SalonHub stores first-party authentication tokens in your browser's local storage to
+      keep you signed in between visits — one for a salon's staff dashboard and one for a
+      customer account. We do not use advertising cookies, and
       we do not embed third-party tracking scripts on the dashboard or booking pages.
     </p>
 

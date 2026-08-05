@@ -48,14 +48,16 @@ import LegalPage from '@/components/legal/LegalPage.vue'
 
     <h2>7. Ending your account</h2>
     <p>
-      You may close your account at any time by contacting us. On closure we delete your
-      organization's data within 30 days, except where we must retain records by law.
+      You may close your account at any time by contacting us — there is no self-service
+      close button, so it goes through the address in section 9. We remove your
+      organization's data by hand and aim to complete it within 30 days, except where we
+      must retain records by law.
     </p>
 
     <h2>8. Changes</h2>
     <p>
-      We may update these terms. Material changes will be announced in the dashboard at
-      least 14 days before they take effect.
+      We may update these terms. The "Last updated" date at the top of this page changes
+      whenever we do, so please check it from time to time.
     </p>
 
     <h2>9. Contact</h2>
