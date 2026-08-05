@@ -18,7 +18,7 @@ class GalleryFactory extends Factory
     public function definition(): array
     {
         return [
-            'image' => 'gallery/' . fake()->uuid() . '.jpg',
+            'image' => 'gallery/'.fake()->uuid().'.jpg',
             'title' => fake()->optional()->words(3, true),
             'sort_order' => fake()->numberBetween(0, 20),
         ];

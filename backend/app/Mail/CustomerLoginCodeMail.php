@@ -12,9 +12,7 @@ use Illuminate\Mail\Mailables\Envelope;
  */
 class CustomerLoginCodeMail extends Mailable
 {
-    public function __construct(public string $code)
-    {
-    }
+    public function __construct(public string $code) {}
 
     public function envelope(): Envelope
     {

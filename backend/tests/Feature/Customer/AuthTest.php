@@ -100,9 +100,15 @@ class AuthTest extends TestCase
         $this->postJson('/api/customer/auth/request-code', ['email' => $email])->assertOk();
         $code = null;
         Mail::assertSent(CustomerLoginCodeMail::class, function ($m) use ($email, &$code) {
-            if ($m->hasTo($email)) { $code = $m->code; return true; }
+            if ($m->hasTo($email)) {
+                $code = $m->code;
+
+                return true;
+            }
+
             return false;
         });
+
         return $code;
     }
 

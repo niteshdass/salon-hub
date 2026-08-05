@@ -128,7 +128,7 @@ class ReviewModerationTest extends TestCase
 
     public function test_staff_cannot_moderate_reviews(): void
     {
-        [$org, , ] = $this->makeOrgWithOwner('charlie');
+        [$org] = $this->makeOrgWithOwner('charlie');
         $review = $this->makeReview($org, 5);
         $staff = User::create([
             'organization_id' => $org->id,

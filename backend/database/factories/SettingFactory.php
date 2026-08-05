@@ -20,8 +20,8 @@ class SettingFactory extends Factory
         return [
             'theme_color' => fake()->hexColor(),
             'about' => fake()->paragraph(3),
-            'facebook' => 'https://facebook.com/' . fake()->userName(),
-            'instagram' => 'https://instagram.com/' . fake()->userName(),
+            'facebook' => 'https://facebook.com/'.fake()->userName(),
+            'instagram' => 'https://instagram.com/'.fake()->userName(),
             'website' => fake()->url(),
         ];
     }

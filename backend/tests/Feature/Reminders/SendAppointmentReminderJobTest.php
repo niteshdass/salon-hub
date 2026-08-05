@@ -83,20 +83,18 @@ class SendAppointmentReminderJobTest extends TestCase
     {
         // Record every send() the job makes through a fake channel + manager.
         $sent = [];
-        $channel = new class($sent) implements ReminderChannel {
-            public function __construct(public array &$sent)
-            {
-            }
+        $channel = new class($sent) implements ReminderChannel
+        {
+            public function __construct(public array &$sent) {}
 
             public function send(string $to, string $message): void
             {
                 $this->sent[] = ['to' => $to, 'message' => $message];
             }
         };
-        $manager = new class($channel) extends ReminderChannelManager {
-            public function __construct(private ReminderChannel $channel)
-            {
-            }
+        $manager = new class($channel) extends ReminderChannelManager
+        {
+            public function __construct(private ReminderChannel $channel) {}
 
             public function for(ReminderSetting $settings): ReminderChannel
             {

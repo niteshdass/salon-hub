@@ -11,6 +11,7 @@ use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -143,8 +144,8 @@ class ReportsTest extends TestCase
         $res = $this->withToken($this->token($owner))->getJson('/api/reports');
 
         // Range echoed so the client knows what window it got.
-        $from = \Illuminate\Support\Carbon::parse($res->json('data.range.from'));
-        $to = \Illuminate\Support\Carbon::parse($res->json('data.range.to'));
+        $from = Carbon::parse($res->json('data.range.from'));
+        $to = Carbon::parse($res->json('data.range.to'));
         $this->assertEquals(29, $from->diffInDays($to));
     }
 

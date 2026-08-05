@@ -10,6 +10,7 @@ use App\Http\Resources\StaffResource;
 use App\Models\User;
 use App\Services\PlanLimit;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -143,7 +144,7 @@ class StaffController extends Controller
     /**
      * Base tenant-scoped query for staff users.
      */
-    protected function baseQuery(): \Illuminate\Database\Eloquent\Builder
+    protected function baseQuery(): Builder
     {
         return User::query()
             ->where('organization_id', app(CurrentTenant::class)->id())

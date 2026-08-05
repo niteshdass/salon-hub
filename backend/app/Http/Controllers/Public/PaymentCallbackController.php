@@ -25,9 +25,7 @@ use Illuminate\Http\Request;
  */
 class PaymentCallbackController extends Controller
 {
-    public function __construct(protected SslcommerzGateway $gateway)
-    {
-    }
+    public function __construct(protected SslcommerzGateway $gateway) {}
 
     /**
      * Payment succeeded at the gateway: validate it, and on a genuine, fully

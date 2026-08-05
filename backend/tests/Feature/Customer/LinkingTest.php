@@ -2,15 +2,14 @@
 
 namespace Tests\Feature\Customer;
 
+use App\Mail\CustomerLoginCodeMail;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\CustomerAccount;
-use App\Models\CustomerLoginCode;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\User;
-use App\Mail\CustomerLoginCodeMail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -83,9 +82,15 @@ class LinkingTest extends TestCase
         $this->postJson('/api/customer/auth/request-code', ['email' => $email])->assertOk();
         $code = null;
         Mail::assertSent(CustomerLoginCodeMail::class, function ($m) use ($email, &$code) {
-            if ($m->hasTo($email)) { $code = $m->code; return true; }
+            if ($m->hasTo($email)) {
+                $code = $m->code;
+
+                return true;
+            }
+
             return false;
         });
+
         return $code;
     }
 

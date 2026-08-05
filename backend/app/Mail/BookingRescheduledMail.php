@@ -19,9 +19,7 @@ class BookingRescheduledMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Appointment $appointment, public string $audience = 'customer')
-    {
-    }
+    public function __construct(public Appointment $appointment, public string $audience = 'customer') {}
 
     public function envelope(): Envelope
     {

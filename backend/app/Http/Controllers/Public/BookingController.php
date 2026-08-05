@@ -41,9 +41,7 @@ use Illuminate\Validation\Rule;
  */
 class BookingController extends Controller
 {
-    public function __construct(protected AppointmentScheduler $scheduler)
-    {
-    }
+    public function __construct(protected AppointmentScheduler $scheduler) {}
 
     /**
      * Public profile of the salon plus its bookable branches.

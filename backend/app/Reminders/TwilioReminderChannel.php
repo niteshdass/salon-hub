@@ -23,8 +23,7 @@ class TwilioReminderChannel implements ReminderChannel
         protected ?string $from = null,
         protected ?string $messagingServiceSid = null,
         protected bool $whatsapp = false,
-    ) {
-    }
+    ) {}
 
     public function send(string $to, string $message): void
     {

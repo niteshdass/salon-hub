@@ -2,15 +2,20 @@
 
 namespace Tests\Feature\Crud;
 
+use App\Enums\PaymentMethod;
+use App\Enums\PaymentSource;
+use App\Enums\PaymentStatus;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Organization;
 use App\Models\Payment;
+use App\Models\PaymentSetting;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -128,9 +133,9 @@ class PaymentControllerTest extends TestCase
         $ctx['appointment']->payments()->create([
             'organization_id' => $ctx['org']->id,
             'amount' => 10,
-            'method' => \App\Enums\PaymentMethod::ONLINE,
-            'status' => \App\Enums\PaymentStatus::VERIFIED,
-            'source' => \App\Enums\PaymentSource::GATEWAY,
+            'method' => PaymentMethod::ONLINE,
+            'status' => PaymentStatus::VERIFIED,
+            'source' => PaymentSource::GATEWAY,
             'transaction_id' => 'SHABC123',
         ]);
 
@@ -149,9 +154,9 @@ class PaymentControllerTest extends TestCase
         return $ctx['appointment']->payments()->create([
             'organization_id' => $ctx['org']->id,
             'amount' => 10,
-            'method' => \App\Enums\PaymentMethod::ONLINE,
-            'status' => \App\Enums\PaymentStatus::VERIFIED,
-            'source' => \App\Enums\PaymentSource::GATEWAY,
+            'method' => PaymentMethod::ONLINE,
+            'status' => PaymentStatus::VERIFIED,
+            'source' => PaymentSource::GATEWAY,
             'transaction_id' => 'SHABC123',
             'bank_tran_id' => 'BANK-77',
         ]);
@@ -161,7 +166,7 @@ class PaymentControllerTest extends TestCase
     {
         $ctx = $this->scaffold('gwrefund');
         // The org needs SSLCommerz settings so the refund can be addressed.
-        \App\Models\PaymentSetting::create([
+        PaymentSetting::create([
             'organization_id' => $ctx['org']->id,
             'deposit_type' => 'percent', 'deposit_value' => 20,
             'gateway' => 'sslcommerz', 'gateway_sandbox' => true,
@@ -169,8 +174,8 @@ class PaymentControllerTest extends TestCase
         ]);
         $payment = $this->gatewayDeposit($ctx);
 
-        \Illuminate\Support\Facades\Http::fake([
-            'sandbox.sslcommerz.com/validator/*' => \Illuminate\Support\Facades\Http::response([
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
                 'APIConnect' => 'DONE', 'status' => 'success', 'refund_ref_id' => 'RF-9',
             ]),
         ]);
@@ -188,7 +193,7 @@ class PaymentControllerTest extends TestCase
         $this->assertNotNull($fresh->refunded_at);
 
         // The refund was addressed to the gateway's bank_tran_id.
-        \Illuminate\Support\Facades\Http::assertSent(fn ($request) => str_contains($request->url(), 'merchantTransIDvalidationAPI.php')
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'merchantTransIDvalidationAPI.php')
             && $request['bank_tran_id'] === 'BANK-77'
             && $request['refund_amount'] === '10.00');
     }
@@ -210,9 +215,9 @@ class PaymentControllerTest extends TestCase
         $ctx = $this->scaffold('gwrefund-cash');
         $payment = $ctx['appointment']->payments()->create([
             'organization_id' => $ctx['org']->id, 'amount' => 10,
-            'method' => \App\Enums\PaymentMethod::CASH,
-            'status' => \App\Enums\PaymentStatus::VERIFIED,
-            'source' => \App\Enums\PaymentSource::STAFF,
+            'method' => PaymentMethod::CASH,
+            'status' => PaymentStatus::VERIFIED,
+            'source' => PaymentSource::STAFF,
         ]);
 
         $this->withToken($ctx['ownerToken'])->postJson(
@@ -225,7 +230,7 @@ class PaymentControllerTest extends TestCase
     public function test_a_declined_gateway_refund_leaves_the_payment_verified(): void
     {
         $ctx = $this->scaffold('gwrefund-fail');
-        \App\Models\PaymentSetting::create([
+        PaymentSetting::create([
             'organization_id' => $ctx['org']->id,
             'deposit_type' => 'percent', 'deposit_value' => 20,
             'gateway' => 'sslcommerz', 'gateway_sandbox' => true,
@@ -233,8 +238,8 @@ class PaymentControllerTest extends TestCase
         ]);
         $payment = $this->gatewayDeposit($ctx);
 
-        \Illuminate\Support\Facades\Http::fake([
-            'sandbox.sslcommerz.com/validator/*' => \Illuminate\Support\Facades\Http::response([
+        Http::fake([
+            'sandbox.sslcommerz.com/validator/*' => Http::response([
                 'APIConnect' => 'DONE', 'status' => 'failed', 'errorReason' => 'Already refunded',
             ]),
         ]);

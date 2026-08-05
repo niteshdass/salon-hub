@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TenantScopingTest extends TestCase
@@ -16,7 +17,7 @@ class TenantScopingTest extends TestCase
     private function makeOrgWithOwner(string $slug): array
     {
         $org = Organization::create([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'name' => ucfirst($slug),
             'slug' => $slug,
             'email' => "owner@{$slug}.test",

@@ -10,6 +10,7 @@ use App\Models\Service;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * Computes the salon's reports for a date range. All money is "earned":
@@ -265,9 +266,9 @@ class ReportService
     /**
      * Per-staff review aggregate over the range, keyed by staff id.
      *
-     * @return \Illuminate\Support\Collection<int, object>
+     * @return Collection<int, object>
      */
-    protected function staffRatings(string $from, string $to): \Illuminate\Support\Collection
+    protected function staffRatings(string $from, string $to): Collection
     {
         return Review::query()
             ->where('status', 'published')

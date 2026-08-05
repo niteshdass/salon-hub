@@ -29,9 +29,7 @@ class AppointmentController extends Controller
 {
     private const RELATIONS = ['customer', 'staff', 'service', 'branch'];
 
-    public function __construct(protected AppointmentScheduler $scheduler)
-    {
-    }
+    public function __construct(protected AppointmentScheduler $scheduler) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {

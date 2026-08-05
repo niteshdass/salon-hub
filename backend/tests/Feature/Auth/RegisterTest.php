@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Enums\UserRole;
+use App\Models\Branch;
 use App\Models\Domain;
 use App\Models\Organization;
 use App\Models\Setting;
@@ -65,8 +66,8 @@ class RegisterTest extends TestCase
             'password_confirmation' => 'secret1234',
         ])->assertStatus(201);
 
-        $org = \App\Models\Organization::where('slug', 'beauty-queen')->firstOrFail();
-        $branches = \App\Models\Branch::withoutGlobalScopes()
+        $org = Organization::where('slug', 'beauty-queen')->firstOrFail();
+        $branches = Branch::withoutGlobalScopes()
             ->where('organization_id', $org->id)
             ->get();
 

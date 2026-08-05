@@ -25,9 +25,7 @@ class SlotGenerator
     /** Fallback working window when the staff profile does not define one. */
     private const DEFAULT_HOURS = ['start' => '09:00', 'end' => '18:00'];
 
-    public function __construct(protected AppointmentScheduler $scheduler)
-    {
-    }
+    public function __construct(protected AppointmentScheduler $scheduler) {}
 
     /**
      * Open 'H:i' start times for the staff member on the date.

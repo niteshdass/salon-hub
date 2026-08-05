@@ -12,9 +12,9 @@ use App\Http\Controllers\Customer\BookingController as CustomerBookingController
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GalleryController;
-use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\Public\BookingController;

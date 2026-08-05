@@ -226,7 +226,7 @@ class PublicSiteTest extends TestCase
         $s = $this->scaffold(); // existing helper in this file
         $org = $s['org'];
 
-        \App\Models\Branch::withoutGlobalScopes()
+        Branch::withoutGlobalScopes()
             ->where('organization_id', $org->id)
             ->first()
             ->update([

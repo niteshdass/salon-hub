@@ -38,7 +38,7 @@ class DatabaseSeeder extends Seeder
 
         // Primary domain.
         Domain::factory()->for($organization)->create([
-            'domain' => $organization->slug . '.salonhub.com',
+            'domain' => $organization->slug.'.salonhub.com',
             'is_primary' => true,
             'is_verified' => true,
             'ssl_enabled' => true,
