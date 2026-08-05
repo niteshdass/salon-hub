@@ -3,13 +3,16 @@
 Follow this top to bottom on a fresh Ubuntu 24.04 VPS. Two pieces are **not
 optional**:
 
-- **The queue worker (Step 8).** Every Mailable in this app implements
-  `ShouldQueue` (`app/Mail/BookingConfirmationMail.php`,
-  `NewBookingMail.php`, `BookingCancelledMail.php`,
-  `BookingRescheduledMail.php`, `CustomerLoginCodeMail.php`,
-  `ContactMessageMail.php`). With no worker running, zero booking
-  confirmations, cancellations, reschedules, login codes or contact-form
-  notifications are ever delivered — they sit in the `redis` queue forever.
+- **The queue worker (Step 8).** Four of the app's six Mailables implement
+  `ShouldQueue`: `app/Mail/BookingConfirmationMail.php`,
+  `NewBookingMail.php`, `BookingCancelledMail.php` and
+  `BookingRescheduledMail.php`. With no worker running, zero booking
+  confirmations, cancellations or reschedules are ever delivered — they sit
+  in the `redis` queue forever. The other two are sent inline, not queued,
+  by design: `CustomerLoginCodeMail` (the customer is waiting on the code,
+  per its own docblock) and `ContactMessageMail` (uses the `Queueable`
+  trait but does not `implement ShouldQueue`). The worker is still not
+  optional — it's required for the other four.
 - **The scheduler cron (Step 9).** `bootstrap/app.php` schedules
   `reminders:send` hourly and `bookings:release-abandoned` every 15
   minutes. Neither command runs on its own; without the cron line, no
@@ -293,51 +296,128 @@ Expected: prompts for the password, then prints a `1` row with no error.
 
 ---
 
-## 5. Clone the app and configure the environment
+## 5. Create the deploy user and clone the app
+
+**Ownership model — stated once here, used consistently for the rest of
+this runbook:** a dedicated `deploy` user owns the checkout and runs every
+deploy, including this first one (`git`, `composer`, `npm`, `artisan` — see
+`deploy.sh`, which must always be run as `deploy`). `deploy` is a member of
+the `www-data` group — the same group php-fpm and the queue worker run
+under, per `salonhub-worker.conf`'s `user=www-data`. `storage/` and
+`bootstrap/cache/` are group-owned `www-data` with the setgid bit set, so
+whichever of the two users writes a file there, the other can still read
+and write it afterwards. `deploy` has no interactive login of its own —
+you `sudo -iu deploy` into it whenever a step needs it.
+
+Create the user and a narrow, passwordless sudo grant for the exact two
+commands `deploy.sh` runs as root (nothing broader):
+
+```bash
+sudo useradd -m -s /bin/bash deploy
+sudo usermod -aG www-data deploy
+sudo tee /etc/sudoers.d/salonhub-deploy > /dev/null <<'EOF'
+deploy ALL=(root) NOPASSWD: /usr/bin/supervisorctl restart salonhub-worker:*, /usr/bin/systemctl reload php8.4-fpm
+EOF
+sudo chmod 440 /etc/sudoers.d/salonhub-deploy
+```
+
+Verify the sudoers file is valid before relying on it — a broken sudoers
+file can lock you out of `sudo` entirely, so never skip this check:
+
+```bash
+sudo visudo -c
+```
+
+Expected: every file it lists, including
+`/etc/sudoers.d/salonhub-deploy: parsed OK`, with no errors.
+
+Verify the grant actually works with no password prompt (php-fpm is
+already running from Step 1, and reloading it is a no-downtime operation,
+so this is safe to run for real):
+
+```bash
+sudo -u deploy sudo -n systemctl reload php8.4-fpm && echo "deploy can reload php-fpm passwordlessly"
+```
+
+Expected: `deploy can reload php-fpm passwordlessly`.
+
+Create `/var/www/salonhub` owned by `deploy`, then switch into that user
+for the clone and initial setup:
 
 ```bash
 sudo mkdir -p /var/www/salonhub
-sudo chown "$(whoami)":"$(whoami)" /var/www/salonhub
-git clone <YOUR_GIT_REMOTE_URL> /var/www/salonhub
-cd /var/www/salonhub/backend
+sudo chown deploy:deploy /var/www/salonhub
+sudo -iu deploy
 ```
 
-Install PHP dependencies now — `php artisan` needs `vendor/autoload.php` to
-run at all, so this has to happen before `key:generate` below:
+Everything below, up to the next `exit`, runs inside that `deploy` shell.
+Install PHP dependencies before `key:generate` — `php artisan` needs
+`vendor/autoload.php` to run at all:
 
 ```bash
+git clone <YOUR_GIT_REMOTE_URL> /var/www/salonhub
+cd /var/www/salonhub/backend
 composer install --no-dev --optimize-autoloader
 ```
 
 Copy the production environment template (`docs/deploy/env.production.example`,
-from Task 9) to `.env` and fill in every value it marks `CHANGE-ME`:
+from Task 9) to `.env`, lock it to owner-only (php-fpm and the worker never
+read `.env` directly in production — `deploy.sh` runs `config:cache` on
+every deploy, and once a config cache exists Laravel loads config from
+`bootstrap/cache/config.php` instead of re-reading `.env`), then fill in
+every value it marks `CHANGE-ME`:
 
 ```bash
 cp docs/deploy/env.production.example .env
+chmod 600 .env
 nano .env
 ```
 
-Then generate the app key and link the public storage disk:
+Generate the app key and link the public storage disk:
 
 ```bash
 php artisan key:generate
 php artisan storage:link
+exit
 ```
 
-Set ownership so php-fpm and the queue worker (both run as `www-data`, per
-`salonhub-worker.conf`) can write logs, cache and sessions:
+`exit` returns you to your own admin/sudo-capable account — the rest of
+this step needs `sudo`, which `deploy` deliberately doesn't have beyond the
+one narrow grant above.
+
+Give `www-data` group access to `storage/` and `bootstrap/cache/`, with the
+setgid bit so that stays true for every file created afterwards by either
+user:
 
 ```bash
-sudo chown -R www-data:www-data /var/www/salonhub/backend/storage \
+sudo chgrp -R www-data /var/www/salonhub/backend/storage \
   /var/www/salonhub/backend/bootstrap/cache
-sudo chmod -R 775 /var/www/salonhub/backend/storage \
+sudo chmod -R 2775 /var/www/salonhub/backend/storage \
   /var/www/salonhub/backend/bootstrap/cache
 ```
 
-Verify the app key was written:
+Verify both users this actually matters for — `deploy` (runs `artisan
+config:cache`/`view:cache` on every deploy) and `www-data` (php-fpm and the
+queue worker, writing logs/sessions/cache at runtime) — can really write
+both directories. Do this now, before Step 9's first deploy, not after:
 
 ```bash
-grep -c '^APP_KEY=base64:' /var/www/salonhub/backend/.env
+sudo -u deploy test -w /var/www/salonhub/backend/storage && \
+  sudo -u deploy test -w /var/www/salonhub/backend/bootstrap/cache && \
+  echo "deploy can write both directories"
+sudo -u www-data test -w /var/www/salonhub/backend/storage && \
+  sudo -u www-data test -w /var/www/salonhub/backend/bootstrap/cache && \
+  echo "www-data can write both directories"
+```
+
+Expected: both `deploy can write both directories` and `www-data can write
+both directories` print.
+
+Verify the app key was written (`.env` is `chmod 600` owned by `deploy`,
+so read it via `sudo`):
+
+```bash
+sudo grep -c '^APP_KEY=base64:' /var/www/salonhub/backend/.env
 ```
 
 Expected: `1`.
@@ -402,6 +482,18 @@ sudo supervisorctl status salonhub-worker:*
 Expected: two lines (`salonhub-worker:salonhub-worker_00` and `_01`), both
 `RUNNING`.
 
+Now that the program exists, verify the other half of Step 5's narrow sudo
+grant — `deploy` restarting the worker with no password prompt, which
+`deploy.sh` (Step 9) depends on:
+
+```bash
+sudo -u deploy sudo -n supervisorctl restart salonhub-worker:* && \
+  echo "deploy can restart the worker passwordlessly"
+```
+
+Expected: shows both processes stopping and starting, then `deploy can
+restart the worker passwordlessly`.
+
 ---
 
 ## 8. Install the scheduler cron
@@ -451,20 +543,52 @@ Expected: at least one `CRON (www-data) CMD` line per minute since install.
 
 Now that nginx, the queue worker and cron are all installed, run the deploy
 script — it builds the frontend, points it at the right path, restarts the
-worker and reloads php-fpm, all of which now have somewhere to restart into:
+worker and reloads php-fpm, all of which now have somewhere to restart into.
+Run it as `deploy` (per Step 5's ownership model — everything `deploy.sh`
+writes must stay owned `deploy`, group `www-data`, matching `storage/` and
+`bootstrap/cache/`):
 
 ```bash
+sudo -iu deploy
 cd /var/www/salonhub && ./backend/docs/deploy/deploy.sh
+exit
 ```
 
-`deploy.sh` builds the frontend with `npm run build` (output directory
-`frontend/dist`, per `frontend/vite.config.js`'s `build: { manifest: true }`)
-and copies it to `backend/public/app` — exactly the path
-`resources/views/app.blade.php` reads
+`deploy.sh` builds the frontend with `npx vite build --base=/app/` (output
+directory `frontend/dist`, per `frontend/vite.config.js`'s
+`build: { manifest: true }`) and copies it to `backend/public/app` —
+exactly the path `resources/views/app.blade.php` reads
 (`public_path('app/.vite/manifest.json')` for the manifest,
 `/app/{css,js}` for the asset URLs), and the same path `backend/.gitignore`
 excludes from version control (`/public/app`) since it is a build artifact,
 not source.
+
+`--base=/app/` is required, not cosmetic: a plain `vite build` (what
+`npm run build` runs) emits root-relative `url(/assets/...)` references
+inside the built CSS for the self-hosted `@fontsource-variable` webfonts,
+and a root-relative `/favicon.ico` in `index.html`. Once that CSS is served
+from `/app/assets/...` instead of `/assets/...`, those requests hit the
+`/{any}` SPA-fallback route instead of the real file — a 200 of HTML, not
+the font — and every page silently loses its brand typography. Confirmed
+by building both ways and inspecting the output:
+
+```
+# npm run build (no --base):
+dist/assets/index-*.css: url(/assets/fraunces-latin-wght-normal-*.woff2)
+
+# npx vite build --base=/app/:
+dist/assets/index-*.css: url(/app/assets/fraunces-latin-wght-normal-*.woff2)
+```
+
+`--base` only rewrites the *runtime* asset references Vite emits inside the
+built JS/CSS/HTML — it does not touch `dist/.vite/manifest.json`'s own path
+keys, which stay relative (`"file": "assets/index-*.js"`,
+`"css": ["assets/index-*.css"]`) regardless of `--base`. `app.blade.php`'s
+manual `/app/` prefix on those manifest paths is therefore still correct
+and needed no change. No other root-relative asset reference exists in
+`frontend/src` — the only two are the fontsource webfonts and the
+`public/favicon.ico` Vite public-dir passthrough, both fixed by the same
+flag.
 
 ---
 
@@ -512,6 +636,15 @@ Expected: one `<script>` tag pointing at a hashed file under `/app/assets/`
 — proves the manifest was found and the SPA shell is not showing the
 "build is missing" notice.
 
+```bash
+CSS_PATH=$(curl -s https://app.salonhub.com/ | grep -oE '/app/assets/index-[A-Za-z0-9_-]*\.css' | head -1)
+curl -s "https://app.salonhub.com$CSS_PATH" | grep -c 'url(/app/assets/'
+```
+Expected: a number greater than `0` — proves the self-hosted webfonts'
+`url(...)` references were built with `--base=/app/` and point at
+`/app/assets/...`, not bare `/assets/...` (which would 404 into the SPA
+fallback and silently drop the brand typography).
+
 - Register a test account through the dashboard and confirm the
   verification email arrives.
 - Make a test booking on a salon's public booking page and confirm the
@@ -525,10 +658,12 @@ just that the worker process is running.
 
 ## Redeploying
 
-Every subsequent deploy is just:
+Every subsequent deploy is just, run as `deploy` (Step 5's ownership model):
 
 ```bash
+sudo -iu deploy
 cd /var/www/salonhub && ./backend/docs/deploy/deploy.sh
+exit
 ```
 
 ---
