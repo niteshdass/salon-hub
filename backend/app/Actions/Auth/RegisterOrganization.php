@@ -111,8 +111,20 @@ class RegisterOrganization
     }
 
     /**
-     * Build a slug that is unique against the organizations table and is not
-     * one of the platform's reserved names.
+     * Longest a single DNS label may be. The slug is minted as
+     * `<slug>.APP_DOMAIN` and served by a wildcard vhost, so it is a label,
+     * not a whole hostname — mirrored by `max:63` in RegisterRequest.
+     */
+    protected const MAX_SLUG_LENGTH = 63;
+
+    /**
+     * Fallback base when a salon name yields no slug at all.
+     */
+    protected const FALLBACK_SLUG = 'salon';
+
+    /**
+     * Build a slug that is unique against the organizations table, is not one
+     * of the platform's reserved names, and is a usable DNS label.
      *
      * The reserved check belongs here and not only in RegisterRequest: the
      * request rule sees a slug the caller sent, while a salon merely NAMED
@@ -120,19 +132,56 @@ class RegisterOrganization
      * app.APP_DOMAIN — a verified host that selects the tenant — without
      * anyone having asked for it. A reserved base takes the same numeric
      * suffix a collision does, so "App" becomes "app-2".
+     *
+     * The same argument applies to shape and length, which is why they are
+     * enforced here too rather than only in the request:
+     *
+     *  - Str::slug() returns '' for a name with no transliterable characters
+     *    (Str::slug('💇') === ''), and '' is neither reserved nor taken, so it
+     *    was accepted — producing an organization whose minted host is
+     *    ".APP_DOMAIN" and which has no way to recover, since there is no
+     *    slug-change flow. Bengali and Arabic transliterate fine, so this is
+     *    narrow, but it is unrecoverable for whoever hits it.
+     *  - A long salon name overflows the 63-octet DNS label limit:
+     *    Str::slug(str_repeat('beauty ', 20)) is 139 characters. The
+     *    collision suffix is applied through compose(), which shortens the
+     *    base to make room rather than pushing the result back over the cap.
      */
     protected function uniqueSlug(string $source): string
     {
-        $base = Str::slug($source);
+        $base = $this->compose(trim(Str::slug($source), '-'), '');
+
+        if ($base === '') {
+            $base = self::FALLBACK_SLUG;
+        }
+
         $slug = $base;
         $suffix = 2;
 
         while (in_array($slug, Organization::RESERVED_SLUGS, true)
             || Organization::where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$suffix;
+            $slug = $this->compose($base, '-'.$suffix);
             $suffix++;
         }
 
         return $slug;
+    }
+
+    /**
+     * Join a base and a suffix into at most MAX_SLUG_LENGTH characters,
+     * trimming the base (never the suffix, which is what makes the result
+     * unique) and never leaving a trailing hyphen where the cut landed.
+     */
+    protected function compose(string $base, string $suffix): string
+    {
+        $head = rtrim(substr($base, 0, self::MAX_SLUG_LENGTH - strlen($suffix)), '-');
+
+        if ($head === '') {
+            // Only reachable from the empty-name case; uniqueSlug substitutes
+            // the fallback for the bare base, so keep the two consistent.
+            return $suffix === '' ? '' : self::FALLBACK_SLUG.$suffix;
+        }
+
+        return $head.$suffix;
     }
 }

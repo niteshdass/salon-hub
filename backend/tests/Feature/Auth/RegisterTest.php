@@ -143,4 +143,83 @@ class RegisterTest extends TestCase
             Domain::where('organization_id', $organization->id)->value('domain')
         );
     }
+
+    /**
+     * The slug is a DNS label, not a URL segment. Anything nginx-salon.conf's
+     * `~^(?<slug>[a-z0-9-]+)\.` server_name or tenantHost.js's `/^[a-z0-9-]+$/`
+     * would refuse must be rejected at registration — otherwise the salon's own
+     * subdomain falls through to the default server and the SPA renders the
+     * marketing landing page on it, with no error anywhere.
+     *
+     * @dataProvider invalidSlugProvider
+     */
+    public function test_registration_rejects_a_slug_that_is_not_a_valid_dns_label(string $slug): void
+    {
+        $this->postJson('/api/auth/register', [
+            'salon_name' => 'Some Salon',
+            'slug' => $slug,
+            'email' => 'owner@dns-label.test',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ])->assertStatus(422)->assertJsonValidationErrors('slug');
+
+        $this->assertNull(Organization::where('email', 'owner@dns-label.test')->first());
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidSlugProvider(): array
+    {
+        return [
+            'underscore' => ['beauty_queen'],
+            'leading hyphen' => ['-lead'],
+            'trailing hyphen' => ['trail-'],
+            'over 63 octets' => [str_repeat('a', 64)],
+            'embedded dot would claim a deeper host' => ['beauty.queen'],
+            'space' => ['beauty queen'],
+        ];
+    }
+
+    /**
+     * A name long enough to overflow the DNS label limit must not mint a host
+     * nginx cannot serve. Str::slug(str_repeat('beauty ', 20)) is 139 chars.
+     */
+    public function test_a_very_long_salon_name_yields_a_slug_within_the_dns_label_limit(): void
+    {
+        $this->postJson('/api/auth/register', [
+            'salon_name' => trim(str_repeat('Beauty ', 20)),
+            'email' => 'owner@long-name.test',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ])->assertCreated();
+
+        $organization = Organization::where('email', 'owner@long-name.test')->firstOrFail();
+
+        $this->assertLessThanOrEqual(63, strlen($organization->slug));
+        $this->assertMatchesRegularExpression('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/', $organization->slug);
+    }
+
+    /**
+     * Str::slug('💇') === '', which used to be accepted: the organization got
+     * an empty slug and a Domain row of ".salonhub.com", unrecoverable because
+     * there is no slug-change flow.
+     */
+    public function test_a_name_with_nothing_transliterable_falls_back_to_a_usable_slug(): void
+    {
+        $this->postJson('/api/auth/register', [
+            'salon_name' => '💇',
+            'email' => 'owner@emoji-salon.test',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ])->assertCreated();
+
+        $organization = Organization::where('email', 'owner@emoji-salon.test')->firstOrFail();
+
+        $this->assertSame('salon', $organization->slug);
+        $this->assertSame(
+            'salon.salonhub.com',
+            Domain::where('organization_id', $organization->id)->value('domain')
+        );
+    }
 }
