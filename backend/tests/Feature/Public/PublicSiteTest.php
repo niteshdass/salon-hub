@@ -3,7 +3,6 @@
 namespace Tests\Feature\Public;
 
 use App\Models\Branch;
-use App\Models\BusinessHour;
 use App\Models\Gallery;
 use App\Models\Organization;
 use App\Models\Setting;
@@ -96,16 +95,11 @@ class PublicSiteTest extends TestCase
     public function test_it_returns_branches_with_their_map_position_and_hours(): void
     {
         $s = $this->scaffold();
-        BusinessHour::create([
-            'branch_id' => $s['branch']->id,
-            'weekday' => 1,
-            'open_time' => '09:00',
-            'close_time' => '17:00',
-        ]);
-        BusinessHour::create([
-            'branch_id' => $s['branch']->id,
-            'weekday' => 0,
-            'is_closed' => true,
+        $s['branch']->update([
+            'opening_hours_json' => [
+                'mon' => ['09:00', '17:00'],
+                'sun' => null,
+            ],
         ]);
 
         $response = $this->getJson('/api/public/alpha/site');
@@ -118,8 +112,9 @@ class PublicSiteTest extends TestCase
         // Sorted Monday-first, the way the salon would print them.
         $response->assertJsonPath('data.branches.0.hours.0.weekday', 1);
         $response->assertJsonPath('data.branches.0.hours.0.open_time', '09:00');
-        $response->assertJsonPath('data.branches.0.hours.1.weekday', 0);
-        $response->assertJsonPath('data.branches.0.hours.1.is_closed', true);
+
+        $sunday = collect($response->json('data.branches.0.hours'))->firstWhere('weekday', 0);
+        $this->assertTrue($sunday['is_closed']);
     }
 
     public function test_the_team_lists_active_staff_with_their_profile(): void
@@ -224,5 +219,35 @@ class PublicSiteTest extends TestCase
         $this->scaffold();
 
         $this->getJson('/api/public/nobody/site')->assertNotFound();
+    }
+
+    public function test_site_returns_branch_opening_hours_monday_first(): void
+    {
+        $s = $this->scaffold(); // existing helper in this file
+        $org = $s['org'];
+
+        \App\Models\Branch::withoutGlobalScopes()
+            ->where('organization_id', $org->id)
+            ->first()
+            ->update([
+                'opening_hours_json' => [
+                    'mon' => ['09:00', '18:00'],
+                    'sun' => null,
+                ],
+            ]);
+
+        $hours = $this->getJson("/api/public/{$org->slug}/site")
+            ->assertOk()
+            ->json('data.branches.0.hours');
+
+        // Monday opens the week, Sunday closes it — the way a salon prints it.
+        $this->assertSame(1, $hours[0]['weekday']);
+        $this->assertSame('09:00', $hours[0]['open_time']);
+        $this->assertSame('18:00', $hours[0]['close_time']);
+        $this->assertFalse($hours[0]['is_closed']);
+
+        $sunday = collect($hours)->firstWhere('weekday', 0);
+        $this->assertTrue($sunday['is_closed']);
+        $this->assertNull($sunday['open_time']);
     }
 }
