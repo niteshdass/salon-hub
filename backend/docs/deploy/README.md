@@ -849,6 +849,20 @@ only answers for verified rows, so a database restored from before that
 migration will 404 on every salon subdomain until it has run.
 
 ```bash
+mysql -u salonhub -p -h 127.0.0.1 -e "SELECT @@global.foreign_key_checks;"
+```
+
+Expected: `1`. Every `appointments` foreign key is `cascadeOnDelete`, and the
+delete guards in the API (`ServiceController`, `CustomerController`,
+`BranchController`, `StaffController`) are what stops a delete from taking
+booking and payment history with it. With this global at `0` — which is how
+at least one development machine is configured — the constraints are not the
+backstop anyone assumes: rows orphan instead of cascading, and the two
+environments give different wrong answers for the same operation. If this
+returns `0`, find out what set it and fix that, rather than setting it back
+by hand.
+
+```bash
 sudo supervisorctl status salonhub-worker:*
 ```
 Expected: both processes `RUNNING`.
