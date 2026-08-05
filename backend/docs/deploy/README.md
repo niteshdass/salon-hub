@@ -788,12 +788,24 @@ queued, picked up by the supervisor-managed worker, and delivered — not
 just that the worker process is running.
 
 ```bash
-find /var/backups/salonhub/.last-success -mtime -1
+sudo find /var/backups/salonhub/.last-success -mtime -1
 ```
 Expected: prints the path — proves the manual run in Step 8's backup cron
-subsection actually succeeded and left tonight's marker behind. See
-"11. Database and upload backups" for what to check if this is ever empty
-on a live server.
+subsection actually succeeded and left tonight's marker behind. `sudo` is
+required here, same as every other command that reaches into
+`/var/backups/salonhub`: it's `chmod 700` owned by `deploy`, so without
+`sudo` this always prints nothing and exits non-zero — even on a perfectly
+healthy backup — which is the opposite of what an empty result is meant to
+mean. See "11. Database and upload backups" for what to check if this is
+still empty after `sudo`, on a live server.
+
+- Confirm `APP_KEY` from Step 5 was actually recorded outside this server
+  (password manager / secrets vault), not just generated. Nothing on the
+  server itself can verify that for you — it's a manual attestation, not a
+  command — but skipping it is exactly how `PaymentSetting`/
+  `ReminderSetting`'s encrypted columns become unrecoverable after a future
+  restore onto different hardware. Treat it as a hard gate before calling
+  the server live, same as everything else on this list.
 
 ---
 
@@ -845,15 +857,24 @@ always leaves that file newer than 24 hours old. Check it as part of
 routine ops (Step 10 also checks it once, right after the first deploy):
 
 ```bash
-find /var/backups/salonhub/.last-success -mtime -1
+sudo find /var/backups/salonhub/.last-success -mtime -1
 ```
 
-Expected: prints the path. No output means the marker is missing or stale
-— check `/var/log/salonhub/backup.log` for why last night's run didn't
-finish. This repo does not wire up a paging/alerting integration for that
-check; if you have existing monitoring (cron-monitoring SaaS, a Nagios/
-Zabbix check, even a second cron job that emails on failure), point it at
-this file rather than trusting silence.
+`sudo` is required — `/var/backups/salonhub` is `chmod 700` owned by
+`deploy` (see Step 8), so without it `find` can't even `stat` the marker
+and this prints nothing regardless of whether last night's backup
+succeeded. Dropping the `sudo` doesn't fail loudly; it just prints the
+same "missing or stale" signal forever, on a server that's backing up
+fine every night — silently defeating the whole point of having a marker
+to check.
+
+Expected: prints the path. No output (with `sudo` present) means the
+marker is genuinely missing or stale — check `/var/log/salonhub/backup.log`
+for why last night's run didn't finish. This repo does not wire up a
+paging/alerting integration for that check; if you have existing
+monitoring (cron-monitoring SaaS, a Nagios/Zabbix check, even a second
+cron job that emails on failure), point it at this file — with `sudo`, or
+running as `deploy`/`root` — rather than trusting silence.
 
 Off-site replication is not configured by default — `backup.sh` has a
 commented-out `rclone copy` line ready to uncomment once a remote target
@@ -910,9 +931,12 @@ under `sudo` for that reason, not just the MySQL commands.
    sudo tar -xzf "$ARCHIVE" -C /tmp/salonhub-restore-test
    ```
 
-   The extracted files end up root-owned (root did the extracting), but
-   with the default `umask`, they stay world-readable — that's all the
-   `diff` in step 4 needs.
+   The extracted files end up root-owned (root did the extracting). That's
+   fine for the `diff` in step 4: `tar` restores each archive member's own
+   recorded mode, not something derived from the extracting process's
+   `umask` — the uploads under `storage/app/public` are world-readable
+   because they were world-readable when `backup.sh` archived them, and
+   `tar` reproduces that, regardless of who runs the extraction.
 
 4. Verify. Restoring without an error is necessary but not sufficient — a
    dump that is missing rows, or truncated mid-table, restores cleanly and

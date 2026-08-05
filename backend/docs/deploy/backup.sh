@@ -43,8 +43,16 @@ trap cleanup EXIT
 # (\" \\ \$ \n \r \t \f \v are recognized escapes; anything after the closing
 # quote — including a trailing "# comment", exactly as env.production.example
 # ships — is discarded, matching phpdotenv's WHITESPACE_STATE/COMMENT_STATE).
-# Does NOT implement phpdotenv's multiline double-quoted values or ${VAR}
-# interpolation: env.production.example's DB_* lines never use either, and
+# Two known, deliberate divergences from phpdotenv, both of which fail
+# closed rather than silently backing up with the wrong credential:
+#   - No ${VAR} interpolation. phpdotenv resolves e.g. DB_PASSWORD=${FOO}bar
+#     against already-parsed variables; this function returns the literal
+#     text "${FOO}bar" instead. env.production.example's DB_* lines never
+#     use it. If a real .env ever did, mysqldump would get a wrong
+#     password, fail to authenticate, and exit non-zero before .last-success
+#     is touched — visible in backup.log, not a silent data-loss risk.
+#   - No multiline double-quoted values (see the closing-quote-not-found
+#     comment below) — also not used by any DB_* line this script reads.
 # this script only ever reads DB_DATABASE/DB_USERNAME/DB_PASSWORD/DB_HOST/DB_PORT.
 parse_dotenv_value() {
   local raw=$1 first rest v out i c esc len
@@ -130,12 +138,30 @@ mysql_opt_escape() {
 # === FUNCTIONS END ===================================================
 
 # --- Read DB_DATABASE / DB_USERNAME / DB_PASSWORD / DB_HOST / DB_PORT ------
+# Also known divergence: parse_dotenv_value's output passes through this
+# loop's `$(...)` command substitution, which — like any command
+# substitution — strips *all* trailing newlines from what it captures.
+# phpdotenv would keep a value ending in a literal `\n` escape intact; here
+# it's silently trimmed. Not fixed: no DB_* value in env.production.example
+# ends in `\n`, and a DB credential ending in a real newline character is
+# not a shape any of these five keys are expected to take.
 declare -A db_env
 while IFS= read -r line; do
   line=${line%$'\r'}
   key=${line%%=*}
+  # phpdotenv accepts an optional "export " prefix before the variable name
+  # (EntryParser::parseName) — mirror its exact rule: literal "export",
+  # then at least one whitespace character, with any further whitespace
+  # trimmed before the real name. Without this, `export DB_PASSWORD=...`
+  # (a habit some shells/deploy scripts encourage) would never match below
+  # and the script would exit 1 on "DB_PASSWORD missing" — fails closed,
+  # but there is no reason to reject a line phpdotenv itself accepts.
+  if [[ ${#key} -gt 8 && ${key:0:6} == export && ${key:6:1} =~ [[:space:]] ]]; then
+    key=${key:6}
+    key="${key#"${key%%[![:space:]]*}"}"
+  fi
   db_env[$key]=$(parse_dotenv_value "${line#*=}")
-done < <(grep -E '^DB_(DATABASE|USERNAME|PASSWORD|HOST|PORT)=' "$APP_DIR/.env")
+done < <(grep -E '^(export[[:space:]]+)?DB_(DATABASE|USERNAME|PASSWORD|HOST|PORT)=' "$APP_DIR/.env")
 
 for required in DB_DATABASE DB_USERNAME DB_PASSWORD; do
   if [[ -z ${db_env[$required]+x} ]]; then
