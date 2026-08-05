@@ -667,7 +667,27 @@ script — it builds the frontend, points it at the right path, restarts the
 worker and reloads php-fpm, all of which now have somewhere to restart into.
 Run it as `deploy` (per Step 5's ownership model — everything `deploy.sh`
 writes must stay owned `deploy`, group `www-data`, matching `storage/` and
-`bootstrap/cache/`):
+`bootstrap/cache/`).
+
+**Pre-deploy check — only skip it on a genuinely empty database.**
+`deploy.sh` runs `php artisan migrate --force`, which includes
+`2026_08_05_100100_verify_existing_apex_domains.php`. That migration flips
+`is_verified = true` on every unverified primary single-label
+`*.APP_DOMAIN` domain row, and its `down()` is a deliberate no-op — there is
+no rollback. If an organization registered before `Organization::
+RESERVED_SLUGS` existed holds a platform hostname, the migration hands it a
+*verified* claim that `Domain::resolveOrganizationForHost` will then honour,
+and `app.salonhub.com` starts resolving to a tenant. Check first:
+
+```bash
+mysql -u salonhub -p -h 127.0.0.1 salonhub -e \
+  "SELECT id, slug FROM organizations WHERE slug IN ('app','www','api','admin','mail','static');"
+```
+
+Expected: `Empty set`. **If any row comes back, stop** — do not run
+`deploy.sh`. Rename those slugs (and the matching `domains.domain` values)
+first; once the migration has run, the claim cannot be un-verified by
+rolling anything back.
 
 ```bash
 sudo -iu deploy
@@ -722,6 +742,43 @@ the server live.
 curl -sf https://app.salonhub.com/up
 ```
 Expected: exits `0`, empty/OK body — the health check route.
+
+`/up` is a shallow check and deliberately proves very little: Laravel
+registers it outside the `web` group and it only renders a static view, so it
+answers `200` with no `APP_KEY`, an unreadable `.env`, no config cache and no
+database. Run the deep one too:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://app.salonhub.com/up/db
+```
+
+Expected: `200` (body `OK`). `503` means the app booted but the database did
+not answer — wrong `DB_*` values, MySQL stopped, or a grant to the wrong
+client host (Step 4). `500` means php-fpm could not serve a real request at
+all. Two causes, both worth catching: Redis is down (this route runs in the
+`web` group, and `SESSION_DRIVER=redis`), or — the more likely one on this
+server — the config cache is missing or stale. `.env` is `chmod 600
+deploy:deploy` (Step 5) while php-fpm runs as `www-data`, so **the running
+app hard-depends on `bootstrap/cache/config.php`**. A `php artisan
+config:clear`, or a `config:cache` that failed during a deploy, does not
+merely deoptimise the app — it takes it down, because `www-data` then has
+nothing left to read `APP_KEY` from. Recover by re-running
+`php artisan config:cache` as `deploy`.
+
+Prove that dependency is currently satisfied, rather than trusting that it
+is — run the app as the user that actually serves it:
+
+```bash
+sudo -u www-data php /var/www/salonhub/backend/artisan about --only=environment
+```
+
+Expected: prints the environment table with `Environment: production` and
+`Debug Mode: OFF`. A `MissingAppKeyException` or "No application encryption
+key has been specified" here means `www-data` cannot read `.env` **and**
+there is no usable config cache — the app is down even if `/up` returns
+`200`. (Note this command writes nothing; do not run `config:cache` as
+`www-data`, which would leave `bootstrap/cache/config.php` owned by the
+wrong user and break the next `deploy.sh`.)
 
 ```bash
 echo | openssl s_client -connect anything.salonhub.com:443 -servername anything.salonhub.com 2>/dev/null \
@@ -1090,6 +1147,16 @@ sudo -iu deploy
 cd /var/www/salonhub && ./backend/docs/deploy/deploy.sh
 exit
 ```
+
+Then check the deep health endpoint, not just `/up`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://app.salonhub.com/up/db
+```
+
+Expected: `200`. `deploy.sh` re-runs `config:cache`, so a `500` here is the
+signal that the cache did not get written and `www-data` has no `APP_KEY` —
+see Step 10 for why that takes the app down rather than slowing it.
 
 ---
 

@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RegisterTest extends TestCase
@@ -150,9 +151,8 @@ class RegisterTest extends TestCase
      * would refuse must be rejected at registration — otherwise the salon's own
      * subdomain falls through to the default server and the SPA renders the
      * marketing landing page on it, with no error anywhere.
-     *
-     * @dataProvider invalidSlugProvider
      */
+    #[DataProvider('invalidSlugProvider')]
     public function test_registration_rejects_a_slug_that_is_not_a_valid_dns_label(string $slug): void
     {
         $this->postJson('/api/auth/register', [
