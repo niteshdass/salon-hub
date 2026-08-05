@@ -7,6 +7,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Sentry\Laravel\Integration;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -39,5 +40,11 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Report to Sentry when a DSN is configured. Empty DSN (local, CI)
+        // makes this a no-op, so nothing here needs a guard elsewhere.
+        $exceptions->reportable(function (Throwable $e): void {
+            if (app()->bound('sentry') && config('sentry.dsn')) {
+                Integration::captureUnhandledException($e);
+            }
+        });
     })->create();

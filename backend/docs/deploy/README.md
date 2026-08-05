@@ -705,7 +705,37 @@ exit
 
 ---
 
+## Error monitoring (Sentry)
+
+Task 13 wires up `sentry/sentry-laravel`. Nothing above enables it — an
+empty `SENTRY_LARAVEL_DSN` (the value `env.production.example` ships with)
+makes reporting a no-op, on purpose, so an operator who skips this section
+gets a working app with no error reporting rather than a broken deploy.
+
+To turn it on:
+
+1. Create a project in Sentry and copy its DSN.
+2. Set `SENTRY_LARAVEL_DSN` in `.env` to that DSN. Leave
+   `SENTRY_TRACES_SAMPLE_RATE=0` — performance tracing is a deliberate,
+   separate follow-up (see the comment above it in
+   `docs/deploy/env.production.example`), not something to turn on as a
+   side effect of setting the DSN.
+3. Re-run `php artisan config:cache` (or the next `deploy.sh` run does this
+   for you) — `.env` is not re-read once a config cache exists.
+4. Verify delivery:
+
+```bash
+cd /var/www/salonhub/backend && php artisan sentry:test
+```
+
+Expected: no error, and the event appears in the Sentry project within a
+minute.
+
+`config/sentry.php` hardcodes `send_default_pii` off, `max_request_body_size`
+to `none`, and the `cache` breadcrumb/span off — none of that is controlled
+by an env var, so setting the DSN cannot accidentally widen what leaves the
+server. See that file's docblock for the full analysis.
+
 ## What's not covered here
 
-Error monitoring (Sentry) and database backups are handled separately and
-are not part of this runbook.
+Database backups are handled separately and are not part of this runbook.

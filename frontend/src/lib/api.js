@@ -34,6 +34,11 @@ api.interceptors.response.use(
         window.location.assign('/login')
       }
     }
+    if (error.response && error.response.status >= 500) {
+      // A server fault is never the user's fault to interpret — surface it
+      // rather than let a view render an empty state that looks like "no data".
+      console.error('SalonHub API error', error.response.status, error.config?.url)
+    }
     return Promise.reject(error)
   },
 )

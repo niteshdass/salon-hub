@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Tenancy\CurrentTenant;
 use Closure;
 use Illuminate\Http\Request;
+use Sentry\State\Scope;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -45,6 +46,29 @@ class ResolvePublicTenant
 
         $this->tenant->set($organization);
 
+        $this->tagSentryScope($organization);
+
         return $next($request);
+    }
+
+    /**
+     * Attach the tenant to any error reported from this request. Not named
+     * in the plan (which only touches ResolveTenant), added here too
+     * because this is the middleware that actually guards the public
+     * booking flow — book, manage/{token}, and the payment gateway
+     * callbacks all run through here, not through ResolveTenant, whose
+     * Host-header branch is only a fallback on authenticated routes. A
+     * booking-flow 500 on a salon subdomain is exactly the case this task
+     * wants traceable to one salon. See ResolveTenant::tagSentryScope() for
+     * why this call is safe and cheap with no DSN configured.
+     */
+    private function tagSentryScope(Organization $organization): void
+    {
+        if (app()->bound('sentry')) {
+            \Sentry\configureScope(function (Scope $scope) use ($organization): void {
+                $scope->setTag('organization_id', (string) $organization->id);
+                $scope->setTag('organization_slug', $organization->slug);
+            });
+        }
     }
 }
