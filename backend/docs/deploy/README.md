@@ -451,6 +451,28 @@ Expected: `1`.
 
 ## 6. Install the nginx vhosts
 
+Both vhosts `include snippets/salonhub-cloudflare-realip.conf`, so install
+the snippet first — `nginx -t` fails outright if it is missing, which is the
+intended behaviour rather than silently starting without it:
+
+```bash
+sudo mkdir -p /etc/nginx/snippets
+sudo cp /var/www/salonhub/backend/docs/deploy/nginx-cloudflare-realip.conf \
+  /etc/nginx/snippets/salonhub-cloudflare-realip.conf
+```
+
+This is what makes `$remote_addr` — and therefore Laravel's
+`Request::ip()` — the visitor's address rather than the Cloudflare edge that
+proxied it. Every per-IP `throttle:` in `routes/api.php` depends on it: with
+all three DNS records Proxied (Step 2) and no `set_real_ip_from`, `register`
+is capped at 3 signups per minute *for the whole platform*, `login` at 20
+attempts per minute for the whole platform, and one visitor's failed logins
+count against every other visitor's budget. Step 10 has a check that proves
+it took effect.
+
+If you are not fronting the origin with Cloudflare, delete the two `include`
+lines from the vhosts instead of installing the snippet.
+
 ```bash
 sudo cp /var/www/salonhub/backend/docs/deploy/nginx-app.conf \
   /etc/nginx/sites-available/salonhub-app.conf
@@ -737,6 +759,31 @@ Expected: `404`. The application trusts no proxy, so `X-Forwarded-Host` is
 ignored and cannot be used to pick a tenant. If this ever returns `200`,
 someone has configured trusted proxies — stop and undo it, because tenant
 selection has just become a client-supplied header.
+
+Now prove the opposite half: that nginx *does* unwrap the client's IP from
+Cloudflare, so the per-IP rate limits are per-IP. From your own machine,
+note your public address and make one request:
+
+```bash
+curl -s https://api.ipify.org; echo
+curl -s -o /dev/null https://app.salonhub.com/up
+```
+
+Then on the server:
+
+```bash
+sudo tail -n 1 /var/log/nginx/access.log
+```
+
+Expected: the line begins with **your** public address from the first
+command — not a Cloudflare edge address (`104.16.x`, `172.6x.x`,
+`162.15x.x`, `2606:4700:…` and the other ranges listed in
+`nginx-cloudflare-realip.conf`). `$remote_addr` is what Laravel returns from
+`Request::ip()`, so if this shows a Cloudflare address the snippet from
+Step 6 is not installed or not included, and every `throttle:` in
+`routes/api.php` is a single platform-wide bucket: 3 registrations a minute
+for all salons combined, and one visitor's failed logins locking out
+everyone else's.
 
 Note on the first deploy after the subdomain feature: `deploy.sh` runs
 `php artisan migrate --force`, which includes the backfill that marks
