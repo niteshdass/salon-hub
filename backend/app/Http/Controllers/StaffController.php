@@ -124,11 +124,26 @@ class StaffController extends Controller
         return new StaffResource($user->fresh()->load(['staffProfile', 'services']));
     }
 
-    public function destroy(string $staff): Response
+    /**
+     * The explicit detach/delete below covers staff_services and
+     * staff_profiles, but appointments.staff_id is also `cascadeOnDelete`
+     * (and payments cascade from appointments), so removing a stylist would
+     * delete every appointment they ever performed and every payment against
+     * those appointments — silently, irreversibly, and taking the salon's
+     * revenue history with it. Refuse while any remain; deactivating the
+     * staff member (status) is the reversible action.
+     */
+    public function destroy(string $staff): Response|JsonResponse
     {
         $this->authorize('delete', User::class);
 
         $user = $this->findStaffOrFail($staff);
+
+        if ($user->appointments()->exists()) {
+            return response()->json([
+                'message' => 'This staff member has appointments booked against them and cannot be deleted.',
+            ], 422);
+        }
 
         DB::transaction(function () use ($user) {
             // FKs cascade (staff_profiles + staff_services), but detach /

@@ -50,9 +50,21 @@ class BranchController extends Controller
         return new BranchResource($branch);
     }
 
-    public function destroy(Branch $branch): Response
+    /**
+     * appointments.branch_id is `cascadeOnDelete` and payments cascade from
+     * appointments, so deleting a branch takes every booking ever made there
+     * — and the money recorded against them — with it, irreversibly. Refuse
+     * while dependent appointments exist.
+     */
+    public function destroy(Branch $branch): Response|JsonResponse
     {
         $this->authorize('delete', $branch);
+
+        if ($branch->appointments()->exists()) {
+            return response()->json([
+                'message' => 'This branch has appointments booked against it and cannot be deleted.',
+            ], 422);
+        }
 
         $branch->delete();
 
