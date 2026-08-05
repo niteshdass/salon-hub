@@ -193,8 +193,11 @@ create, all pointed at the VPS's public IP:
 | A    | `*`    | Proxied |
 
 Salon booking sites live at `<slug>.salonhub.com` (`APP_DOMAIN=salonhub.com`
-in the production `.env` — see Step 5), so the wildcard `A *` record is
-required, not optional; the app vhost alone (`app`, `@`) is not enough.
+in the production `.env` — see Step 5), and that subdomain is where the site
+is actually served from: the Host header, not the URL path, tells the
+application which salon's data to return. So the wildcard `A *` record is
+required, not optional; the app vhost alone (`app`, `@`) is not enough, and
+without it every salon's booking site is unreachable.
 
 Proxying through Cloudflare is fine for the `A` records themselves — it does
 not interfere with the DNS-01 challenge in the next step, which validates
@@ -610,6 +613,40 @@ Expected: `subject=CN = salonhub.com` and a `X509v3 Subject Alternative Name`
 line listing both `DNS:salonhub.com` and `DNS:*.salonhub.com` — proves the
 wildcard cert (Step 3), not just the apex, is what nginx is actually
 serving on a salon subdomain.
+
+The certificate check above proves TLS only. These next three prove the
+thing that actually matters on a salon subdomain: that the Host header
+selects the right tenant, and only the right tenant. Substitute a real
+registered salon's slug for `<slug>`.
+
+```bash
+curl -s https://<slug>.salonhub.com/api/public/site | head -c 200
+```
+Expected: JSON whose `"slug"` is `<slug>` — the API resolved the tenant from
+the Host header alone, with no `{org}` segment in the path.
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://no-such-salon.salonhub.com/api/public/site
+```
+Expected: `404`. An unregistered subdomain must be a 404, never a fallback
+to some other salon. The same `404` is expected for a salon whose
+organization has been suspended.
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H 'X-Forwarded-Host: <slug>.salonhub.com' \
+  https://salonhub.com/api/public/site
+```
+Expected: `404`. The application trusts no proxy, so `X-Forwarded-Host` is
+ignored and cannot be used to pick a tenant. If this ever returns `200`,
+someone has configured trusted proxies — stop and undo it, because tenant
+selection has just become a client-supplied header.
+
+Note on the first deploy after the subdomain feature: `deploy.sh` runs
+`php artisan migrate --force`, which includes the backfill that marks
+already-registered `<slug>.APP_DOMAIN` rows `is_verified`. Host resolution
+only answers for verified rows, so a database restored from before that
+migration will 404 on every salon subdomain until it has run.
 
 ```bash
 sudo supervisorctl status salonhub-worker:*
