@@ -7,8 +7,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Sentry\ClientInterface;
 use Sentry\Event;
 use Sentry\State\Scope;
+use Sentry\Transport\Result;
+use Sentry\Transport\ResultStatus;
+use Sentry\Transport\TransportInterface;
 use Tests\TestCase;
 
 use function Sentry\configureScope;
@@ -48,6 +52,22 @@ class SentryReportingTest extends TestCase
         return [$org, $owner];
     }
 
+    /**
+     * Fix round 2: this test previously only asserted that a throwing route
+     * still returns a normal 500 — true with or without Sentry reporting at
+     * all, so it pinned nothing (mutation-tested by deleting the entire
+     * `$exceptions->reportable(...)` block from bootstrap/app.php: still
+     * "3 passed"). It is now a real, breakable assertion: the Sentry
+     * client's transport is swapped for a spy (same technique as
+     * SentryPiiCaptureTest) BEFORE hitting the throwing route, using the
+     * real empty DSN this app ships with — no fake DSN here, unlike the PII
+     * test — and asserts the spy never receives an event at all. This is
+     * exactly what `bootstrap/app.php`'s `config('sentry.dsn')` guard
+     * exists to guarantee; removing that guard (leaving only
+     * `app()->bound('sentry')`) makes this test fail, because
+     * `Integration::captureUnhandledException()` would then run
+     * unconditionally and reach the spy transport regardless of DSN.
+     */
     public function test_reporting_is_inert_with_empty_dsn(): void
     {
         $this->assertEmpty(config('sentry.dsn'));
@@ -59,20 +79,54 @@ class SentryReportingTest extends TestCase
         // just on `app()->bound('sentry')`.
         $this->assertTrue(app()->bound('sentry'));
 
-        // Register a route that always throws, so an unhandled exception
-        // runs through the exact bootstrap/app.php `withExceptions`
-        // reportable() callback added for this task. With no DSN it must
-        // be a true no-op: the request still completes with a normal
-        // error response instead of the callback itself blowing up.
-        // Under `/api/...` so the SPA fallback route in web.php (which
-        // excludes `api|storage|up` by design) does not swallow it first.
-        Route::middleware('api')->get('/api/__test/sentry-throw', function () {
-            throw new \RuntimeException('boom for Sentry inert test');
-        });
+        /** @var ClientInterface $client */
+        $client = app('sentry')->getClient();
 
-        $response = $this->getJson('/api/__test/sentry-throw');
+        $spyTransport = new class implements TransportInterface
+        {
+            public ?Event $captured = null;
 
-        $response->assertStatus(500);
+            public function send(Event $event): Result
+            {
+                $this->captured = $event;
+
+                return new Result(ResultStatus::success(), $event);
+            }
+
+            public function close(?int $timeout = null): Result
+            {
+                return new Result(ResultStatus::success());
+            }
+        };
+
+        $transportProperty = new \ReflectionProperty($client, 'transport');
+        $transportProperty->setAccessible(true);
+        $originalTransport = $transportProperty->getValue($client);
+        $transportProperty->setValue($client, $spyTransport);
+
+        try {
+            // Register a route that always throws, so an unhandled exception
+            // runs through the exact bootstrap/app.php `withExceptions`
+            // reportable() callback added for this task. With no DSN it must
+            // be a true no-op: the request still completes with a normal
+            // error response instead of the callback itself blowing up.
+            // Under `/api/...` so the SPA fallback route in web.php (which
+            // excludes `api|storage|up` by design) does not swallow it first.
+            Route::middleware('api')->get('/api/__test/sentry-throw', function () {
+                throw new \RuntimeException('boom for Sentry inert test');
+            });
+
+            $response = $this->getJson('/api/__test/sentry-throw');
+
+            $response->assertStatus(500);
+        } finally {
+            $transportProperty->setValue($client, $originalTransport);
+        }
+
+        $this->assertNull(
+            $spyTransport->captured,
+            'the empty-DSN guard did not hold: an event reached the transport despite config("sentry.dsn") being empty'
+        );
     }
 
     public function test_tenant_tag_applied_to_sentry_scope_when_tenant_bound(): void

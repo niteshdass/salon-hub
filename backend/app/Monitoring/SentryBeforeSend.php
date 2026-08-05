@@ -35,7 +35,7 @@ final class SentryBeforeSend
     {
         self::scrubRequest($event);
         self::stripStackFrameVars($event);
-        self::redactQueryExceptionBindings($event);
+        self::redactDatabaseExceptionMessages($event);
 
         return $event;
     }
@@ -129,13 +129,40 @@ final class SentryBeforeSend
      * a query built from customer input (email, phone, name) puts that
      * value in `exception.values[].value`, independent of stack-frame
      * `vars` entirely. Stripping frame vars (above) does not touch this;
-     * the message itself carries it as plain text. Redacted here by
-     * truncating at the `" (Connection: ..."` suffix Laravel always
-     * appends, which is exactly where the interpolated SQL begins —
-     * leaving the underlying driver error message (which does not contain
-     * bound values) intact and useful.
+     * the message itself carries it as plain text.
+     *
+     * CORRECTION (fix round 2): an earlier version of this method only
+     * truncated the `" (Connection: ..."` suffix Laravel appends, on the
+     * claim that "the underlying driver error message does not contain
+     * bound values." That claim is false on MySQL (this app's production
+     * driver — see `docs/deploy/env.production.example`): MySQL 8's own
+     * PDO error text echoes the offending value directly, e.g.
+     *
+     *   SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate
+     *   entry 'victim@varsalon.test' for key 'customer_accounts_email_unique'
+     *
+     *   SQLSTATE[22007]: Invalid datetime format: 1292 Incorrect datetime
+     *   value: '+8801711223344' for column 'starts_at' at row 1
+     *
+     * both fully reachable in shipped code (a customer-email unique-index
+     * race on register; MySQL strict-mode value rejection on the public
+     * booking POST) and untouched by the old truncation, which only ever
+     * looked at the Laravel-appended suffix, never the driver's own text.
+     * SQLite (the test driver) never echoes values this way, which is why
+     * the original test passed while the production case was open.
+     *
+     * Redacting driver-specific quoting/escaping conventions one at a time
+     * is a losing game — a different driver, a PDO minor version, or a
+     * error-message locale changes the shape without warning. Instead this
+     * keeps only a short, explicitly-safe prefix (the SQLSTATE code, the
+     * driver's error class text, and its numeric error code — standard PDO
+     * fields that never carry query data) and replaces everything else
+     * with a fixed marker. An unrecognised message shape (no `SQLSTATE[`
+     * prefix at all) is redacted completely rather than passed through, so
+     * the failure mode of "a driver I didn't think of" is total redaction,
+     * not a silent leak.
      */
-    private static function redactQueryExceptionBindings(Event $event): void
+    private static function redactDatabaseExceptionMessages(Event $event): void
     {
         $exceptions = $event->getExceptions();
 
@@ -144,13 +171,36 @@ final class SentryBeforeSend
                 continue;
             }
 
-            $redacted = preg_replace('/ \(Connection: .*/s', '', $exceptionDataBag->getValue());
-
-            if ($redacted !== null) {
-                $exceptionDataBag->setValue($redacted);
-            }
+            $exceptionDataBag->setValue(self::redactDriverMessage($exceptionDataBag->getValue()));
         }
 
         $event->setExceptions($exceptions);
+    }
+
+    private static function redactDriverMessage(?string $message): string
+    {
+        $fallback = '[message redacted by SentryBeforeSend — unrecognised shape, may contain user-supplied data]';
+
+        if ($message === null || $message === '') {
+            return $fallback;
+        }
+
+        // The PDO-standard prefix every driver this app supports (mysql,
+        // pgsql, sqlite) produces: "SQLSTATE[<state>]: <class text>:
+        // <driver code> <driver message...>". Only the first three pieces
+        // are captured — none of them are query data — everything after is
+        // discarded regardless of shape.
+        if (! preg_match('/^SQLSTATE\[(?<state>[^\]]+)\]:\s*(?<class>[^:]*?):\s*(?<code>-?\d+)/', $message, $m)) {
+            return $fallback;
+        }
+
+        $class = trim($m['class']);
+
+        return sprintf(
+            'SQLSTATE[%s]: %s%s [message redacted by SentryBeforeSend — may contain user-supplied data]',
+            $m['state'],
+            $class !== '' ? $class.': ' : '',
+            $m['code']
+        );
     }
 }

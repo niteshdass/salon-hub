@@ -3,13 +3,17 @@
 namespace Tests\Feature\Monitoring;
 
 use App\Monitoring\SentryBeforeSend;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request as LaravelRequest;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Sentry\ClientInterface;
 use Sentry\Event;
+use Sentry\ExceptionDataBag;
 use Sentry\Serializer\EnvelopItems\EventItem;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
@@ -133,6 +137,14 @@ class SentryPiiCaptureTest extends TestCase
                     // the review found, not a stand-in for it.
                     Log::info("[reminder] to={$customerPhone} :: Reminder: Haircut at Salon on Monday, 9:00 AM. See you soon!");
 
+                    // Reproduces the rate-limiter cache-key shape from
+                    // AuthController::login ('login:'.$email.'|'.$ip) — the
+                    // §1 PII analysis's cache-breadcrumb leak site. A plain
+                    // Cache::get (key doesn't need to exist) is enough to
+                    // fire CacheIntegration's breadcrumb listener if
+                    // breadcrumbs.cache is ever left on.
+                    Cache::get('login:'.$customerEmail.'|127.0.0.1');
+
                     // An ordinary DB fault with a bound customer value,
                     // left uncaught so it propagates through Laravel's real
                     // exception handling into bootstrap/app.php's
@@ -218,6 +230,15 @@ class SentryPiiCaptureTest extends TestCase
         $logBreadcrumbs = array_filter($breadcrumbs, fn ($b) => str_starts_with($b['category'] ?? '', 'log.'));
         $this->assertCount(0, $logBreadcrumbs, 'no log breadcrumbs should have been captured — breadcrumbs.logs is off');
 
+        // Same check for the cache breadcrumb (breadcrumbs.cache is off):
+        // the Cache::get() call above, keyed exactly like
+        // AuthController::login's rate limiter ('login:'.$email.'|'.$ip),
+        // must not have produced a `cache` category breadcrumb — that
+        // breadcrumb's message is "Read: {raw key}" / "Missed: {raw key}",
+        // i.e. the customer email verbatim, if this were ever left on.
+        $cacheBreadcrumbs = array_filter($breadcrumbs, fn ($b) => ($b['category'] ?? '') === 'cache');
+        $this->assertCount(0, $cacheBreadcrumbs, 'no cache breadcrumbs should have been captured — breadcrumbs.cache is off');
+
         // I3: every stack frame of every exception has its `vars` stripped,
         // so the SQL binding (customer email) never appears there either,
         // regardless of the php.ini in effect on whatever box this runs on.
@@ -272,5 +293,111 @@ class SentryPiiCaptureTest extends TestCase
         $this->assertStringNotContainsString($secretManageToken, $requestData['url'] ?? '');
         $this->assertSame('http://acme.salonhub.test/<unrouted>', $requestData['url'] ?? null);
         $this->assertArrayNotHasKey('query_string', $requestData);
+    }
+
+    /**
+     * Fix round 2: an earlier version of `redactDatabaseExceptionMessages()`
+     * only truncated Laravel's `" (Connection: ..."` suffix and left the
+     * underlying PDO driver message untouched, on the (false, on MySQL)
+     * assumption that the driver's own text never carries bound values.
+     * SQLite — this test suite's driver — never echoes values that way,
+     * which is exactly why that assumption survived the original test.
+     * These fixtures are real MySQL 8 error strings (reproduced from the
+     * review), constructed directly as the `$previous` PDOException a real
+     * `QueryException` would wrap, rather than run through an actual MySQL
+     * connection — no MySQL server is needed to prove the redaction holds
+     * against the shape MySQL actually produces.
+     */
+    #[DataProvider('mysqlShapedDriverMessages')]
+    public function test_database_exception_redaction_strips_mysql_driver_message_values(
+        string $driverMessage,
+        string $mustNotContain
+    ): void {
+        $event = self::eventForQueryException($driverMessage);
+
+        $result = SentryBeforeSend::handle($event);
+
+        $redactedValue = $result->getExceptions()[0]->getValue();
+
+        $this->assertStringNotContainsString($mustNotContain, $redactedValue);
+        $this->assertStringStartsWith('SQLSTATE[', $redactedValue);
+    }
+
+    public static function mysqlShapedDriverMessages(): array
+    {
+        return [
+            'unique constraint violation echoes the customer email' => [
+                "SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'victim@varsalon.test' for key 'customer_accounts_email_unique'",
+                'victim@varsalon.test',
+            ],
+            'strict-mode datetime rejection echoes the customer phone number' => [
+                "SQLSTATE[22007]: Invalid datetime format: 1292 Incorrect datetime value: '+8801711223344' for column 'starts_at' at row 1",
+                '+8801711223344',
+            ],
+        ];
+    }
+
+    /**
+     * A message shape this hook has never seen (no `SQLSTATE[` prefix at
+     * all) must be redacted completely, not passed through unmodified —
+     * the fail-safe direction the coordinator required: an unrecognised
+     * shape is redacted MORE, not less.
+     */
+    public function test_database_exception_redaction_fully_redacts_an_unrecognised_message_shape(): void
+    {
+        $secret = 'totally-unrecognised-driver-shape-victim@example.com';
+        $event = self::eventForQueryException($secret);
+
+        $result = SentryBeforeSend::handle($event);
+
+        $redactedValue = $result->getExceptions()[0]->getValue();
+
+        $this->assertStringNotContainsString($secret, $redactedValue);
+        $this->assertStringNotContainsString('example.com', $redactedValue);
+    }
+
+    /**
+     * Mutation proof for the redaction itself: with
+     * `redactDatabaseExceptionMessages()` disabled, the raw MySQL driver
+     * message — customer email included — passes straight through. This
+     * documents the RED side of the round-2 mutation test; the fix itself
+     * (the two tests above, passing) is the GREEN side.
+     */
+    public function test_mysql_driver_message_leak_is_reproducible_without_the_redaction(): void
+    {
+        $driverMessage = "SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'victim@varsalon.test' for key 'customer_accounts_email_unique'";
+        $event = self::eventForQueryException($driverMessage);
+
+        // The exception's message as Laravel/PDO produced it, completely
+        // unprocessed — i.e. exactly what would have shipped before this
+        // fix round, and exactly what config('sentry.before_send') = null
+        // (or a before_send that skips this step) would still send today.
+        $unredactedValue = $event->getExceptions()[0]->getValue();
+
+        $this->assertStringContainsString(
+            'victim@varsalon.test',
+            $unredactedValue,
+            'sanity check: the raw driver message really does carry the customer email, proving the fixture is realistic'
+        );
+
+        // ...and the real hook closes exactly that gap:
+        $result = SentryBeforeSend::handle($event);
+        $this->assertStringNotContainsString('victim@varsalon.test', $result->getExceptions()[0]->getValue());
+    }
+
+    private static function eventForQueryException(string $driverMessage): Event
+    {
+        $previous = new \PDOException($driverMessage);
+        $exception = new QueryException(
+            'mysql',
+            'select * from `customer_accounts` where `email` = ?',
+            ['victim@varsalon.test'],
+            $previous
+        );
+
+        $event = Event::createEvent();
+        $event->setExceptions([new ExceptionDataBag($exception)]);
+
+        return $event;
     }
 }
