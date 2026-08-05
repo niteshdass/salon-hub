@@ -4,9 +4,11 @@ namespace Database\Seeders;
 
 use App\Actions\Auth\RegisterOrganization;
 use App\Enums\AppointmentStatus;
+use App\Enums\UserRole;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\StaffProfile;
@@ -15,6 +17,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 
 /**
  * A populated salon for demos, screenshots and manual QA.
@@ -51,37 +54,66 @@ use Illuminate\Support\Facades\Hash;
  *
  * Destructive by design (it deletes a whole organization on re-run — see
  * above) and therefore refuses to run anywhere but `local`/`testing`. It
- * also never trusts the `demo-salon` slug to identify "the org I'm allowed
- * to delete": `demo-salon` is not in Organization::RESERVED_SLUGS, so
- * RegisterOrganization::uniqueSlug() hands that exact slug to the first
+ * also never trusts the `demo-salon` slug alone to identify "the org I'm
+ * allowed to delete": `demo-salon` is not in Organization::RESERVED_SLUGS,
+ * so RegisterOrganization::uniqueSlug() hands that exact slug to the first
  * real customer who names their salon "Demo Salon" — matching on slug
  * would delete a genuine tenant's data with no recovery path (no model in
- * this app uses SoftDeletes). The previous seeded org is instead found via
- * the owner's email, demo@salonhub.com, which is globally unique on the
- * users table and can only ever belong to this seeder's own data.
+ * this app uses SoftDeletes).
+ *
+ * IMPORTANT — the owner's email alone is not unambiguous either, contrary
+ * to what an earlier version of this comment claimed. users.email is
+ * globally unique, but that only says *a* user holds demo@salonhub.com; it
+ * does not say that user is the owner of a *seeder-created* organization.
+ * Verified against real data both ways: (1) a real tenant can register
+ * with demo@salonhub.com as its own owner under a completely different
+ * salon name/slug, and (2) StoreStaffRequest validates email uniqueness
+ * globally too, so any real organization's *staff* member can hold that
+ * address while someone else owns the org. Either case, blindly deleting
+ * "whoever has that email" destroys a real tenant.
+ *
+ * So identifying "our" previous org requires BOTH: the demo@salonhub.com
+ * user must be that organization's OWNER (not staff/manager), AND the
+ * organization's slug must match what RegisterOrganization::uniqueSlug()
+ * actually produces for "Demo Salon" — `demo-salon`, or `demo-salon-2`,
+ * `-3`, ... if an earlier run lost the base slug to a real tenant that
+ * registered first. Anything else is presumed to be someone else's data:
+ * resolvePreviousDemoOrganization() refuses to guess and the whole run
+ * aborts with an actionable message instead of deleting the mismatch or
+ * limping on into RegisterOrganization::execute()'s inevitable duplicate-
+ * email failure.
  */
 class DemoSalonSeeder extends Seeder
 {
+    /**
+     * The exact slug shape RegisterOrganization::uniqueSlug() produces for
+     * "Demo Salon": the base slug, or the base with a numeric collision
+     * suffix if a real tenant already held it on an earlier run.
+     */
+    private const DEMO_SLUG_PATTERN = '/^demo-salon(-\d+)?$/';
+
     public function run(): void
     {
+        // Thrown, not $this->command->error()+exit(1): a plain exception
+        // renders as a clear message under Artisan (verified: no raw
+        // SQLSTATE-style trace, non-zero exit code) without depending on
+        // $this->command being bound — it is null when a seeder is
+        // invoked programmatically rather than via the console — and
+        // without hard-killing the process, which would abort a parent
+        // seeder's own cleanup if this were ever reached via $this->call().
         if (! app()->environment(['local', 'testing'])) {
-            $this->command->error(
+            throw new RuntimeException(
                 'DemoSalonSeeder refused to run: APP_ENV is "'.app()->environment().'", '.
-                'not "local" or "testing". This seeder deletes any organization owned by '.
-                'demo@salonhub.com before reseeding, which is only safe on a disposable '.
+                'not "local" or "testing". This seeder can delete an organization it '.
+                'recognizes as its own previous run, which is only safe on a disposable '.
                 'database. If this really is one, set APP_ENV=local and run again.'
             );
-            exit(1);
         }
 
-        // Identify the previously-seeded demo org, if any, by the owner's
-        // email — never by slug. See the class docblock for why a slug
-        // match is not identity here.
-        $previousOwner = User::where('email', 'demo@salonhub.com')->first();
-        $existing = $previousOwner?->organization;
+        $existing = $this->resolvePreviousDemoOrganization();
 
         if ($existing) {
-            $this->command->warn("Removing previous demo salon (organization #{$existing->id}, slug \"{$existing->slug}\") before reseeding.");
+            $this->command?->warn("Removing previous demo salon (organization #{$existing->id}, slug \"{$existing->slug}\") before reseeding.");
 
             // Force FK enforcement ON for this connection only, so the
             // cascadeOnDelete() constraints declared in the migrations
@@ -209,6 +241,50 @@ class DemoSalonSeeder extends Seeder
             ]);
         }
 
-        $this->command->info("Demo salon ready: demo@salonhub.com / password (slug: {$org->slug})");
+        $this->command?->info("Demo salon ready: demo@salonhub.com / password (slug: {$org->slug})");
+    }
+
+    /**
+     * Find the organization created by this seeder's own previous run, if
+     * any — see the class docblock for why the demo@salonhub.com email
+     * alone cannot answer this.
+     *
+     * Returns null only when there is genuinely nothing to clean up: no
+     * user holds demo@salonhub.com yet (first-ever run). If that address
+     * is taken but the owner-role-plus-slug check fails, this throws
+     * instead of returning null — silently reporting "nothing found" would
+     * let run() sail on into RegisterOrganization::execute()'s inevitable
+     * duplicate-email failure a few lines later, with no explanation of
+     * why or what was actually found.
+     */
+    protected function resolvePreviousDemoOrganization(): ?Organization
+    {
+        $user = User::where('email', 'demo@salonhub.com')->first();
+
+        if (! $user) {
+            return null;
+        }
+
+        $org = $user->organization;
+        $looksLikeOurs = $user->role === UserRole::OWNER
+            && $org !== null
+            && preg_match(self::DEMO_SLUG_PATTERN, $org->slug) === 1;
+
+        if (! $looksLikeOurs) {
+            throw new RuntimeException(
+                'DemoSalonSeeder refused to run: a user already exists with email '.
+                'demo@salonhub.com'.
+                ($org
+                    ? " (role \"{$user->role->value}\" in organization #{$org->id}, slug \"{$org->slug}\")"
+                    : ' (no organization)'
+                ).
+                ", but it does not look like this seeder's own previous run — the ".
+                'owner role and the "demo-salon"[-N] slug must both match before it is '.
+                'safe to delete. Nothing was changed. If this is genuinely stale demo '.
+                'data, remove it manually and run this seeder again.'
+            );
+        }
+
+        return $org;
     }
 }
