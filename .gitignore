@@ -1,4 +1,4 @@
 .playwright-mcp/
 *.png
-!frontend/src/assets/*.png
-!frontend/public/*.png
+!frontend/src/assets/**/*.png
+!frontend/public/**/*.png
