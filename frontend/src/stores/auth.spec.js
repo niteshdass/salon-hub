@@ -34,6 +34,15 @@ describe('useAuthStore', () => {
     expect(store.user).toBeNull()
   })
 
+  it('rehydrates the token from localStorage when the store is created', () => {
+    localStorage.setItem(TOKEN_KEY, 'existing-token')
+
+    const store = useAuthStore()
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.token).toBe('existing-token')
+  })
+
   it('setSession persists the token under TOKEN_KEY and flips isAuthenticated', () => {
     const store = useAuthStore()
 
@@ -57,5 +66,18 @@ describe('useAuthStore', () => {
     expect(store.isAuthenticated).toBe(false)
     expect(store.token).toBeNull()
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+  })
+
+  it('logout calls the server to revoke the token', async () => {
+    const store = useAuthStore()
+    store.setSession({ token: 'abc123', user: { id: 1 }, organization: { id: 9 } })
+    vi.mocked(api.post).mockResolvedValueOnce({ data: {} })
+
+    await store.logout()
+
+    // Without this call, the client forgets the token but the bearer token
+    // stays valid on the backend until it expires — the server call is the
+    // effect under test here, not a side detail.
+    expect(api.post).toHaveBeenCalledWith('/auth/logout')
   })
 })

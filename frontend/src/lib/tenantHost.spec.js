@@ -37,6 +37,13 @@ describe('resolveSlugFromHost', () => {
     )
   })
 
+  it('rejects a label with a character outside [a-z0-9-]', () => {
+    // Not caught by the dot guard (no dot) or RESERVED (not a reserved word)
+    // — only the charset regex rejects this. Isolates that guard from the
+    // dot-rejection it otherwise overlaps with in the multi-label case.
+    expect(resolveSlugFromHost('beauty_queen.salonhub.com', 'salonhub.com')).toBeNull()
+  })
+
   describe('default host argument', () => {
     const originalLocation = window.location
 
@@ -58,6 +65,22 @@ describe('resolveSlugFromHost', () => {
       })
 
       expect(resolveSlugFromHost(undefined, 'salonhub.com')).toBe('beauty-queen')
+    })
+
+    // The app also relies on the *second* default (appDomain = APP_DOMAIN):
+    // production calls resolveSlugFromHost() with zero arguments. This test
+    // takes no arguments at all, so it is the only one in the file that pins
+    // the APP_DOMAIN constant and the appDomain default parameter themselves
+    // (every other test above passes 'salonhub.com' explicitly as argument
+    // 2, which leaves that default free to break without failing anything).
+    it('uses the real APP_DOMAIN default when neither argument is given', () => {
+      Object.defineProperty(window, 'location', {
+        value: { ...originalLocation, hostname: 'beauty-queen.salonhub.com' },
+        writable: true,
+        configurable: true,
+      })
+
+      expect(resolveSlugFromHost()).toBe('beauty-queen')
     })
   })
 })
