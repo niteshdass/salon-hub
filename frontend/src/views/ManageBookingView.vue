@@ -3,9 +3,15 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
+import { publicApiBase } from '@/lib/tenantHost'
 
 const route = useRoute()
 const slug = route.params.slug
+// This view's route carries a required `:slug`, so this is always the
+// path-scoped base. It goes through publicApiBase so the prefix is decided in
+// one place; the host-resolved group deliberately has no `manage/*` or bare
+// organization endpoint, so these calls must stay path-scoped.
+const apiBase = publicApiBase(route.params.slug)
 const token = route.params.token
 
 /* ------------------------------ Helpers ------------------------------ */
@@ -73,7 +79,7 @@ async function loadBooking() {
   loadError.value = ''
   notFound.value = false
   try {
-    const { data } = await api.get(`/public/${slug}/manage/${token}`)
+    const { data } = await api.get(`${apiBase}/manage/${token}`)
     booking.value = data.data
   } catch (err) {
     if (err?.response?.status === 404) {
@@ -115,7 +121,7 @@ async function loadSlots() {
   slotsError.value = ''
   selectedSlot.value = ''
   try {
-    const { data } = await api.get(`/public/${slug}/slots`, {
+    const { data } = await api.get(`${apiBase}/slots`, {
       params: {
         service_id: booking.value.service.id,
         staff_id: booking.value.staff.id,
@@ -137,7 +143,7 @@ async function confirmReschedule() {
   savingReschedule.value = true
   actionMessage.value = ''
   try {
-    const { data } = await api.post(`/public/${slug}/manage/${token}/reschedule`, {
+    const { data } = await api.post(`${apiBase}/manage/${token}/reschedule`, {
       date: rescheduleDate.value,
       start_time: selectedSlot.value,
     })
@@ -161,7 +167,7 @@ async function confirmCancel() {
   cancelling.value = true
   actionMessage.value = ''
   try {
-    const { data } = await api.post(`/public/${slug}/manage/${token}/cancel`)
+    const { data } = await api.post(`${apiBase}/manage/${token}/cancel`)
     booking.value = data.data
     confirmingCancel.value = false
   } catch (err) {
@@ -184,7 +190,7 @@ async function submitReview() {
   submittingReview.value = true
   reviewError.value = ''
   try {
-    const { data } = await api.post(`/public/${slug}/manage/${token}/review`, {
+    const { data } = await api.post(`${apiBase}/manage/${token}/review`, {
       rating: reviewRating.value,
       comment: reviewComment.value || null,
     })

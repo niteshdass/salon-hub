@@ -120,6 +120,27 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::put('settings/payments', [PaymentSettingController::class, 'update']);
 });
 
+// Host-resolved public site: <slug>.APP_DOMAIN serves the same payloads as
+// /api/public/{org}/*, with the tenant read from the Host header instead of
+// the path. It reuses `public.tenant`, whose Host-header branch handles the
+// lookup when no {org} parameter is present.
+//
+// Declared BEFORE the {org} group, and that order is load-bearing: these
+// URIs are two segments long, exactly the shape of the {org} group's bare
+// `public/{org}` route, so if the {org} group came first `/api/public/site`
+// would resolve as the organization slugged "site". The reverse collision
+// cannot happen — every path-scoped URI is at least three segments, so no
+// route below is reachable through this group.
+Route::prefix('public')->middleware('public.tenant')->group(function () {
+    Route::get('site', SiteController::class);
+    Route::get('services', [BookingController::class, 'services']);
+    // A distinct action from the path-scoped one: this URI has no {org}
+    // parameter, and Laravel passes route parameters positionally.
+    Route::get('services/{service}/staff', [BookingController::class, 'staffForServiceOnHost']);
+    Route::get('slots', [BookingController::class, 'slots']);
+    Route::post('book', [BookingController::class, 'book']);
+});
+
 // Public (no-auth) customer booking site. `public.tenant` resolves the
 // organization from the {org} slug (or host header) and binds it, so every
 // query — including implicit {service} binding — is tenant-scoped.

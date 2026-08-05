@@ -3,9 +3,15 @@ import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
+import { publicApiBase } from '@/lib/tenantHost'
 
 const route = useRoute()
 const slug = route.params.slug
+// This view's route carries a required `:slug`, so this is always the
+// path-scoped base. It goes through publicApiBase so the prefix is decided in
+// one place; the host-resolved group deliberately has no `manage/*` or bare
+// organization endpoint, so these calls must stay path-scoped.
+const apiBase = publicApiBase(route.params.slug)
 
 /* ------------------------------ Helpers ------------------------------ */
 // Local (not UTC) YYYY-MM-DD for the current day.
@@ -73,7 +79,7 @@ async function loadSalon() {
   salonError.value = ''
   notFound.value = false
   try {
-    const { data } = await api.get(`/public/${slug}`)
+    const { data } = await api.get(apiBase)
     salon.value = data.data
   } catch (err) {
     if (err?.response?.status === 404) {
@@ -96,7 +102,7 @@ async function loadServices() {
   servicesLoading.value = true
   servicesError.value = ''
   try {
-    const { data } = await api.get(`/public/${slug}/services`)
+    const { data } = await api.get(`${apiBase}/services`)
     services.value = data.data || []
   } catch (err) {
     servicesError.value = parseApiError(err, 'Could not load services.').message
@@ -130,7 +136,7 @@ async function loadStaff() {
   staffLoading.value = true
   staffError.value = ''
   try {
-    const { data } = await api.get(`/public/${slug}/services/${selectedService.value.id}/staff`)
+    const { data } = await api.get(`${apiBase}/services/${selectedService.value.id}/staff`)
     staff.value = data.data || []
   } catch (err) {
     staffError.value = parseApiError(err, 'Could not load staff.').message
@@ -164,7 +170,7 @@ async function loadSlots() {
   slotsError.value = ''
   selectedSlot.value = ''
   try {
-    const { data } = await api.get(`/public/${slug}/slots`, {
+    const { data } = await api.get(`${apiBase}/slots`, {
       params: {
         service_id: selectedService.value.id,
         staff_id: selectedStaff.value.id,
@@ -283,7 +289,7 @@ async function submitBooking() {
   }
 
   try {
-    const { data } = await api.post(`/public/${slug}/book`, payload)
+    const { data } = await api.post(`${apiBase}/book`, payload)
     // Online deposit: hand off to the gateway's hosted checkout. It returns the
     // customer to the manage page (with a ?payment= outcome) when done.
     if (data.data?.gateway_url) {

@@ -1,9 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomerAuthStore } from '@/stores/customerAuth'
+import { resolveSlugFromHost } from '@/lib/tenantHost'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
-import LandingView from '../views/LandingView.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import CustomerLayout from '../layouts/CustomerLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -79,11 +79,17 @@ const router = createRouter({
       component: () => import('@/views/ManageBookingView.vue'),
     },
     {
-      // Public SaaS marketing home. Declared before the DashboardLayout record
-      // so bare `/` renders the landing page, not the authenticated shell.
+      // On a salon subdomain, `/` is that salon's shopfront. On the apex it is
+      // the public SaaS marketing home. Resolved lazily, at the moment the
+      // route is entered: the host cannot change without a full page load, so
+      // one answer per page view is all there is.
+      //
+      // Declared before the DashboardLayout record so bare `/` renders this,
+      // not the authenticated shell.
       path: '/',
       name: 'landing',
-      component: LandingView,
+      component: () =>
+        resolveSlugFromHost() ? import('@/views/SalonSiteView.vue') : import('@/views/LandingView.vue'),
     },
     {
       path: '/terms',
@@ -201,8 +207,14 @@ router.beforeEach(async (to) => {
       return '/dashboard'
     }
   }
+  // On the apex, `/` is the marketing home and a signed-in member belongs on
+  // their dashboard. On a salon subdomain `/` is that salon's public
+  // shopfront, so a member who happens to be signed in on that origin must
+  // still see the shopfront rather than be bounced away from it.
   if (
-    (to.name === 'landing' || to.path === '/login' || to.path === '/register') &&
+    ((to.name === 'landing' && !resolveSlugFromHost()) ||
+      to.path === '/login' ||
+      to.path === '/register') &&
     authStore.isAuthenticated
   ) {
     return '/dashboard'

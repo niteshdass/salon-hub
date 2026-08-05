@@ -14,7 +14,12 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Resolution order:
  *   1. The {org} route parameter (a slug) -> an ACTIVE organization.
- *   2. Host header -> Domain lookup (real subdomain / custom-domain prod).
+ *   2. Host header -> Domain lookup (the salon's own <slug>.APP_DOMAIN).
+ *
+ * Both branches demand an ACTIVE organization: the Host header selects which
+ * tenant's customers, bookings and revenue are served, so the door opened by
+ * a subdomain is never wider than the door opened by a slug. Which Domain
+ * rows are allowed to answer is decided in Domain::resolveOrganizationForHost.
  *
  * A missing / inactive organization aborts with 404. Runs BEFORE
  * SubstituteBindings so implicit route-model binding (e.g. {service}) is
@@ -31,8 +36,7 @@ class ResolvePublicTenant
                 ->where('status', 'active')
                 ->first();
         } else {
-            $organization = Domain::where('domain', $request->getHost())
-                ->first()?->organization;
+            $organization = Domain::resolveOrganizationForHost($request->getHost());
         }
 
         if (! $organization) {

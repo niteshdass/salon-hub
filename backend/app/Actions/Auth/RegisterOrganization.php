@@ -84,10 +84,19 @@ class RegisterOrganization
 
             Domain::create([
                 'organization_id' => $organization->id,
-                'domain' => $slug.'.salonhub.com',
+                // config('app.domain') reads the same APP_DOMAIN that CORS
+                // trusts, so the host we mint here is always a host we answer
+                // on.
+                'domain' => $slug.'.'.config('app.domain'),
+                // Served immediately by the wildcard vhost and wildcard cert:
+                // there is nothing to verify for a subdomain we control, and
+                // Domain::resolveOrganizationForHost only answers on verified
+                // rows. A future custom domain (v1.2) is the case that starts
+                // false, because that host is one a stranger has merely
+                // claimed.
                 'is_primary' => true,
-                'is_verified' => false,
-                'ssl_enabled' => false,
+                'is_verified' => true,
+                'ssl_enabled' => true,
             ]);
 
             Setting::create([
