@@ -28,15 +28,9 @@ const features = [
     paths: ['M12 3.6l2.55 5.17 5.7.83-4.13 4.02.98 5.68L12 16.6l-5.08 2.7.98-5.68L3.75 9.6l5.7-.83z'],
   },
   {
-    title: 'Multi-branch ready',
-    body: 'Manage several locations, teams, and calendars from one login.',
-    paths: [
-      'M3 21h18',
-      'M6 21V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v16',
-      'M12 21V9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v12',
-      'M8.5 8h1M8.5 11.5h1M8.5 15h1',
-      'M15 12h1M15 15.5h1',
-    ],
+    title: 'Reports built in',
+    body: 'See bookings, revenue, and no-shows at a glance — no spreadsheet required.',
+    paths: ['M4 20V10', 'M10 20V4', 'M16 20v-7', 'M3 20h18'],
   },
   {
     title: 'Staff & schedules',
