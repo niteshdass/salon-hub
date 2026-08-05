@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\OrganizationStatus;
 use App\Models\Domain;
 use App\Tenancy\CurrentTenant;
 use Closure;
@@ -22,6 +23,31 @@ use Symfony\Component\HttpFoundation\Response;
  * tenant" — a second, looser copy here would be the wider door.
  *
  * Must run AFTER auth:sanctum so $request->user() is populated.
+ *
+ * FAILS CLOSED FOR AUTHENTICATED REQUESTS. An authenticated request that
+ * resolves no ACTIVE organization is refused here rather than allowed
+ * through with no tenant bound. Two reasons, both concrete:
+ *
+ *  - BelongsToOrganization's global scope is deliberately INERT when no
+ *    tenant is bound — registration, login, host resolution, the whole
+ *    customer-account portal and the seeders all depend on that, and
+ *    TenantScopingTest asserts it. So "no tenant bound" on a route inside
+ *    the `tenant` group does not mean "see nothing", it means "see every
+ *    tenant". A user whose organization row went away (hand-written DELETE,
+ *    or a dangling organization_id on a box running with
+ *    foreign_key_checks off) would turn every unexpired Sanctum token into
+ *    an unscoped read/write credential across the whole database. Closing
+ *    it here rather than in the trait keeps the inert-scope contract the
+ *    other three subsystems rely on.
+ *  - Status was previously checked only by Domain::resolveOrganizationForHost
+ *    and ResolvePublicTenant, so suspending a salon took down its public
+ *    booking site and left its dashboard, API, reports and payment settings
+ *    fully operational. Now suspension means the same thing on both sides.
+ *
+ * Scope of the refusal: the `tenant` alias is applied only to the
+ * authenticated group in routes/api.php. Public routes use `public.tenant`,
+ * which already 404s, and the customer-account group has no tenant
+ * middleware at all — neither is affected.
  */
 class ResolveTenant
 {
@@ -29,8 +55,16 @@ class ResolveTenant
 
     public function handle(Request $request, Closure $next): Response
     {
-        if (($user = $request->user()) && $user->organization) {
-            $this->tenant->set($user->organization);
+        if ($user = $request->user()) {
+            $organization = $user->organization;
+
+            abort_unless(
+                $organization && $organization->status === OrganizationStatus::ACTIVE,
+                403,
+                'Your organization is not active.'
+            );
+
+            $this->tenant->set($organization);
         } elseif ($organization = Domain::resolveOrganizationForHost($request->getHost())) {
             $this->tenant->set($organization);
         }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Actions\Auth\RegisterOrganization;
+use App\Enums\OrganizationStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -66,6 +67,24 @@ class AuthController extends Controller
             ]);
         }
 
+        // Resolve the organization BEFORE minting a token. Previously the
+        // token row was written first and `$user->organization->load(...)`
+        // below then 500'd on a null, persisting a personal access token for
+        // an account that could never complete a sign-in. It also left the
+        // "an org-less user cannot log in" property resting on a null-pointer
+        // dereference, one `?->` away from silently disappearing during a
+        // routine 500 fix. Refuse explicitly instead, on the same rule the
+        // `tenant` middleware enforces on every request after this one, so
+        // a suspended salon is refused at the door rather than handed a token
+        // that 403s on every subsequent call.
+        $organization = $user->organization;
+
+        if (! $organization || $organization->status !== OrganizationStatus::ACTIVE) {
+            throw ValidationException::withMessages([
+                'email' => ['This account is not active. Please contact support.'],
+            ]);
+        }
+
         // A genuine sign-in clears the counter so a user who fat-fingers a
         // password twice is not one typo away from a lockout.
         RateLimiter::clear($key);
@@ -75,7 +94,7 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user' => new UserResource($user),
-            'organization' => new OrganizationResource($user->organization->load('domains')),
+            'organization' => new OrganizationResource($organization->load('domains')),
         ]);
     }
 
