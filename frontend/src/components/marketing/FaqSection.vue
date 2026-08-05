@@ -12,7 +12,7 @@ const faqs = [
   },
   {
     q: 'Does it send reminders?',
-    a: 'Automatic email, SMS, and WhatsApp reminders go out before each appointment.',
+    a: 'Automatic SMS and WhatsApp reminders go out before each appointment.',
   },
   {
     q: 'Can I manage more than one location?',

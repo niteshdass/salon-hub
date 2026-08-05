@@ -14,7 +14,7 @@ const features = [
   },
   {
     title: 'Automatic reminders',
-    body: 'Email, SMS, and WhatsApp nudges that cut no-shows.',
+    body: 'SMS and WhatsApp nudges that cut no-shows.',
     paths: ['M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z', 'M10.5 20a2 2 0 0 0 3 0'],
   },
   {

@@ -17,7 +17,7 @@ const free = {
     'Your own booking website',
     'Calendar & appointments',
     'Reports',
-    'Email reminders',
+    'SMS & WhatsApp reminders',
   ],
 }
 </script>
