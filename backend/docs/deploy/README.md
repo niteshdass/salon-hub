@@ -381,6 +381,28 @@ Generate the app key and link the public storage disk:
 ```bash
 php artisan key:generate
 php artisan storage:link
+```
+
+**Record `APP_KEY` somewhere outside this server right now, before you
+forget.** `docs/deploy/backup.sh` (Section 11) deliberately never includes
+`.env` in the nightly backup archives — bundling the app's encryption key
+into the same tarball as the customer data it protects would defeat the
+point of encrypting `PaymentSetting.credentials` and
+`ReminderSetting.credentials` (both `encrypted:array` casts) in the first
+place. That means the database backup alone is not enough to recover those
+two tables: a restore onto a different server with a different `APP_KEY`
+decrypts them into garbage, silently, with no error at restore time. Copy
+the value out now, e.g.:
+
+```bash
+grep '^APP_KEY=' .env
+```
+
+...into your team's password manager or secrets vault, labelled
+`salonhub-production-app-key`. Treat it exactly like the DB password: never
+in Slack, never in a plaintext note, never committed.
+
+```bash
 exit
 ```
 
@@ -542,12 +564,45 @@ Expected: at least one `CRON (www-data) CMD` line per minute since install.
 
 ### Backup cron (`deploy` user)
 
-`docs/deploy/backup.sh` (below) is installed the same way, but under
-`deploy`'s crontab, not `www-data`'s: it reads the `DB_*` values straight out
-of `.env`, which Step 5 locks to `chmod 600` owned by `deploy`, so it has to
-run as the one user that can already open that file. See "11. Database and
-upload backups" for the one-time directory setup this cron line depends on
-— do that first if you haven't yet, or this entry has nowhere to write.
+`docs/deploy/backup.sh` (detailed in "11. Database and upload backups"
+below) reads the `DB_*` values straight out of `.env`, which Step 5 locks to
+`chmod 600` owned by `deploy`, so it runs under `deploy`'s crontab, not
+`www-data`'s — the one user that can already open that file.
+
+Before installing the cron line, create the backup destination and give
+`deploy` write access to it and to the log directory. `/var/backups` is
+root-owned and `/var/log/salonhub` is `www-data:www-data` by default
+(created in Step 7); neither grants `deploy` a path in without this
+one-time setup, so the cron entry below has nowhere to write until it's
+done:
+
+```bash
+sudo mkdir -p /var/backups/salonhub
+sudo chown deploy:deploy /var/backups/salonhub
+sudo chmod 700 /var/backups/salonhub
+sudo chmod g+w /var/log/salonhub
+```
+
+`/var/backups/salonhub` is `chmod 700`, owned `deploy` alone — not
+`www-data`, not world-readable — because a gunzipped dump in it is every
+salon's complete customer list in plaintext: names, phone numbers, emails,
+booking history. `backup.sh` re-asserts this mode on every run in case it
+is ever loosened. `chmod g+w` on `/var/log/salonhub` gives it group write,
+and `deploy` is already a member of the `www-data` group (Step 5), so this
+is the smallest change that lets `deploy` append to `backup.log` without
+changing who owns the worker's own log file next to it.
+
+Verify both:
+
+```bash
+sudo -u deploy test -w /var/backups/salonhub && \
+  sudo -u deploy test -w /var/log/salonhub && \
+  echo "deploy can write both backup paths"
+```
+
+Expected: `deploy can write both backup paths`.
+
+Install the cron line:
 
 ```bash
 (sudo crontab -l -u deploy 2>/dev/null; echo '15 3 * * * /var/www/salonhub/backend/docs/deploy/backup.sh >> /var/log/salonhub/backup.log 2>&1') | sudo crontab -u deploy -
@@ -560,6 +615,26 @@ sudo crontab -l -u deploy
 ```
 
 Expected: prints the `15 3 * * * ...backup.sh >> /var/log/salonhub/backup.log 2>&1` line.
+
+Don't wait until 03:15 to find out whether it actually works. Run it once
+now, as `deploy`:
+
+```bash
+sudo -u deploy /var/www/salonhub/backend/docs/deploy/backup.sh
+```
+
+Expected: `Backup complete: /var/backups/salonhub/salonhub-<today>.sql.gz`
+with no other output. Confirm both files landed and the success marker
+(Section 11) was written:
+
+```bash
+sudo -u deploy ls -la /var/backups/salonhub
+```
+
+Expected: `salonhub-<today>.sql.gz`, `storage-<today>.tar.gz`, and
+`.last-success` all present. If this step fails, fix it now — a cron job
+that's never been proven to run once is not a backup you can trust to run
+nightly unattended.
 
 ---
 
@@ -712,6 +787,14 @@ Both of the last two prove, end to end, that a `ShouldQueue` Mailable was
 queued, picked up by the supervisor-managed worker, and delivered — not
 just that the worker process is running.
 
+```bash
+find /var/backups/salonhub/.last-success -mtime -1
+```
+Expected: prints the path — proves the manual run in Step 8's backup cron
+subsection actually succeeded and left tonight's marker behind. See
+"11. Database and upload backups" for what to check if this is ever empty
+on a live server.
+
 ---
 
 ## 11. Database and upload backups
@@ -724,42 +807,15 @@ alone does not cover them — `docs/deploy/backup.sh` takes both, nightly.
 **Who runs it, and why:** `backup.sh` reads DB credentials straight out of
 `.env`, which Step 5 locks to `chmod 600`, owned `deploy`. Rather than
 loosen that file's permissions or duplicate the password somewhere else,
-the backup cron (installed in Step 8, above) runs as `deploy` too — the one
-user that can already read it. This means the backup destination and its
-log file also need to be writable by `deploy`, which Step 5's ownership
-model does not grant by default (`/var/backups` is root-owned; `deploy` has
-no path into it without one of these one-time steps), so do them now, as
-your own sudo-capable account:
+the backup cron runs as `deploy` too — the one user that can already read
+it. Step 8, above, already covers the one-time setup this depends on
+(creating `/var/backups/salonhub`, granting `deploy` write access to it and
+to `/var/log/salonhub`, installing the cron line, and running it once by
+hand to prove the whole chain works) — if you skipped straight to this
+section, go do that first.
 
-```bash
-sudo mkdir -p /var/backups/salonhub
-sudo chown deploy:deploy /var/backups/salonhub
-sudo chmod 700 /var/backups/salonhub
-sudo chmod g+w /var/log/salonhub
-```
-
-`/var/backups/salonhub` is `chmod 700`, owned `deploy` alone — not
-`www-data`, not world-readable — because a gunzipped dump in it is every
-salon's complete customer list in plaintext: names, phone numbers, emails,
-booking history. `backup.sh` re-asserts this mode on every run in case it
-is ever loosened. `/var/log/salonhub` already exists from Step 7, owned
-`www-data:www-data`; `chmod g+w` gives it group write, and `deploy` is
-already a member of the `www-data` group (Step 5), so this is the smallest
-change that lets `deploy` append to `backup.log` without changing who owns
-the worker's own log file next to it.
-
-Verify both:
-
-```bash
-sudo -u deploy test -w /var/backups/salonhub && \
-  sudo -u deploy test -w /var/log/salonhub && \
-  echo "deploy can write both backup paths"
-```
-
-Expected: `deploy can write both backup paths`.
-
-With that done and the cron line from Step 8 installed, `backup.sh` runs
-nightly at 03:15 and produces, in `/var/backups/salonhub`:
+With that done, `backup.sh` runs nightly at 03:15 and produces, in
+`/var/backups/salonhub`:
 
 - `salonhub-YYYY-MM-DD.sql.gz` — a `mysqldump --single-transaction` of the
   database, so it does not lock a salon out mid-booking to take it.
@@ -775,6 +831,30 @@ A dump or archive that fails partway is never left at its real filename
 truncated file can never be mistaken for a good backup later. See the
 comments in `backend/docs/deploy/backup.sh` for the full detail.
 
+**`.env` is deliberately never included in these archives.** It holds
+`APP_KEY`, and `PaymentSetting.credentials` / `ReminderSetting.credentials`
+are `encrypted:array` columns — bundling the key into the same tarball as
+the data it protects would defeat the point of encrypting them. It also
+means the DB backup alone cannot recover those two columns on a server
+with a different `APP_KEY`; see "Record `APP_KEY`..." in Step 5, and
+"Restoring onto a different server" below.
+
+**How you'd know a night's backup didn't happen:** `backup.sh` touches
+`/var/backups/salonhub/.last-success` as its last step, so a healthy run
+always leaves that file newer than 24 hours old. Check it as part of
+routine ops (Step 10 also checks it once, right after the first deploy):
+
+```bash
+find /var/backups/salonhub/.last-success -mtime -1
+```
+
+Expected: prints the path. No output means the marker is missing or stale
+— check `/var/log/salonhub/backup.log` for why last night's run didn't
+finish. This repo does not wire up a paging/alerting integration for that
+check; if you have existing monitoring (cron-monitoring SaaS, a Nagios/
+Zabbix check, even a second cron job that emails on failure), point it at
+this file rather than trusting silence.
+
 Off-site replication is not configured by default — `backup.sh` has a
 commented-out `rclone copy` line ready to uncomment once a remote target
 (S3, Backblaze, another host, ...) is chosen. Until that line is enabled,
@@ -789,6 +869,11 @@ backup nobody has restored is an assumption, not a backup. Everything here
 runs against a disposable scratch database — nothing here ever touches the
 live `salonhub` database or the live `storage/app/public` directory.
 
+`/var/backups/salonhub` is `chmod 700` owned by `deploy` (see Step 8), so
+your own sudo-capable account can't read the dump or archive out of it
+directly — every step below that touches a file in that directory runs
+under `sudo` for that reason, not just the MySQL commands.
+
 1. Create the scratch database:
 
    ```bash
@@ -796,42 +881,64 @@ live `salonhub` database or the live `storage/app/public` directory.
      CREATE DATABASE salonhub_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
    ```
 
-2. Restore the most recent dump into it (list `/var/backups/salonhub` if
-   you want a specific date rather than today's):
+2. Restore the most recent dump into it. List the directory first if you
+   want a specific date rather than today's (`sudo` — see above):
 
    ```bash
-   gunzip -c /var/backups/salonhub/salonhub-$(date +%F).sql.gz \
-     | sudo mysql -u root salonhub_restore_test
+   sudo ls -la /var/backups/salonhub
+   ```
+
+   `sudo mysql -u root` above elevates the MySQL side of a restore, but a
+   plain `gunzip -c file | sudo mysql ...` does **not** elevate `gunzip` —
+   it still runs as your own account, which cannot open a file in a
+   `chmod 700 deploy`-owned directory, so that pipeline fails before it
+   ever reaches MySQL. Elevate the whole pipeline instead:
+
+   ```bash
+   DUMP="/var/backups/salonhub/salonhub-$(date +%F).sql.gz"
+   sudo bash -c "gunzip -c '$DUMP' | mysql -u root salonhub_restore_test"
    ```
 
 3. Restore the matching upload archive to a scratch path — never over the
-   live `storage/app/public`:
+   live `storage/app/public`. Same reasoning as step 2: the archive is
+   inside the `chmod 700` directory, so the extraction itself needs `sudo`,
+   not just the destination `mkdir`:
 
    ```bash
    mkdir -p /tmp/salonhub-restore-test
-   tar -xzf /var/backups/salonhub/storage-$(date +%F).tar.gz \
-     -C /tmp/salonhub-restore-test
+   ARCHIVE="/var/backups/salonhub/storage-$(date +%F).tar.gz"
+   sudo tar -xzf "$ARCHIVE" -C /tmp/salonhub-restore-test
    ```
+
+   The extracted files end up root-owned (root did the extracting), but
+   with the default `umask`, they stay world-readable — that's all the
+   `diff` in step 4 needs.
 
 4. Verify. Restoring without an error is necessary but not sufficient — a
    dump that is missing rows, or truncated mid-table, restores cleanly and
    still fails silently in production. Check both:
 
-   **Row counts, restored vs. live, for every core table:**
+   **Row counts, restored vs. live, for every core table.** One query per
+   side rather than one per table, so this only prompts for the live DB
+   password once, not four times:
 
    ```bash
-   for table in organizations customers appointments services; do
-     live=$(mysql -u salonhub -p -h 127.0.0.1 salonhub -N -e "SELECT COUNT(*) FROM $table")
-     restored=$(sudo mysql -u root salonhub_restore_test -N -e "SELECT COUNT(*) FROM $table")
-     echo "$table: live=$live restored=$restored"
-   done
+   READ_TABLES="SELECT 'organizations', COUNT(*) FROM organizations
+   UNION ALL SELECT 'customers', COUNT(*) FROM customers
+   UNION ALL SELECT 'appointments', COUNT(*) FROM appointments
+   UNION ALL SELECT 'services', COUNT(*) FROM services;"
+
+   echo "-- live --"
+   mysql -u salonhub -p -h 127.0.0.1 salonhub -e "$READ_TABLES"
+   echo "-- restored --"
+   sudo mysql -u root salonhub_restore_test -e "$READ_TABLES"
    ```
 
-   Expected: `live` and `restored` match for every table, if the drill runs
-   right after the dump was taken (nothing has written to the live database
-   in between). If the drill runs later, `restored` should equal whatever
-   the live count *was* at dump time — never higher, and not lower by more
-   than the writes that happened since.
+   Expected: `live` and `restored` counts match for every table, if the
+   drill runs right after the dump was taken (nothing has written to the
+   live database in between). If the drill runs later, `restored` should
+   equal whatever the live count *was* at dump time — never higher, and
+   not lower by more than the writes that happened since.
 
    **A spot check that real customer data — not just row counts — survived
    the round trip.** Pick the newest appointment in the restored copy and
@@ -864,15 +971,42 @@ live `salonhub` database or the live `storage/app/public` directory.
    ```
 
    Expected: no output — every file in the restored archive is identical to
-   the live copy.
+   the live copy. As with the row counts above, this only holds cleanly if
+   nothing was uploaded live between the dump and the drill; a `diff`
+   showing extra files present only on the live side (never the reverse)
+   is expected staleness, not a bad backup — re-run the drill right after
+   a fresh `backup.sh` run if you need a byte-exact comparison.
 
 5. Clean up the scratch database and files — they are not backups
    themselves, just the drill's working copy:
 
    ```bash
    sudo mysql -u root -e "DROP DATABASE salonhub_restore_test;"
-   rm -rf /tmp/salonhub-restore-test
+   sudo rm -rf /tmp/salonhub-restore-test
    ```
+
+### Restoring onto a different server
+
+The drill above proves the backups are readable and complete; a real
+disaster recovery has three differences from it worth calling out rather
+than discovering live:
+
+- **`APP_KEY` must be restored too, out-of-band.** It's not in
+  `backup.sh`'s archives by design (see above). Without the exact same key
+  the app was running with, `PaymentSetting.credentials` and
+  `ReminderSetting.credentials` decrypt to garbage — not an error, silently
+  wrong data — on every row. Set `APP_KEY` in the new server's `.env` from
+  wherever it was recorded in Step 5 *before* pointing traffic at it.
+- **Run `php artisan storage:link` after restoring uploads.** `backup.sh`
+  archives the real directory, `storage/app/public`; it does not (and
+  cannot usefully) capture `public/storage`, which is a symlink to that
+  directory, not a copy of it. A fresh server has no symlink until
+  `php artisan storage:link` creates one — Step 5 runs it once during
+  initial setup, but a restore onto a new box needs it run again.
+- **Restore into the real `salonhub` database, not a scratch one** — and
+  take the app offline (or at least stop the queue worker) first, the same
+  way you would for any production data load, so nothing writes to tables
+  mid-restore.
 
 ---
 
@@ -929,3 +1063,8 @@ server. See that file's docblock for the full analysis.
 - **Multi-server / high-availability deployment.** Everything above assumes
   one VPS running nginx, php-fpm, the queue worker, MySQL and Redis
   together. Splitting these across hosts is out of scope here.
+- **Log rotation for `backup.log` / `worker.log`.** Both grow forever under
+  `/var/log/salonhub` — nothing here installs a `logrotate` config for
+  them. Ubuntu's default `logrotate` package is already present and already
+  handles the system's own logs; add a `/etc/logrotate.d/salonhub` entry
+  for these two before disk space run-out becomes a page.
