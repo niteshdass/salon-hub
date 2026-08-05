@@ -7,7 +7,6 @@ use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
-use App\Models\Organization;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\StaffProfile;
@@ -49,15 +48,40 @@ use Illuminate\Support\Facades\Hash;
  * this seeder's own DB connection/session only — it does not touch the
  * server's global setting or any other connection — so it's safe to force
  * on before the delete without side effects elsewhere.
+ *
+ * Destructive by design (it deletes a whole organization on re-run — see
+ * above) and therefore refuses to run anywhere but `local`/`testing`. It
+ * also never trusts the `demo-salon` slug to identify "the org I'm allowed
+ * to delete": `demo-salon` is not in Organization::RESERVED_SLUGS, so
+ * RegisterOrganization::uniqueSlug() hands that exact slug to the first
+ * real customer who names their salon "Demo Salon" — matching on slug
+ * would delete a genuine tenant's data with no recovery path (no model in
+ * this app uses SoftDeletes). The previous seeded org is instead found via
+ * the owner's email, demo@salonhub.com, which is globally unique on the
+ * users table and can only ever belong to this seeder's own data.
  */
 class DemoSalonSeeder extends Seeder
 {
     public function run(): void
     {
-        $existing = Organization::where('slug', 'demo-salon')->first();
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command->error(
+                'DemoSalonSeeder refused to run: APP_ENV is "'.app()->environment().'", '.
+                'not "local" or "testing". This seeder deletes any organization owned by '.
+                'demo@salonhub.com before reseeding, which is only safe on a disposable '.
+                'database. If this really is one, set APP_ENV=local and run again.'
+            );
+            exit(1);
+        }
+
+        // Identify the previously-seeded demo org, if any, by the owner's
+        // email — never by slug. See the class docblock for why a slug
+        // match is not identity here.
+        $previousOwner = User::where('email', 'demo@salonhub.com')->first();
+        $existing = $previousOwner?->organization;
 
         if ($existing) {
-            $this->command->warn("Removing previous demo salon (organization #{$existing->id}) before reseeding.");
+            $this->command->warn("Removing previous demo salon (organization #{$existing->id}, slug \"{$existing->slug}\") before reseeding.");
 
             // Force FK enforcement ON for this connection only, so the
             // cascadeOnDelete() constraints declared in the migrations
@@ -82,6 +106,15 @@ class DemoSalonSeeder extends Seeder
         ]);
 
         $org = $result['organization'];
+        $owner = $result['user'];
+
+        // A demo login must not nag its own visitor to verify an email
+        // nobody is going to check. RegisterOrganization sends no
+        // verification mail itself (that lives in AuthController for a real
+        // signup), so the address just needs marking — there is nothing to
+        // actually verify here.
+        $owner->markEmailAsVerified();
+
         $branch = Branch::withoutGlobalScopes()->where('organization_id', $org->id)->firstOrFail();
 
         $hair = ServiceCategory::create(['organization_id' => $org->id, 'name' => 'Hair']);
