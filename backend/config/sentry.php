@@ -1,7 +1,6 @@
 <?php
 
-use Sentry\Event;
-use Sentry\EventHint;
+use App\Monitoring\SentryBeforeSend;
 
 /**
  * Sentry Laravel SDK configuration file.
@@ -11,9 +10,11 @@ use Sentry\EventHint;
  * SalonHub holds customer names, phone numbers, emails, booking history and
  * payment references in one shared database keyed by organization_id, and
  * an error reporter is a data-exfiltration channel by default: the SDK
- * ships `send_default_pii` off, but three other things below are NOT off
- * by default and were found by inspecting `RequestIntegration`,
- * `CacheIntegration` and `Options` in vendor/sentry:
+ * ships `send_default_pii` off, but several other things below are NOT off
+ * by default. Found by inspecting `RequestIntegration`, `CacheIntegration`,
+ * `EventHandler`, `Frame`/`Stacktrace` and `Options` in vendor/sentry, then
+ * verified against a live captured event (see task-13-report.md for the
+ * captured evidence, not just this reasoning):
  *
  *   1. `max_request_body_size` defaults to `medium` (10KB) and captures the
  *      parsed POST body REGARDLESS of `send_default_pii` — the OTP code
@@ -27,8 +28,9 @@ use Sentry\EventHint;
  *      (Public\BookingController::manage/reschedule/cancel, "the token is
  *      unguessable" per its own docblock) in the path, and a signed
  *      email-verification link's `signature`/`expires` in the query string.
- *      A `before_send` hook below replaces the captured URL with the
- *      route's pattern and drops the query string; the tenant is still
+ *      `App\Monitoring\SentryBeforeSend` (below) replaces the captured URL
+ *      with the route's pattern and drops the query string entirely,
+ *      including when no route matched at all; the tenant is still
  *      identifiable from the organization_id/organization_slug tags set in
  *      ResolveTenant/ResolvePublicTenant.
  *   3. The `cache` breadcrumb (and tracing span) default on and record the
@@ -38,10 +40,34 @@ use Sentry\EventHint;
  *      — so an unrelated exception later in the same request would carry
  *      that email/IP into Sentry as a breadcrumb. Forced off below, for
  *      both breadcrumbs and tracing.
+ *   4. The `logs` breadcrumb defaults on and forwards the full log message
+ *      AND context ungated by `send_default_pii` (`EventHandler`). Two real
+ *      call sites leak customer PII this way:
+ *      `App\Reminders\LogReminderChannel` logs `"[reminder] to={$phone} ::
+ *      {$message}"` — the customer's raw phone number, on the channel that
+ *      is *active by default* (Twilio unconfigured, exactly what
+ *      env.production.example ships) — and `App\Services\BookingNotifier`
+ *      logs failed-notification exception messages, which routinely quote
+ *      the recipient email/phone, from the public booking POST path. Forced
+ *      off below.
+ *   5. Stack frame arguments (`frame.vars`, populated from
+ *      `debug_backtrace()`) are serialized on every reported exception,
+ *      ungated by `send_default_pii` or `sql_bindings` — an ordinary DB
+ *      fault puts the raw SQL bindings (customer name/phone/email from any
+ *      query built from user input) into `Illuminate\Database\Connection
+ *      ::select()`'s frame. `App\Monitoring\SentryBeforeSend` strips `vars`
+ *      from every frame of every reported exception, rather than relying on
+ *      the `zend.exception_ignore_args` php.ini setting having been set
+ *      correctly on whatever box this runs on — see that class's docblock.
  *
- * SQL query bindings (the one other place bound customer values could leak)
- * already default OFF in the published config (`sql_bindings` under both
- * `breadcrumbs` and `tracing`) and are left untouched.
+ * SQL query bindings on breadcrumbs/spans (as opposed to stack frames,
+ * covered by #5) already default OFF in the published config
+ * (`sql_bindings` under both `breadcrumbs` and `tracing`) and are left
+ * untouched.
+ *
+ * `before_send` below is a `[ClassName::class, 'method']` array callable,
+ * not a closure — a closure here breaks `php artisan config:cache` (see
+ * `App\Monitoring\SentryBeforeSend`'s docblock).
  */
 return [
 
@@ -100,32 +126,10 @@ return [
     // docblock above. Hardcoded off for the same reason as `send_default_pii`.
     'max_request_body_size' => 'none',
 
-    // Strips the two other things `send_default_pii` does NOT gate: the
-    // literal request URL (which can carry an unguessable booking-manage
-    // token in its path) and the query string (which can carry a signed
-    // email-verification link's signature). See the file docblock above.
-    'before_send' => function (Event $event, ?EventHint $hint = null): Event {
-        $requestData = $event->getRequest();
-
-        if (empty($requestData)) {
-            return $event;
-        }
-
-        $request = request();
-
-        if ($request !== null && isset($requestData['url'])) {
-            $route = $request->route();
-            $pattern = $route ? '/'.ltrim($route->uri(), '/') : $request->path();
-
-            $requestData['url'] = $request->getSchemeAndHttpHost().$pattern;
-        }
-
-        unset($requestData['query_string']);
-
-        $event->setRequest($requestData);
-
-        return $event;
-    },
+    // Strips request URL/query-string PII and stack-frame argument PII.
+    // A `[class, method]` array, not a closure — see the file docblock
+    // above and App\Monitoring\SentryBeforeSend's docblock for why.
+    'before_send' => [SentryBeforeSend::class, 'handle'],
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#ignore_exceptions
     // 'ignore_exceptions' => [],
@@ -138,8 +142,14 @@ return [
 
     // Breadcrumb specific configuration
     'breadcrumbs' => [
-        // Capture Laravel logs as breadcrumbs
-        'logs' => env('SENTRY_BREADCRUMBS_LOGS_ENABLED', true),
+        // Capture Laravel logs as breadcrumbs.
+        // Hardcoded off, not env-driven: `EventHandler` forwards the full
+        // log message AND context ungated by `send_default_pii` —
+        // App\Reminders\LogReminderChannel logs the customer's raw phone
+        // number, and App\Services\BookingNotifier logs notification
+        // failures whose messages routinely quote the recipient address.
+        // See the file docblock above.
+        'logs' => false,
 
         // Capture Laravel cache events (hits, writes etc.) as breadcrumbs.
         // Hardcoded off, not env-driven: this app's rate limiters key the
