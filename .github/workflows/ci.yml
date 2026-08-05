@@ -41,8 +41,6 @@ jobs:
         working-directory: backend
         run: ./vendor/bin/pint --test
 
-  # Task 15 adds a `npm run test:unit` step to this job once vitest lands.
-  # Do not add it before then — there is no test runner installed yet.
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -61,3 +59,7 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+
+      - name: Unit tests
+        working-directory: frontend
+        run: npm run test:unit
