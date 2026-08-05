@@ -86,6 +86,21 @@ const router = createRouter({
       component: LandingView,
     },
     {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('@/views/legal/TermsView.vue'),
+    },
+    {
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('@/views/legal/PrivacyView.vue'),
+    },
+    {
+      path: '/refund',
+      name: 'refund',
+      component: () => import('@/views/legal/RefundView.vue'),
+    },
+    {
       // Authenticated app shell — every child renders inside DashboardLayout.
       path: '/',
       component: DashboardLayout,
