@@ -54,4 +54,29 @@ class RegisterTest extends TestCase
         // Primary domain surfaced in response.
         $this->assertSame('glamour-studio.salonhub.com', $response->json('organization.primary_domain'));
     }
+
+    public function test_registration_creates_a_default_branch_with_opening_hours(): void
+    {
+        $this->postJson('/api/auth/register', [
+            'salon_name' => 'Beauty Queen',
+            'name' => 'Rita Owner',
+            'email' => 'rita@beautyqueen.test',
+            'password' => 'secret1234',
+            'password_confirmation' => 'secret1234',
+        ])->assertStatus(201);
+
+        $org = \App\Models\Organization::where('slug', 'beauty-queen')->firstOrFail();
+        $branches = \App\Models\Branch::withoutGlobalScopes()
+            ->where('organization_id', $org->id)
+            ->get();
+
+        $this->assertCount(1, $branches);
+        $branch = $branches->first();
+        $this->assertSame('Beauty Queen', $branch->name);
+        // Monday open, Sunday closed — a salon can edit this, but never has
+        // to before taking a first booking. Keys are the three-letter form
+        // SlotGenerator indexes by (strtolower(format('D'))).
+        $this->assertSame(['09:00', '18:00'], $branch->opening_hours_json['mon']);
+        $this->assertNull($branch->opening_hours_json['sun']);
+    }
 }

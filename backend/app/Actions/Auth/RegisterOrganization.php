@@ -6,6 +6,7 @@ use App\Enums\OrganizationStatus;
 use App\Enums\SubscriptionPlan;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\Branch;
 use App\Models\Domain;
 use App\Models\Organization;
 use App\Models\Setting;
@@ -16,6 +17,25 @@ use Illuminate\Support\Str;
 
 class RegisterOrganization
 {
+    /**
+     * Mon–Sat 09:00–18:00, closed Sunday. A conventional salon week the
+     * owner can edit in Settings; null means closed that day, matching
+     * SlotGenerator's reading of branches.opening_hours_json.
+     *
+     * Keys are the three-letter weekday form SlotGenerator indexes by
+     * (`strtolower(Carbon::parse($date)->format('D'))`), the same shape
+     * BranchFactory already produces.
+     */
+    protected const DEFAULT_OPENING_HOURS = [
+        'mon' => ['09:00', '18:00'],
+        'tue' => ['09:00', '18:00'],
+        'wed' => ['09:00', '18:00'],
+        'thu' => ['09:00', '18:00'],
+        'fri' => ['09:00', '18:00'],
+        'sat' => ['09:00', '18:00'],
+        'sun' => null,
+    ];
+
     /**
      * Register a new organization along with its owner, primary domain and settings.
      *
@@ -47,6 +67,19 @@ class RegisterOrganization
                 'password' => Hash::make($data['password']),
                 'role' => UserRole::OWNER->value,
                 'status' => UserStatus::ACTIVE->value,
+            ]);
+
+            // A salon is not bookable without a branch: it carries the
+            // address, the map pin and the opening hours SlotGenerator
+            // reads. Create one now so registration ends in a usable
+            // state rather than an empty dashboard.
+            Branch::create([
+                'organization_id' => $organization->id,
+                'name' => $data['salon_name'],
+                'phone' => $data['phone'] ?? null,
+                'email' => $data['email'],
+                'country' => $data['country'] ?? null,
+                'opening_hours_json' => self::DEFAULT_OPENING_HOURS,
             ]);
 
             Domain::create([
