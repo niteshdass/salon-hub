@@ -26,6 +26,12 @@ coverage
 
 *.tsbuildinfo
 
+# Local build-time env files. VITE_* values are baked into the bundle, so the
+# real ones stay out of git; .env.example is the committed template.
+.env
+.env.*
+!.env.example
+
 .eslintcache
 
 # Cypress

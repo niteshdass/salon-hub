@@ -3,8 +3,12 @@ import axios from 'axios'
 // localStorage key used to persist the Bearer token.
 export const TOKEN_KEY = 'salonhub_token'
 
-// Shared axios client. Dev requests to /api are proxied to the Laravel
-// backend by Vite (see vite.config.js). In production set VITE_API_URL.
+// Shared axios client. Dev requests to /api are proxied to the Laravel backend
+// by Vite (see vite.config.js). In production both vhosts serve the SPA and the
+// API from one origin, so the same-origin '/api' default is correct and needs
+// no CORS — VITE_API_URL is only for an API on a different origin. (Do not
+// confuse it with VITE_APP_DOMAIN, which IS required in production; see
+// frontend/.env.example.)
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
