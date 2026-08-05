@@ -26,6 +26,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Demo data (DemoSalonSeeder: a single, hand-authored "demo-salon"
+        // org built on RegisterOrganization, for screenshots/sales demos/
+        // manual QA) is opt-in and deliberately NOT invoked from here. Run
+        // it explicitly with:
+        //   php artisan db:seed --class=DemoSalonSeeder
         Organization::factory()->count(3)->create()->each(function (Organization $organization) {
             $this->seedTenant($organization);
         });
