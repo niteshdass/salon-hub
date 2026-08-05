@@ -17,6 +17,9 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    manifest: true,
+  },
   server: {
     proxy: {
       // Proxy API calls to the Laravel backend during dev (no CORS needed).
