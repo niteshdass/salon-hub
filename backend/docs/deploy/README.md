@@ -540,6 +540,27 @@ sudo journalctl -u cron --since "5 minutes ago" | grep 'www-data'
 
 Expected: at least one `CRON (www-data) CMD` line per minute since install.
 
+### Backup cron (`deploy` user)
+
+`docs/deploy/backup.sh` (below) is installed the same way, but under
+`deploy`'s crontab, not `www-data`'s: it reads the `DB_*` values straight out
+of `.env`, which Step 5 locks to `chmod 600` owned by `deploy`, so it has to
+run as the one user that can already open that file. See "11. Database and
+upload backups" for the one-time directory setup this cron line depends on
+— do that first if you haven't yet, or this entry has nowhere to write.
+
+```bash
+(sudo crontab -l -u deploy 2>/dev/null; echo '15 3 * * * /var/www/salonhub/backend/docs/deploy/backup.sh >> /var/log/salonhub/backup.log 2>&1') | sudo crontab -u deploy -
+```
+
+Verify the line is installed:
+
+```bash
+sudo crontab -l -u deploy
+```
+
+Expected: prints the `15 3 * * * ...backup.sh >> /var/log/salonhub/backup.log 2>&1` line.
+
 ---
 
 ## 9. First deploy
@@ -693,6 +714,168 @@ just that the worker process is running.
 
 ---
 
+## 11. Database and upload backups
+
+A single VPS with no backup is one `DROP` or one failed disk from losing
+every salon's customer list. Uploads (logos, covers, gallery images) live on
+the local public disk (`backend/storage/app/public`), so a database dump
+alone does not cover them — `docs/deploy/backup.sh` takes both, nightly.
+
+**Who runs it, and why:** `backup.sh` reads DB credentials straight out of
+`.env`, which Step 5 locks to `chmod 600`, owned `deploy`. Rather than
+loosen that file's permissions or duplicate the password somewhere else,
+the backup cron (installed in Step 8, above) runs as `deploy` too — the one
+user that can already read it. This means the backup destination and its
+log file also need to be writable by `deploy`, which Step 5's ownership
+model does not grant by default (`/var/backups` is root-owned; `deploy` has
+no path into it without one of these one-time steps), so do them now, as
+your own sudo-capable account:
+
+```bash
+sudo mkdir -p /var/backups/salonhub
+sudo chown deploy:deploy /var/backups/salonhub
+sudo chmod 700 /var/backups/salonhub
+sudo chmod g+w /var/log/salonhub
+```
+
+`/var/backups/salonhub` is `chmod 700`, owned `deploy` alone — not
+`www-data`, not world-readable — because a gunzipped dump in it is every
+salon's complete customer list in plaintext: names, phone numbers, emails,
+booking history. `backup.sh` re-asserts this mode on every run in case it
+is ever loosened. `/var/log/salonhub` already exists from Step 7, owned
+`www-data:www-data`; `chmod g+w` gives it group write, and `deploy` is
+already a member of the `www-data` group (Step 5), so this is the smallest
+change that lets `deploy` append to `backup.log` without changing who owns
+the worker's own log file next to it.
+
+Verify both:
+
+```bash
+sudo -u deploy test -w /var/backups/salonhub && \
+  sudo -u deploy test -w /var/log/salonhub && \
+  echo "deploy can write both backup paths"
+```
+
+Expected: `deploy can write both backup paths`.
+
+With that done and the cron line from Step 8 installed, `backup.sh` runs
+nightly at 03:15 and produces, in `/var/backups/salonhub`:
+
+- `salonhub-YYYY-MM-DD.sql.gz` — a `mysqldump --single-transaction` of the
+  database, so it does not lock a salon out mid-booking to take it.
+- `storage-YYYY-MM-DD.tar.gz` — everything under `storage/app/public`.
+
+Both are 14 days retained; older ones are deleted automatically. The DB
+password is never passed on the `mysqldump` command line or through an
+environment variable — both are readable by any user on the box for the
+life of the process (`ps aux`, `/proc/<pid>/environ`) — it goes in a
+`chmod 600` MySQL option file that is deleted the moment the dump finishes.
+A dump or archive that fails partway is never left at its real filename
+(each is written to a hidden `.tmp` name and renamed only on success), so a
+truncated file can never be mistaken for a good backup later. See the
+comments in `backend/docs/deploy/backup.sh` for the full detail.
+
+Off-site replication is not configured by default — `backup.sh` has a
+commented-out `rclone copy` line ready to uncomment once a remote target
+(S3, Backblaze, another host, ...) is chosen. Until that line is enabled,
+every backup lives on the same disk as the database it protects, which
+protects against a bad migration or an accidental `DROP` but not against
+losing the VPS itself.
+
+### Restore drill
+
+**Rehearse this once before launch, and again after any schema change.** A
+backup nobody has restored is an assumption, not a backup. Everything here
+runs against a disposable scratch database — nothing here ever touches the
+live `salonhub` database or the live `storage/app/public` directory.
+
+1. Create the scratch database:
+
+   ```bash
+   sudo mysql -u root -e "DROP DATABASE IF EXISTS salonhub_restore_test; \
+     CREATE DATABASE salonhub_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   ```
+
+2. Restore the most recent dump into it (list `/var/backups/salonhub` if
+   you want a specific date rather than today's):
+
+   ```bash
+   gunzip -c /var/backups/salonhub/salonhub-$(date +%F).sql.gz \
+     | sudo mysql -u root salonhub_restore_test
+   ```
+
+3. Restore the matching upload archive to a scratch path — never over the
+   live `storage/app/public`:
+
+   ```bash
+   mkdir -p /tmp/salonhub-restore-test
+   tar -xzf /var/backups/salonhub/storage-$(date +%F).tar.gz \
+     -C /tmp/salonhub-restore-test
+   ```
+
+4. Verify. Restoring without an error is necessary but not sufficient — a
+   dump that is missing rows, or truncated mid-table, restores cleanly and
+   still fails silently in production. Check both:
+
+   **Row counts, restored vs. live, for every core table:**
+
+   ```bash
+   for table in organizations customers appointments services; do
+     live=$(mysql -u salonhub -p -h 127.0.0.1 salonhub -N -e "SELECT COUNT(*) FROM $table")
+     restored=$(sudo mysql -u root salonhub_restore_test -N -e "SELECT COUNT(*) FROM $table")
+     echo "$table: live=$live restored=$restored"
+   done
+   ```
+
+   Expected: `live` and `restored` match for every table, if the drill runs
+   right after the dump was taken (nothing has written to the live database
+   in between). If the drill runs later, `restored` should equal whatever
+   the live count *was* at dump time — never higher, and not lower by more
+   than the writes that happened since.
+
+   **A spot check that real customer data — not just row counts — survived
+   the round trip.** Pick the newest appointment in the restored copy and
+   compare it field-by-field against the same row live:
+
+   ```bash
+   sudo mysql -u root salonhub_restore_test -e \
+     "SELECT a.id, a.booking_date, a.start_time, c.name, c.email, c.phone \
+      FROM appointments a JOIN customers c ON c.id = a.customer_id \
+      ORDER BY a.id DESC LIMIT 1;"
+   ```
+
+   Note the `id` it prints, then run the same query against the live
+   database filtered to that id:
+
+   ```bash
+   mysql -u salonhub -p -h 127.0.0.1 salonhub -e \
+     "SELECT a.id, a.booking_date, a.start_time, c.name, c.email, c.phone \
+      FROM appointments a JOIN customers c ON c.id = a.customer_id \
+      WHERE a.id = <id from the previous query>;"
+   ```
+
+   Expected: every column matches exactly — the customer's name, email and
+   phone are intact, not truncated, not garbled by a charset mismatch.
+
+   **Uploads restored byte-for-byte:**
+
+   ```bash
+   diff -rq /tmp/salonhub-restore-test/public /var/www/salonhub/backend/storage/app/public
+   ```
+
+   Expected: no output — every file in the restored archive is identical to
+   the live copy.
+
+5. Clean up the scratch database and files — they are not backups
+   themselves, just the drill's working copy:
+
+   ```bash
+   sudo mysql -u root -e "DROP DATABASE salonhub_restore_test;"
+   rm -rf /tmp/salonhub-restore-test
+   ```
+
+---
+
 ## Redeploying
 
 Every subsequent deploy is just, run as `deploy` (Step 5's ownership model):
@@ -738,4 +921,11 @@ server. See that file's docblock for the full analysis.
 
 ## What's not covered here
 
-Database backups are handled separately and are not part of this runbook.
+- **Off-site backup replication.** Step 11's `backup.sh` writes to
+  `/var/backups/salonhub` on the same VPS it protects. Its commented-out
+  `rclone copy` line is ready but not enabled by default — choose a remote
+  target and turn it on before relying on backups to survive losing the
+  whole server, not just its database.
+- **Multi-server / high-availability deployment.** Everything above assumes
+  one VPS running nginx, php-fpm, the queue worker, MySQL and Redis
+  together. Splitting these across hosts is out of scope here.
