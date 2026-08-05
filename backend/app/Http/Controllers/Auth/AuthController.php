@@ -42,9 +42,12 @@ class AuthController extends Controller
     {
         $data = $request->validated();
 
-        // Per-email limiter, deliberately separate from any per-IP throttle:
-        // an attacker rotating IPs still cannot grind one account, and a
-        // shared office IP cannot lock out everyone behind it.
+        // Keyed on (email, IP), same convention as Laravel's own
+        // Fortify/Breeze throttling: one attacker's failures cannot lock the
+        // real owner out from a different address. The tradeoff is that a
+        // distributed attacker rotating source IPs is NOT capped by this
+        // limiter — each new IP gets its own 5-attempt budget. The only
+        // per-IP bound on login is the route-level `throttle:20,1`.
         $key = 'login:'.strtolower($data['email']).'|'.$request->ip();
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
