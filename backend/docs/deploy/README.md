@@ -620,13 +620,13 @@ selects the right tenant, and only the right tenant. Substitute a real
 registered salon's slug for `<slug>`.
 
 ```bash
-curl -s https://<slug>.salonhub.com/api/public/site | head -c 200
+curl -s https://<slug>.salonhub.com/api/public-site/site | head -c 200
 ```
 Expected: JSON whose `"slug"` is `<slug>` — the API resolved the tenant from
 the Host header alone, with no `{org}` segment in the path.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://no-such-salon.salonhub.com/api/public/site
+curl -s -o /dev/null -w '%{http_code}\n' https://no-such-salon.salonhub.com/api/public-site/site
 ```
 Expected: `404`. An unregistered subdomain must be a 404, never a fallback
 to some other salon. The same `404` is expected for a salon whose
@@ -635,7 +635,7 @@ organization has been suspended.
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' \
   -H 'X-Forwarded-Host: <slug>.salonhub.com' \
-  https://salonhub.com/api/public/site
+  https://salonhub.com/api/public-site/site
 ```
 Expected: `404`. The application trusts no proxy, so `X-Forwarded-Host` is
 ignored and cannot be used to pick a tenant. If this ever returns `200`,

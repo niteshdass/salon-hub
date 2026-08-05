@@ -111,7 +111,15 @@ class RegisterOrganization
     }
 
     /**
-     * Build a slug that is unique against the organizations table.
+     * Build a slug that is unique against the organizations table and is not
+     * one of the platform's reserved names.
+     *
+     * The reserved check belongs here and not only in RegisterRequest: the
+     * request rule sees a slug the caller sent, while a salon merely NAMED
+     * "App" arrives with no slug at all and would otherwise be handed
+     * app.APP_DOMAIN — a verified host that selects the tenant — without
+     * anyone having asked for it. A reserved base takes the same numeric
+     * suffix a collision does, so "App" becomes "app-2".
      */
     protected function uniqueSlug(string $source): string
     {
@@ -119,7 +127,8 @@ class RegisterOrganization
         $slug = $base;
         $suffix = 2;
 
-        while (Organization::where('slug', $slug)->exists()) {
+        while (in_array($slug, Organization::RESERVED_SLUGS, true)
+            || Organization::where('slug', $slug)->exists()) {
             $slug = $base.'-'.$suffix;
             $suffix++;
         }

@@ -4,7 +4,10 @@
 // which hosts are ours.
 export const APP_DOMAIN = import.meta.env.VITE_APP_DOMAIN || 'salonhub.com'
 
-// Hosts that are the product itself, never a salon.
+// Hosts that are the product itself, never a salon. Mirrors the first group of
+// Organization::RESERVED_SLUGS on the backend, which stops these from being
+// registered in the first place. (The backend list is longer: it also reserves
+// the public API's URL vocabulary, which says nothing about what a host means.)
 const RESERVED = new Set(['app', 'www', 'api', 'admin', 'mail', 'static'])
 
 /**
@@ -46,7 +49,13 @@ export function resolveSlugFromHost(host = window.location.hostname, appDomain =
  * Takes the ROUTE's slug, not a resolved one — the choice is about which
  * shape of URL the page was reached through, and the host-scoped endpoints
  * let the server read the tenant from the Host header itself.
+ *
+ * The two bases are deliberately different prefixes rather than the same one
+ * with and without a slug: `/public/site` is ambiguous between "the
+ * host-resolved site endpoint" and "the salon slugged site", and the server
+ * resolves that by giving each group its own prefix (backend/routes/api.php).
+ * The endpoints below each are otherwise identical in shape.
  */
 export function publicApiBase(routeSlug) {
-  return routeSlug ? `/public/${routeSlug}` : '/public'
+  return routeSlug ? `/public/${routeSlug}` : '/public-site'
 }

@@ -30,7 +30,7 @@ class SubdomainResolutionTest extends TestCase
      * and every such test would pass against `localhost` while proving
      * nothing about host resolution. The host must come from the URL.
      */
-    private function on(string $host, string $path = '/api/public/site'): string
+    private function on(string $host, string $path = '/api/public-site/site'): string
     {
         return 'http://'.$host.$path;
     }
@@ -92,7 +92,7 @@ class SubdomainResolutionTest extends TestCase
         $this->assertSame(
             ['Queen Balayage'],
             array_column(
-                $this->getJson($this->on('beauty-queen.salonhub.com', '/api/public/services'))
+                $this->getJson($this->on('beauty-queen.salonhub.com', '/api/public-site/services'))
                     ->assertOk()->json('data'),
                 'name'
             )
@@ -101,7 +101,7 @@ class SubdomainResolutionTest extends TestCase
         $this->assertSame(
             ['Rival Buzzcut'],
             array_column(
-                $this->getJson($this->on('rival-cuts.salonhub.com', '/api/public/services'))
+                $this->getJson($this->on('rival-cuts.salonhub.com', '/api/public-site/services'))
                     ->assertOk()->json('data'),
                 'name'
             )
@@ -120,14 +120,14 @@ class SubdomainResolutionTest extends TestCase
         // scope must make it invisible rather than schedulable.
         $this->getJson($this->on(
             'beauty-queen.salonhub.com',
-            '/api/public/services/'.$rivalService->id.'/staff'
+            '/api/public-site/services/'.$rivalService->id.'/staff'
         ))->assertStatus(404);
 
         // ...and the salon's own service on its own host still resolves, so
         // the 404 above is isolation and not a broken route.
         $this->getJson($this->on(
             'rival-cuts.salonhub.com',
-            '/api/public/services/'.$rivalService->id.'/staff'
+            '/api/public-site/services/'.$rivalService->id.'/staff'
         ))->assertOk();
     }
 
@@ -262,6 +262,16 @@ class SubdomainResolutionTest extends TestCase
             'is_verified' => false,
             'ssl_enabled' => false,
         ]);
+        // Under our apex and one label deep, but NOT the row registration
+        // minted. Only a later flow writes a second row, and a later flow owns
+        // its own verification.
+        $secondary = Domain::create([
+            'organization_id' => $org->id,
+            'domain' => 'extra.salonhub.com',
+            'is_primary' => false,
+            'is_verified' => false,
+            'ssl_enabled' => false,
+        ]);
 
         (require database_path('migrations/2026_08_05_100100_verify_existing_apex_domains.php'))->up();
 
@@ -269,6 +279,7 @@ class SubdomainResolutionTest extends TestCase
         // A host we do not control stays a claim, not a resolvable tenant.
         $this->assertFalse($custom->fresh()->is_verified);
         $this->assertFalse($deep->fresh()->is_verified);
+        $this->assertFalse($secondary->fresh()->is_verified);
 
         $this->getJson($this->on('beauty-queen.salonhub.com'))
             ->assertOk()
@@ -328,11 +339,46 @@ class SubdomainResolutionTest extends TestCase
     }
 
     /**
-     * Path-scoped routes are unreachable through the host-resolved group:
-     * every one of them is at least three segments long and the new group's
-     * URIs are two (plus the one four-segment `services/{service}/staff`,
-     * whose path-scoped twin is five).
+     * The two groups live under DIFFERENT literal first segments — `public/`
+     * and `public-site/` — so no URI in one can ever be matched by a route in
+     * the other, whatever anybody adds to either later. The names below are
+     * the ones that collided while both groups shared the `public/` prefix:
+     * `api/public/{org}` is two segments, exactly the shape of the old
+     * `api/public/site|services|slots|book`, and the host group won.
+     *
+     * Direction one: on the apex, the bare two-segment path endpoint belongs
+     * to the salon named in the path.
      */
+    public function test_a_salon_with_a_route_shaped_slug_keeps_its_bare_path_endpoint(): void
+    {
+        foreach (['site', 'services', 'slots', 'book'] as $slug) {
+            $this->makeOrg($slug);
+
+            $this->getJson('http://salonhub.com/api/public/'.$slug)
+                ->assertOk()
+                ->assertJsonPath('data.slug', $slug);
+        }
+    }
+
+    /**
+     * Direction two, and the one that actually served the wrong tenant: the
+     * same URL requested ON ANOTHER SALON'S HOST must still answer with the
+     * salon named in the PATH. A path-scoped request carries its own tenant;
+     * the Host must not be able to substitute a different one.
+     */
+    public function test_a_route_shaped_slug_is_not_overridden_by_the_host(): void
+    {
+        $this->makeOrg('beauty-queen');
+
+        foreach (['site', 'services', 'slots', 'book'] as $slug) {
+            $this->makeOrg($slug);
+
+            $this->getJson('http://beauty-queen.salonhub.com/api/public/'.$slug)
+                ->assertOk()
+                ->assertJsonPath('data.slug', $slug);
+        }
+    }
+
     public function test_a_salon_slugged_site_keeps_its_path_scoped_routes(): void
     {
         $org = $this->makeOrg('site');
@@ -347,17 +393,33 @@ class SubdomainResolutionTest extends TestCase
     }
 
     /**
-     * The other direction of the same collision, made explicit: on a host
-     * that is not a salon, `/api/public/site` is the host-resolved endpoint
-     * and 404s. It does NOT fall through to the salon slugged `site` — which
-     * is the safe direction of the trade, since falling through would mean
-     * an apex request picking a tenant by accident.
+     * And the host-resolved group is not reachable by path: on the apex there
+     * is no tenant to read from the Host, so it 404s rather than falling
+     * through to some salon.
      */
-    public function test_the_reserved_prefix_is_host_resolved_not_slug_resolved(): void
+    public function test_the_host_resolved_group_does_not_answer_on_the_apex(): void
     {
         $this->makeOrg('site');
 
-        $this->getJson($this->on('salonhub.com'))->assertStatus(404);
+        $this->getJson('http://salonhub.com/api/public-site')->assertStatus(404);
+        $this->getJson('http://salonhub.com/api/public-site/site')->assertStatus(404);
+        $this->getJson('http://salonhub.com/api/public-site/services')->assertStatus(404);
+    }
+
+    /**
+     * The bare host-resolved endpoint, the mirror of `api/public/{org}`. The
+     * two groups are shape-for-shape symmetric, so a page reached with a slug
+     * in the URL and the same page reached on a subdomain call the same set of
+     * endpoints under a different prefix.
+     */
+    public function test_the_bare_host_resolved_endpoint_returns_the_host_salon(): void
+    {
+        $this->makeOrg('beauty-queen');
+        $this->makeOrg('rival-cuts');
+
+        $this->getJson('http://beauty-queen.salonhub.com/api/public-site')
+            ->assertOk()
+            ->assertJsonPath('data.slug', 'beauty-queen');
     }
 
     /* ------------------------------------------------------------------ */
