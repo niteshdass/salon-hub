@@ -12,7 +12,6 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
@@ -274,10 +273,5 @@ class SiteController extends Controller
     protected function url(?string $path): ?string
     {
         return $path ? Storage::disk('public')->url($path) : null;
-    }
-
-    protected function time(?string $value): ?string
-    {
-        return $value ? Carbon::parse($value)->format('H:i') : null;
     }
 }
