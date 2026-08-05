@@ -426,9 +426,10 @@ Append to `backend/tests/Feature/Auth/RegisterTest.php` (match the existing regi
         $branch = $branches->first();
         $this->assertSame('Beauty Queen', $branch->name);
         // Monday open, Sunday closed — a salon can edit this, but never has
-        // to before taking a first booking.
-        $this->assertSame(['09:00', '18:00'], $branch->opening_hours_json['monday']);
-        $this->assertNull($branch->opening_hours_json['sunday']);
+        // to before taking a first booking. Keys are the three-letter form
+        // SlotGenerator indexes by (strtolower(format('D'))).
+        $this->assertSame(['09:00', '18:00'], $branch->opening_hours_json['mon']);
+        $this->assertNull($branch->opening_hours_json['sun']);
     }
 ```
 
@@ -469,15 +470,19 @@ And add the constant at the top of the class body, above `execute()`:
      * Mon–Sat 09:00–18:00, closed Sunday. A conventional salon week the
      * owner can edit in Settings; null means closed that day, matching
      * SlotGenerator's reading of branches.opening_hours_json.
+     *
+     * Keys are the three-letter weekday form SlotGenerator indexes by
+     * (`strtolower(Carbon::parse($date)->format('D'))`), the same shape
+     * BranchFactory already produces.
      */
     protected const DEFAULT_OPENING_HOURS = [
-        'monday' => ['09:00', '18:00'],
-        'tuesday' => ['09:00', '18:00'],
-        'wednesday' => ['09:00', '18:00'],
-        'thursday' => ['09:00', '18:00'],
-        'friday' => ['09:00', '18:00'],
-        'saturday' => ['09:00', '18:00'],
-        'sunday' => null,
+        'mon' => ['09:00', '18:00'],
+        'tue' => ['09:00', '18:00'],
+        'wed' => ['09:00', '18:00'],
+        'thu' => ['09:00', '18:00'],
+        'fri' => ['09:00', '18:00'],
+        'sat' => ['09:00', '18:00'],
+        'sun' => null,
     ];
 ```
 
@@ -538,8 +543,8 @@ Append to `backend/tests/Feature/Public/PublicSiteTest.php`, reusing that file's
             ->first()
             ->update([
                 'opening_hours_json' => [
-                    'monday' => ['09:00', '18:00'],
-                    'sunday' => null,
+                    'mon' => ['09:00', '18:00'],
+                    'sun' => null,
                 ],
             ]);
 
@@ -580,17 +585,18 @@ In `backend/app/Http/Controllers/Public/SiteController.php`, delete the `use App
      */
     protected function hoursByBranch(Organization $organization): Collection
     {
-        // Weekday numbers match Carbon's dayOfWeek (Sunday = 0), which is
-        // what the existing payload contract uses, but they are emitted
-        // Monday-first.
+        // Keys are the three-letter weekday form stored in
+        // branches.opening_hours_json (what SlotGenerator indexes by);
+        // values are Carbon's dayOfWeek numbers (Sunday = 0), which the
+        // existing payload contract uses. Emitted Monday-first.
         $week = [
-            'monday' => 1,
-            'tuesday' => 2,
-            'wednesday' => 3,
-            'thursday' => 4,
-            'friday' => 5,
-            'saturday' => 6,
-            'sunday' => 0,
+            'mon' => 1,
+            'tue' => 2,
+            'wed' => 3,
+            'thu' => 4,
+            'fri' => 5,
+            'sat' => 6,
+            'sun' => 0,
         ];
 
         return Branch::query()
