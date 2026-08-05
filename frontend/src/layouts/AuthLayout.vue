@@ -1,5 +1,7 @@
 <script setup>
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { APP_DOMAIN, resolveSlugFromHost } from '@/lib/tenantHost'
 
 // Shared shell for the SaaS auth pages (login, register, password, verify).
 // It carries the marketing brand — warm paper, Fraunces display, terracotta
@@ -9,6 +11,24 @@ defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
 })
+
+// nginx-salon.conf serves the whole SPA from <slug>.APP_DOMAIN, so /login,
+// /register and /terms are live on every salon's host — and there `/` is that
+// salon's shopfront (see the landing route in router/index.js), not the
+// SalonHub marketing site. A RouterLink to '/' therefore lands on the salon's
+// own page; the footer link below is worse still, because its visible text is
+// the apex domain, so it states a destination it does not go to.
+//
+// On a salon host these three need an absolute href to the apex. On the apex
+// and the dashboard host (and in dev, where resolveSlugFromHost is null) the
+// RouterLink is correct and stays.
+const onSalonHost = computed(() => resolveSlugFromHost() !== null)
+
+const home = computed(() =>
+  onSalonHost.value
+    ? { is: 'a', attrs: { href: `${window.location.protocol}//${APP_DOMAIN}/` } }
+    : { is: RouterLink, attrs: { to: '/' } },
+)
 </script>
 
 <template>
@@ -23,24 +43,25 @@ defineProps({
 
     <header class="relative border-b border-brand-100/70">
       <nav class="mx-auto flex h-18 max-w-6xl items-center justify-between px-6 lg:px-8">
-        <RouterLink to="/" class="group flex items-center gap-2.5" aria-label="SalonHub home">
+        <component :is="home.is" v-bind="home.attrs" class="group flex items-center gap-2.5" aria-label="SalonHub home">
           <span
             class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-sm shadow-brand-500/30 transition-transform duration-300 group-hover:-rotate-6"
           >
             <span class="font-display text-lg font-semibold leading-none">S</span>
           </span>
           <span class="font-display text-xl font-semibold tracking-tight text-ink">SalonHub</span>
-        </RouterLink>
+        </component>
 
-        <RouterLink
-          to="/"
+        <component
+          :is="home.is"
+          v-bind="home.attrs"
           class="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M19 12H5M11 18l-6-6 6-6" />
           </svg>
-          Back to site
-        </RouterLink>
+          Back to SalonHub
+        </component>
       </nav>
     </header>
 
@@ -69,12 +90,13 @@ defineProps({
         class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 py-6 text-sm text-ink/45 sm:flex-row lg:px-8"
       >
         <p>© 2026 SalonHub</p>
-        <RouterLink
-          to="/"
+        <component
+          :is="home.is"
+          v-bind="home.attrs"
           class="font-medium text-brand-700 transition-colors hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
         >
-          salonhub.com
-        </RouterLink>
+          {{ APP_DOMAIN }}
+        </component>
       </div>
     </footer>
   </div>
