@@ -41,6 +41,84 @@ jobs:
         working-directory: backend
         run: ./vendor/bin/pint --test
 
+  # Production runs MySQL with foreign-key enforcement on. The job above runs
+  # SQLite (phpunit.xml pins it) and local dev runs MySQL with
+  # foreign_key_checks OFF, so until this job existed the production
+  # engine-plus-constraints combination was exercised by nothing — and the two
+  # environments that were exercised produce DIFFERENT wrong answers for the
+  # same delete (orphan rows locally, silent cascade in production).
+  #
+  # What only this job can see: FK cascade outcomes, ONLY_FULL_GROUP_BY against
+  # the selectRaw(...)->groupBy(...) sites in DashboardController, SiteController
+  # and ReportService, VARCHAR(2) truncation under strict mode, and
+  # collation-dependent host equality in Domain (utf8mb4_0900_ai_ci is accent-
+  # and case-insensitive; SQLite's BINARY is not, so the SQLite run proves
+  # semantics that differ in production).
+  #
+  # The DB_* values below are plain job env vars, which win over phpunit.xml's
+  # <env> elements — PHPUnit only sets those when the variable is not already
+  # present.
+  backend-mysql:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: salonhub_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: salonhub_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, xml, curl, zip, pdo_mysql
+          coverage: none
+
+      - name: Cache composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+
+      - name: Install dependencies
+        working-directory: backend
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        working-directory: backend
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # The point of this job. If this ever prints 0 the run below proves
+      # nothing the SQLite job did not already prove.
+      - name: Assert MySQL enforces foreign keys
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot -N -e \
+            "SELECT IF(@@global.foreign_key_checks = 1, 'ok', 'FK CHECKS OFF')" | grep -qx ok
+
+      - name: Run the test suite against MySQL
+        working-directory: backend
+        run: php artisan test
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -60,6 +138,10 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      # `if: always()` so a broken build does not hide every frontend test
+      # result. The two steps answer different questions and neither is a
+      # precondition for the other.
       - name: Unit tests
+        if: always()
         working-directory: frontend
         run: npm run test:unit
