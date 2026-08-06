@@ -78,8 +78,13 @@ a "Step 2 of 4" progress indicator, and a working back arrow on every screen.
 
 Opens with one framing line: "Four quick steps. About 3 minutes."
 
-Name and phone are prefilled from registration. Fields: address, city, phone, and an
-optional Google Maps link with the hint "paste the link from Google Maps".
+Name and phone are prefilled from registration. Fields: address, city, phone.
+
+No map field. `branches` has `latitude`/`longitude` but no map-link column, and
+`SalonSiteView` already falls back to `address, city, country` as the Google embed query
+when coordinates are absent — so typing the address is what puts the salon on the map.
+Asking a non-technical owner for coordinates, or for a link we have nowhere to store,
+would add a field that buys nothing.
 
 Hours follow as seven day rows — a toggle plus open/close time selects — prefilled Mon–Sat
 09:00–18:00 with Sunday off, matching `RegisterOrganization::DEFAULT_OPENING_HOURS`. A
