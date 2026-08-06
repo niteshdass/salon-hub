@@ -14,6 +14,24 @@ import StaffView from '../views/StaffView.vue'
 import AppointmentsView from '../views/AppointmentsView.vue'
 import CustomersView from '../views/CustomersView.vue'
 
+/**
+ * Whether this navigation should be diverted into first-run setup.
+ *
+ * Owner-only: a manager or staff member joins a salon someone else has
+ * already configured. Exported so it can be tested without standing up a
+ * router — the rule is the part worth testing, not vue-router.
+ */
+export function needsOnboarding(authStore, to) {
+  if (!to.meta?.requiresAuth) return false
+  if (to.name === 'onboarding') return false
+  if (!authStore.isAuthenticated || authStore.role !== 'owner') return false
+  // The organization is not loaded yet on a cold start; the guard fetches
+  // it just above, and a null here means "don't know", not "not onboarded".
+  if (!authStore.organization) return false
+
+  return !authStore.organization.onboarding_completed_at
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -106,6 +124,12 @@ const router = createRouter({
       path: '/refund',
       name: 'refund',
       component: () => import('@/views/legal/RefundView.vue'),
+    },
+    {
+      path: '/onboarding',
+      name: 'onboarding',
+      component: () => import('@/views/onboarding/OnboardingView.vue'),
+      meta: { requiresAuth: true, roles: ['owner'] },
     },
     {
       // Authenticated app shell — every child renders inside DashboardLayout.
@@ -221,6 +245,9 @@ router.beforeEach(async (to) => {
       // is the worse failure, so keep the token and let the page render and
       // report its own error.
     }
+  }
+  if (needsOnboarding(authStore, to)) {
+    return '/onboarding'
   }
   // `meta.roles` mirrors the policy behind the page; no list means any
   // authenticated member may look.
