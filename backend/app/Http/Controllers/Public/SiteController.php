@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Public;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
-use App\Models\BusinessHour;
 use App\Models\Gallery;
 use App\Models\Organization;
 use App\Models\Review;
@@ -13,7 +12,6 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
@@ -144,7 +142,7 @@ class SiteController extends Controller
      */
     protected function branches(Organization $organization): array
     {
-        $hours = $this->hoursByBranch();
+        $hours = $this->hoursByBranch($organization);
 
         return Branch::query()->orderBy('id')->get()->map(fn (Branch $branch) => [
             'id' => $branch->id,
@@ -157,29 +155,58 @@ class SiteController extends Controller
             // Cast off the decimal string: these feed a map, not a ledger.
             'latitude' => $branch->latitude !== null ? (float) $branch->latitude : null,
             'longitude' => $branch->longitude !== null ? (float) $branch->longitude : null,
-            'hours' => $hours->get($branch->id, collect())->values()->all(),
+            'hours' => $hours->get($branch->id, []),
         ])->values()->all();
     }
 
     /**
-     * Opening hours for every branch at once, Monday first the way a salon
-     * would print them — Sunday closes the week rather than opening it.
+     * Opening hours for every branch, derived from the same
+     * branches.opening_hours_json that SlotGenerator gates bookings on —
+     * so the page can never advertise hours the booking form refuses.
      *
-     * @return Collection<int, Collection<int, array<string, mixed>>>
+     * Monday first the way a salon would print it; Sunday closes the week.
+     *
+     * @return Collection<int, array<int, array<string, mixed>>>
      */
-    protected function hoursByBranch(): Collection
+    protected function hoursByBranch(Organization $organization): Collection
     {
-        return BusinessHour::query()
-            ->whereIn('branch_id', Branch::query()->select('id'))
-            ->orderByRaw('CASE WHEN weekday = 0 THEN 7 ELSE weekday END')
+        // Keys are the three-letter weekday form stored in
+        // branches.opening_hours_json (what SlotGenerator indexes by);
+        // values are Carbon's dayOfWeek numbers (Sunday = 0), which the
+        // existing payload contract uses. Emitted Monday-first.
+        $week = [
+            'mon' => 1,
+            'tue' => 2,
+            'wed' => 3,
+            'thu' => 4,
+            'fri' => 5,
+            'sat' => 6,
+            'sun' => 0,
+        ];
+
+        return Branch::query()
+            ->where('organization_id', $organization->id)
             ->get()
-            ->groupBy('branch_id')
-            ->map(fn (Collection $rows) => $rows->map(fn (BusinessHour $hour) => [
-                'weekday' => $hour->weekday,
-                'open_time' => $this->time($hour->open_time),
-                'close_time' => $this->time($hour->close_time),
-                'is_closed' => $hour->is_closed,
-            ]));
+            ->mapWithKeys(function (Branch $branch) use ($week): array {
+                $hours = $branch->opening_hours_json ?? [];
+
+                $rows = [];
+                foreach ($week as $name => $weekday) {
+                    $pair = $hours[$name] ?? null;
+                    $open = is_array($pair) ? ($pair[0] ?? null) : null;
+                    $close = is_array($pair) ? ($pair[1] ?? null) : null;
+
+                    $rows[] = [
+                        'weekday' => $weekday,
+                        'open_time' => $open,
+                        'close_time' => $close,
+                        // A day with no pair is a closed day, not a missing one.
+                        'is_closed' => $open === null || $close === null,
+                    ];
+                }
+
+                return [$branch->id => $rows];
+            });
     }
 
     /**
@@ -246,10 +273,5 @@ class SiteController extends Controller
     protected function url(?string $path): ?string
     {
         return $path ? Storage::disk('public')->url($path) : null;
-    }
-
-    protected function time(?string $value): ?string
-    {
-        return $value ? Carbon::parse($value)->format('H:i') : null;
     }
 }

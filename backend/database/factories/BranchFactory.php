@@ -18,7 +18,7 @@ class BranchFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->company() . ' ' . fake()->randomElement(['Downtown', 'Uptown', 'Central', 'Riverside', 'Main']),
+            'name' => fake()->company().' '.fake()->randomElement(['Downtown', 'Uptown', 'Central', 'Riverside', 'Main']),
             'phone' => fake()->phoneNumber(),
             'email' => fake()->companyEmail(),
             'address' => fake()->streetAddress(),

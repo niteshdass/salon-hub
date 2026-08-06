@@ -11,6 +11,7 @@ use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -143,8 +144,8 @@ class ReportsTest extends TestCase
         $res = $this->withToken($this->token($owner))->getJson('/api/reports');
 
         // Range echoed so the client knows what window it got.
-        $from = \Illuminate\Support\Carbon::parse($res->json('data.range.from'));
-        $to = \Illuminate\Support\Carbon::parse($res->json('data.range.to'));
+        $from = Carbon::parse($res->json('data.range.from'));
+        $to = Carbon::parse($res->json('data.range.to'));
         $this->assertEquals(29, $from->diffInDays($to));
     }
 
@@ -351,6 +352,7 @@ class ReportsTest extends TestCase
         $this->makeAppointment($org, ['date' => '2026-07-06', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $alice]);
         $this->makeAppointment($org, ['date' => '2026-07-07', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $bob]);
 
+        $this->travelTo('2026-07-15 10:00:00');
         Review::create([
             'organization_id' => $org->id,
             'appointment_id' => $a1->id,
@@ -360,6 +362,7 @@ class ReportsTest extends TestCase
             'reviewer_name' => 'Casey Customer',
             'status' => 'published',
         ]);
+        $this->travelBack();
 
         $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
 
@@ -385,6 +388,7 @@ class ReportsTest extends TestCase
         $a2 = $this->makeAppointment($org, ['date' => '2026-07-06', 'price' => 40, 'status' => 'completed', 'branch' => $branch, 'service' => $service, 'staff' => $alice]);
 
         // A published 5-star and a hidden 1-star: only the published one counts.
+        $this->travelTo('2026-07-15 10:00:00');
         Review::create([
             'organization_id' => $org->id,
             'appointment_id' => $a1->id,
@@ -403,6 +407,7 @@ class ReportsTest extends TestCase
             'reviewer_name' => 'Casey Customer',
             'status' => 'hidden',
         ]);
+        $this->travelBack();
 
         $res = $this->withToken($this->token($owner))->getJson('/api/reports?from=2026-07-01&to=2026-07-31');
 

@@ -27,3 +27,34 @@ body {
   font-family: var(--font-body);
   color: var(--color-ink);
 }
+
+/*
+ * Auth form primitives. The login/register/password pages share one look, so
+ * the field and button styling lives here instead of being copy-pasted across
+ * five views. Used inside AuthLayout.vue.
+ */
+@layer components {
+  .auth-label {
+    @apply mb-1.5 block text-sm font-medium text-ink/75;
+  }
+
+  .auth-input {
+    @apply w-full rounded-xl border border-brand-100 bg-paper/50 px-3.5 py-2.5 text-ink shadow-sm transition-colors outline-none placeholder:text-ink/35 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-200;
+  }
+
+  .auth-button {
+    @apply w-full rounded-full bg-brand-500 px-5 py-3 text-base font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35 focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white focus-visible:outline-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none;
+  }
+
+  .auth-link {
+    @apply font-semibold text-brand-600 transition-colors hover:text-brand-700;
+  }
+
+  .auth-error {
+    @apply mt-1.5 text-sm text-rose-600;
+  }
+
+  .auth-alert {
+    @apply rounded-xl border px-4 py-3 text-sm;
+  }
+}

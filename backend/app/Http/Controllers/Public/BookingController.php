@@ -41,9 +41,7 @@ use Illuminate\Validation\Rule;
  */
 class BookingController extends Controller
 {
-    public function __construct(protected AppointmentScheduler $scheduler)
-    {
-    }
+    public function __construct(protected AppointmentScheduler $scheduler) {}
 
     /**
      * Public profile of the salon plus its bookable branches.
@@ -146,11 +144,37 @@ class BookingController extends Controller
     }
 
     /**
+     * Staff who can perform the given service, path-scoped:
+     * `/public/{org}/services/{service}/staff`.
+     */
+    public function staffForService(string $org, Service $service): JsonResponse
+    {
+        return $this->staffPayload($service);
+    }
+
+    /**
+     * The same action on a salon's own subdomain, where the URI carries no
+     * {org} segment: `/public/services/{service}/staff`.
+     *
+     * A second method rather than one method with an optional first argument.
+     * Laravel hands route parameters to a controller positionally, so the two
+     * URIs cannot share one signature — and the Service must stay a typed
+     * parameter, because implicit route binding is driven off the method
+     * signature. Losing the typehint would leave a raw id here, and with it
+     * the tenant global scope that turns another salon's service id into a
+     * 404 (SubstituteBindings runs after public.tenant).
+     */
+    public function staffForServiceOnHost(Service $service): JsonResponse
+    {
+        return $this->staffPayload($service);
+    }
+
+    /**
      * Staff who can perform the given service. When no service in the salon
      * has any staff assignment (assignment is optional), fall back to every
      * active staff member so the salon is still bookable.
      */
-    public function staffForService(string $org, Service $service): JsonResponse
+    protected function staffPayload(Service $service): JsonResponse
     {
         $staff = $service->staff()->with('staffProfile')->get();
 

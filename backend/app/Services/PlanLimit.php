@@ -21,9 +21,7 @@ class PlanLimit
 
     public const FREE_MAX_STAFF = 10;
 
-    public function __construct(protected CurrentTenant $tenant)
-    {
-    }
+    public function __construct(protected CurrentTenant $tenant) {}
 
     /**
      * Whether the current tenant may create another branch.

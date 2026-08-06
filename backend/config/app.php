@@ -69,6 +69,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Apex Domain
+    |--------------------------------------------------------------------------
+    |
+    | Salons get a subdomain under this apex. Used when minting the primary
+    | domain row at registration and when the SPA maps a Host header back
+    | to a salon slug.
+    |
+    | The env var and the default MUST stay identical to the ones read in
+    | config/cors.php: CORS trusts `https://<slug>.APP_DOMAIN` as an origin
+    | and tenant resolution answers on it, so if the two ever disagreed one
+    | of them would be wrong about which hosts are ours.
+    |
+    */
+
+    'domain' => env('APP_DOMAIN', 'salonhub.com'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

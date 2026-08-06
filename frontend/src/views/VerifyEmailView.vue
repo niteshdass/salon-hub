@@ -1,9 +1,10 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
+import AuthLayout from '@/layouts/AuthLayout.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -15,6 +16,26 @@ const linkIsUsable = Boolean(id && hash && expires && signature)
 
 const state = ref(linkIsUsable ? 'checking' : 'malformed')
 const message = ref('')
+
+const heading = computed(
+  () =>
+    ({
+      checking: 'Verifying your email…',
+      verified: 'Email verified',
+      malformed: 'Incomplete link',
+      failed: 'Verification failed',
+    })[state.value],
+)
+
+const subtitle = computed(
+  () =>
+    ({
+      checking: 'This only takes a moment.',
+      verified: message.value,
+      malformed: 'Open the link straight from your inbox, or sign in and request a new one.',
+      failed: message.value,
+    })[state.value],
+)
 
 onMounted(async () => {
   if (!linkIsUsable) return
@@ -38,52 +59,27 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="flex min-h-screen items-center justify-center p-6">
-    <div class="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl ring-1 ring-slate-200">
+  <AuthLayout :title="heading" :subtitle="subtitle">
+    <div class="text-center">
       <div
-        class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white"
+        v-if="state === 'verified'"
+        class="mx-auto mb-5 grid h-12 w-12 place-items-center rounded-full bg-emerald-50 text-emerald-600"
       >
-        S
+        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2.25" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+        </svg>
       </div>
 
-      <template v-if="state === 'checking'">
-        <h1 class="text-2xl font-bold text-slate-900">Verifying your email…</h1>
-        <p class="mt-1 text-sm text-slate-500">This only takes a moment.</p>
-      </template>
-
-      <template v-else-if="state === 'verified'">
-        <div
-          class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100"
-        >
-          <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
-        </div>
-        <h1 class="text-2xl font-bold text-slate-900">Email verified</h1>
-        <p class="mt-1 text-sm text-slate-500">{{ message }}</p>
-      </template>
-
-      <template v-else-if="state === 'malformed'">
-        <h1 class="text-2xl font-bold text-slate-900">Incomplete link</h1>
-        <p class="mt-1 text-sm text-slate-500">
-          Open the link straight from your inbox, or sign in and request a new one.
-        </p>
-      </template>
-
-      <template v-else>
-        <h1 class="text-2xl font-bold text-slate-900">Verification failed</h1>
-        <p class="mt-1 text-sm text-slate-500">{{ message }}</p>
-        <p class="mt-1 text-sm text-slate-500">
-          Sign in and use the banner at the top to send yourself a fresh link.
-        </p>
-      </template>
+      <p v-if="state === 'failed'" class="mb-5 text-sm text-ink/60">
+        Sign in and use the banner at the top to send yourself a fresh link.
+      </p>
 
       <RouterLink
         :to="authStore.isAuthenticated ? '/dashboard' : '/login'"
-        class="mt-6 inline-block rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+        class="auth-button inline-block w-auto"
       >
         {{ authStore.isAuthenticated ? 'Go to dashboard' : 'Go to sign in' }}
       </RouterLink>
     </div>
-  </main>
+  </AuthLayout>
 </template>

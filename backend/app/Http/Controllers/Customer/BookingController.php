@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Customer;
 
+use App\Enums\AppointmentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Review\StoreReviewRequest;
 use App\Models\Appointment;
@@ -13,6 +14,7 @@ use App\Services\SlotGenerator;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * The logged-in customer's bookings across every salon. No tenant is bound,
@@ -52,7 +54,7 @@ class BookingController extends Controller
         }
 
         $this->bindTenant($booking);
-        $booking->update(['status' => \App\Enums\AppointmentStatus::CANCELLED->value]);
+        $booking->update(['status' => AppointmentStatus::CANCELLED->value]);
         $fresh = $booking->fresh()->load(['organization', 'service', 'staff', 'branch', 'review', 'payments', 'customer']);
         $notifier->sendForCancellation($fresh);
 
@@ -150,7 +152,7 @@ class BookingController extends Controller
     }
 
     /** Ids of the customer rows this account owns — the isolation boundary. */
-    protected function ownedCustomerIds(Request $request): \Illuminate\Support\Collection
+    protected function ownedCustomerIds(Request $request): Collection
     {
         return Customer::where('customer_account_id', $request->user()->id)->pluck('id');
     }

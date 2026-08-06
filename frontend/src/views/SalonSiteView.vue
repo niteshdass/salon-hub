@@ -3,9 +3,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
+import { publicApiBase } from '@/lib/tenantHost'
 
 const route = useRoute()
-const slug = route.params.slug
+
+// Two ways in: `/salon/:slug` on any host, and `/` on the salon's own
+// subdomain. In the second case there is no slug in the path, so the calls
+// below drop the segment and let the server read the tenant from the Host
+// header rather than from a slug this page guessed. Every "Book" link uses
+// site.slug, which comes back from that same resolved tenant.
+const apiBase = publicApiBase(route.params.slug)
 
 const site = ref(null)
 const services = ref([])
@@ -92,8 +99,8 @@ async function load() {
     // The page needs both to render; a failed services call should not
     // cost the visitor the rest of the site.
     const [siteResponse, servicesResponse] = await Promise.all([
-      api.get(`/public/${slug}/site`),
-      api.get(`/public/${slug}/services`).catch(() => ({ data: { data: [] } })),
+      api.get(`${apiBase}/site`),
+      api.get(`${apiBase}/services`).catch(() => ({ data: { data: [] } })),
     ])
     site.value = siteResponse.data.data
     services.value = servicesResponse.data.data || []

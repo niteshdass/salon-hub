@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CustomerAccount;
 use App\Models\User;
 
 return [
@@ -82,7 +83,7 @@ return [
 
         'customers' => [
             'driver' => 'eloquent',
-            'model' => App\Models\CustomerAccount::class,
+            'model' => CustomerAccount::class,
         ],
 
         // 'users' => [

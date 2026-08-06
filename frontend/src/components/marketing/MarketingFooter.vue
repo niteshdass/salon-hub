@@ -1,4 +1,5 @@
 <script setup>
+import { CONTACT_EMAIL } from '@/lib/contact'
 import { RouterLink } from 'vue-router'
 
 const productLinks = [
@@ -12,7 +13,7 @@ const productLinks = [
 <template>
   <footer class="bg-ink text-paper/70">
     <div class="mx-auto max-w-6xl px-6 py-16 lg:px-8">
-      <div class="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div class="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <!-- Brand -->
         <div>
           <div class="flex items-center gap-2.5">
@@ -23,10 +24,10 @@ const productLinks = [
           </div>
           <p class="mt-4 max-w-xs leading-relaxed text-paper/55">Booking software for modern salons.</p>
           <a
-            href="mailto:hello@salonhub.com"
+            :href="`mailto:${CONTACT_EMAIL}`"
             class="mt-5 inline-block text-sm text-paper/70 underline decoration-paper/20 underline-offset-4 transition-colors hover:text-paper hover:decoration-paper/50"
           >
-            hello@salonhub.com
+            {{ CONTACT_EMAIL }}
           </a>
         </div>
 
@@ -49,6 +50,22 @@ const productLinks = [
             </li>
             <li>
               <RouterLink to="/register" class="text-paper/70 transition-colors hover:text-paper">Register a salon</RouterLink>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Legal -->
+        <div>
+          <h3 class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Legal</h3>
+          <ul class="mt-4 space-y-3">
+            <li>
+              <RouterLink to="/terms" class="text-paper/70 transition-colors hover:text-paper">Terms of Service</RouterLink>
+            </li>
+            <li>
+              <RouterLink to="/privacy" class="text-paper/70 transition-colors hover:text-paper">Privacy Policy</RouterLink>
+            </li>
+            <li>
+              <RouterLink to="/refund" class="text-paper/70 transition-colors hover:text-paper">Refund Policy</RouterLink>
             </li>
           </ul>
         </div>

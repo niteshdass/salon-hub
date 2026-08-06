@@ -46,9 +46,21 @@ class CustomerController extends Controller
         return new CustomerResource($customer);
     }
 
-    public function destroy(Customer $customer): Response
+    /**
+     * appointments.customer_id is `cascadeOnDelete` and payments cascade from
+     * appointments, so deleting a customer who has ever booked destroys their
+     * entire visit and payment history with no undo (no model here uses
+     * SoftDeletes). Refuse while dependent appointments exist.
+     */
+    public function destroy(Customer $customer): Response|JsonResponse
     {
         $this->authorize('delete', $customer);
+
+        if ($customer->appointments()->exists()) {
+            return response()->json([
+                'message' => 'This customer has appointments in their history and cannot be deleted.',
+            ], 422);
+        }
 
         $customer->delete();
 

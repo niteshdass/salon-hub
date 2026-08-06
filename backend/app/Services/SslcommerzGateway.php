@@ -31,8 +31,8 @@ class SslcommerzGateway
      * the customer to. Throws if SSLCommerz declines to create the session.
      *
      * @param  array<string, mixed>  $order  total_amount, currency, tran_id,
-     *                                        success_url, fail_url, cancel_url,
-     *                                        cus_name, cus_email, cus_phone, …
+     *                                       success_url, fail_url, cancel_url,
+     *                                       cus_name, cus_email, cus_phone, …
      */
     public function initiate(PaymentSetting $settings, array $order): string
     {
@@ -65,7 +65,7 @@ class SslcommerzGateway
     /**
      * Server-to-server validation of a completed transaction by its val_id.
      *
-     * @return array<string, mixed>  the decoded validation response
+     * @return array<string, mixed> the decoded validation response
      */
     public function validate(PaymentSetting $settings, string $valId): array
     {
@@ -87,7 +87,7 @@ class SslcommerzGateway
      * whether the request was accepted (status success / processing) and a
      * refund_ref_id to track it.
      *
-     * @return array<string, mixed>  the decoded refund response
+     * @return array<string, mixed> the decoded refund response
      */
     public function refund(PaymentSetting $settings, string $bankTranId, string $amount, string $remarks): array
     {

@@ -24,9 +24,7 @@ class SendAppointmentReminder implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public int $appointmentId)
-    {
-    }
+    public function __construct(public int $appointmentId) {}
 
     public function handle(ReminderChannelManager $channels): void
     {

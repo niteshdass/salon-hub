@@ -51,9 +51,25 @@ class ServiceController extends Controller
         return new ServiceResource($service->load('category'));
     }
 
-    public function destroy(Service $service): Response
+    /**
+     * appointments.service_id is `cascadeOnDelete`, so deleting a service
+     * that has ever been booked destroys those appointments — and, through
+     * payments.appointment_id, the payment records against them. There is no
+     * SoftDeletes anywhere in this app and no undo, so an owner tidying up
+     * last season's menu would silently erase completed bookings and the
+     * revenue history the Reports page is built on. Refuse instead; the
+     * intended action is almost always `status: inactive`, which hides the
+     * service from the booking site and keeps the history.
+     */
+    public function destroy(Service $service): Response|JsonResponse
     {
         $this->authorize('delete', $service);
+
+        if ($service->appointments()->exists()) {
+            return response()->json([
+                'message' => 'This service has appointments booked against it and cannot be deleted. Set it to inactive instead to hide it from your booking site.',
+            ], 422);
+        }
 
         $service->delete();
 

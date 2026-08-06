@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import AuthLayout from '@/layouts/AuthLayout.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -12,7 +13,11 @@ const form = reactive({
 })
 
 const errors = ref({})
-const generalError = ref('')
+// Seeded from the store when a stored token was just refused with a reason —
+// a suspended or inactive salon, an account no longer linked to one. The
+// router bounces those here, and this banner is the only place the person
+// ever learns why. Read-once, so it does not haunt later visits.
+const generalError = ref(authStore.takeSessionMessage())
 
 async function onSubmit() {
   errors.value = {}
@@ -33,85 +38,54 @@ async function onSubmit() {
 </script>
 
 <template>
-  <main class="flex min-h-screen items-center justify-center p-6">
-    <div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl ring-1 ring-slate-200">
-      <div class="mb-8 text-center">
-        <div
-          class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white"
-        >
-          S
-        </div>
-        <h1 class="text-2xl font-bold text-slate-900">Welcome back</h1>
-        <p class="mt-1 text-sm text-slate-500">Sign in to your SalonHub account.</p>
-      </div>
-
-      <div
-        v-if="generalError"
-        class="mb-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-      >
-        {{ generalError }}
-      </div>
-
-      <form class="space-y-4" @submit.prevent="onSubmit">
-        <div>
-          <label for="email" class="mb-1 block text-sm font-medium text-slate-700">
-            Email
-          </label>
-          <input
-            id="email"
-            v-model="form.email"
-            type="email"
-            autocomplete="email"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="you@example.com"
-          />
-          <p v-if="errors.email" class="mt-1 text-sm text-rose-600">
-            {{ errors.email[0] }}
-          </p>
-        </div>
-
-        <div>
-          <div class="mb-1 flex items-baseline justify-between">
-            <label for="password" class="block text-sm font-medium text-slate-700">
-              Password
-            </label>
-            <RouterLink
-              to="/forgot-password"
-              class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
-            >
-              Forgot?
-            </RouterLink>
-          </div>
-          <input
-            id="password"
-            v-model="form.password"
-            type="password"
-            autocomplete="current-password"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="••••••••"
-          />
-          <p v-if="errors.password" class="mt-1 text-sm text-rose-600">
-            {{ errors.password[0] }}
-          </p>
-        </div>
-
-        <button
-          type="submit"
-          :disabled="authStore.loading"
-          class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {{ authStore.loading ? 'Signing in…' : 'Sign in' }}
-        </button>
-      </form>
-
-      <p class="mt-6 text-center text-sm text-slate-500">
-        Don't have an account?
-        <RouterLink to="/register" class="font-medium text-indigo-600 hover:text-indigo-700">
-          Create one
-        </RouterLink>
-      </p>
+  <AuthLayout title="Welcome back" subtitle="Sign in to your SalonHub account.">
+    <div
+      v-if="generalError"
+      class="auth-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"
+    >
+      {{ generalError }}
     </div>
-  </main>
+
+    <form class="space-y-5" @submit.prevent="onSubmit">
+      <div>
+        <label for="email" class="auth-label">Email</label>
+        <input
+          id="email"
+          v-model="form.email"
+          type="email"
+          autocomplete="email"
+          required
+          class="auth-input"
+          placeholder="you@example.com"
+        />
+        <p v-if="errors.email" class="auth-error">{{ errors.email[0] }}</p>
+      </div>
+
+      <div>
+        <div class="mb-1.5 flex items-baseline justify-between">
+          <label for="password" class="auth-label mb-0">Password</label>
+          <RouterLink to="/forgot-password" class="auth-link text-sm">Forgot?</RouterLink>
+        </div>
+        <input
+          id="password"
+          v-model="form.password"
+          type="password"
+          autocomplete="current-password"
+          required
+          class="auth-input"
+          placeholder="••••••••"
+        />
+        <p v-if="errors.password" class="auth-error">{{ errors.password[0] }}</p>
+      </div>
+
+      <button type="submit" :disabled="authStore.loading" class="auth-button">
+        {{ authStore.loading ? 'Signing in…' : 'Sign in' }}
+      </button>
+    </form>
+
+    <template #footer>
+      Don't have an account?
+      <RouterLink to="/register" class="auth-link">Register a salon</RouterLink>
+    </template>
+  </AuthLayout>
 </template>

@@ -1,21 +1,28 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { APP_DOMAIN } from '@/lib/tenantHost'
 
 const authStore = useAuthStore()
 
-// Always the shareable {slug}.salonhub.com string; prefer the resource's
-// primary_domain, fall back to deriving it from the slug.
+// Always the shareable {slug}.APP_DOMAIN string; prefer the resource's
+// primary_domain — that is the row the server actually resolves a tenant
+// for — and only derive it from the slug when the payload has none.
 const domain = computed(() => {
   const org = authStore.organization
   if (!org) return null
   if (org.primary_domain) return org.primary_domain
-  if (org.slug) return `${org.slug}.salonhub.com`
+  if (org.slug) return `${org.slug}.${APP_DOMAIN}`
   return null
 })
 
 // Real subdomains don't resolve on localhost, so in dev we Visit the
 // path-based microsite instead. The displayed string stays the domain.
+//
+// In production the link is built from `domain` — the salon's own
+// primary_domain row — rather than from a reconstructed `${slug}.apex`
+// string, so what the banner sends an owner to is the exact host the
+// server resolves a tenant for. The two cannot drift apart.
 const visitUrl = computed(() => {
   const org = authStore.organization
   if (!org) return null

@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomerAuthStore } from '@/stores/customerAuth'
+import { resolveSlugFromHost } from '@/lib/tenantHost'
+import { parseApiError } from '@/lib/errors'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
-import LandingView from '../views/LandingView.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import CustomerLayout from '../layouts/CustomerLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -79,11 +80,32 @@ const router = createRouter({
       component: () => import('@/views/ManageBookingView.vue'),
     },
     {
-      // Public SaaS marketing home. Declared before the DashboardLayout record
-      // so bare `/` renders the landing page, not the authenticated shell.
+      // On a salon subdomain, `/` is that salon's shopfront. On the apex it is
+      // the public SaaS marketing home. Resolved lazily, at the moment the
+      // route is entered: the host cannot change without a full page load, so
+      // one answer per page view is all there is.
+      //
+      // Declared before the DashboardLayout record so bare `/` renders this,
+      // not the authenticated shell.
       path: '/',
       name: 'landing',
-      component: LandingView,
+      component: () =>
+        resolveSlugFromHost() ? import('@/views/SalonSiteView.vue') : import('@/views/LandingView.vue'),
+    },
+    {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('@/views/legal/TermsView.vue'),
+    },
+    {
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('@/views/legal/PrivacyView.vue'),
+    },
+    {
+      path: '/refund',
+      name: 'refund',
+      component: () => import('@/views/legal/RefundView.vue'),
     },
     {
       // Authenticated app shell — every child renders inside DashboardLayout.
@@ -170,24 +192,49 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return '/login'
   }
-  // `meta.roles` mirrors the policy behind the page; no list means any
-  // authenticated member may look.
-  if (to.meta.roles) {
-    // On a hard refresh the role is not loaded yet; fetch it before
-    // deciding, otherwise an owner would bounce off their own page.
-    if (!authStore.user) {
-      try {
-        await authStore.fetchMe()
-      } catch {
+  // A token in localStorage is not a live session. The organization behind it
+  // may have been suspended, deactivated or removed since it was issued, and
+  // /auth/me is the endpoint that says so (it carries the `tenant`
+  // middleware). Resolve it once, for EVERY authenticated route rather than
+  // only the role-gated ones, before the dashboard shell mounts — otherwise a
+  // refused member is admitted to the shell and meets a 403 on each panel in
+  // turn, which reads as "the app is broken" rather than "your salon is
+  // suspended".
+  if (to.meta.requiresAuth && !authStore.user) {
+    try {
+      await authStore.fetchMe()
+    } catch (err) {
+      const status = err?.response?.status
+      // 401 and 403 are the server refusing this token: an expiry, or
+      // ResolveTenant naming a suspended, inactive or unlinked salon. Only
+      // the 403 carries a sentence worth repeating — a plain expiry says
+      // nothing the sign-in page does not. Dropping the token is also what
+      // keeps this terminating: /login bounces an authenticated visitor
+      // straight back to /dashboard, so a redirect that left the token in
+      // place would loop.
+      if (status === 401 || status === 403) {
+        authStore.endSession(status === 403 ? parseApiError(err).message : '')
         return '/login'
       }
-    }
-    if (!to.meta.roles.includes(authStore.role)) {
-      return '/dashboard'
+      // Anything else — a 5xx, a dropped connection — is not a verdict on the
+      // session. Signing someone out because their train went into a tunnel
+      // is the worse failure, so keep the token and let the page render and
+      // report its own error.
     }
   }
+  // `meta.roles` mirrors the policy behind the page; no list means any
+  // authenticated member may look.
+  if (to.meta.roles && !to.meta.roles.includes(authStore.role)) {
+    return '/dashboard'
+  }
+  // On the apex, `/` is the marketing home and a signed-in member belongs on
+  // their dashboard. On a salon subdomain `/` is that salon's public
+  // shopfront, so a member who happens to be signed in on that origin must
+  // still see the shopfront rather than be bounced away from it.
   if (
-    (to.name === 'landing' || to.path === '/login' || to.path === '/register') &&
+    ((to.name === 'landing' && !resolveSlugFromHost()) ||
+      to.path === '/login' ||
+      to.path === '/register') &&
     authStore.isAuthenticated
   ) {
     return '/dashboard'

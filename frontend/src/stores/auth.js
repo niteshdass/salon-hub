@@ -7,6 +7,11 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const organization = ref(null)
   const loading = ref(false)
+  // Why the last session ended, when the reason is worth telling the user —
+  // a suspended or inactive salon, or an account no longer linked to one.
+  // The API answers /auth/me with that sentence; without somewhere to put it
+  // the redirect to /login would be the only thing they ever saw.
+  const sessionMessage = ref('')
 
   const isAuthenticated = computed(() => !!token.value)
 
@@ -25,6 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = data.token
     user.value = data.user
     organization.value = data.organization
+    sessionMessage.value = ''
     localStorage.setItem(TOKEN_KEY, data.token)
   }
 
@@ -33,6 +39,22 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     organization.value = null
     localStorage.removeItem(TOKEN_KEY)
+  }
+
+  // Drop the session AND record why, for the sign-in page to show. Used when
+  // the server refuses a stored token for a reason the user can act on
+  // (contacting support) rather than a plain expiry.
+  function endSession(message) {
+    clearSession()
+    sessionMessage.value = message || ''
+  }
+
+  // Read-once: the message belongs to the redirect that produced it, not to
+  // every later visit to /login.
+  function takeSessionMessage() {
+    const message = sessionMessage.value
+    sessionMessage.value = ''
+    return message
   }
 
   async function register(payload) {
@@ -79,6 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     organization,
     loading,
+    sessionMessage,
     isAuthenticated,
     role,
     isOwner,
@@ -86,6 +109,8 @@ export const useAuthStore = defineStore('auth', () => {
     canManageOperations,
     emailVerified,
     setSession,
+    endSession,
+    takeSessionMessage,
     register,
     login,
     fetchMe,

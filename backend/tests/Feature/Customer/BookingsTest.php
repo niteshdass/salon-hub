@@ -2,8 +2,6 @@
 
 namespace Tests\Feature\Customer;
 
-use App\Enums\AppointmentStatus;
-use App\Mail\CustomerLoginCodeMail;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
@@ -14,7 +12,6 @@ use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -34,6 +31,7 @@ class BookingsTest extends TestCase
     {
         $staff = User::create(['organization_id' => $org->id, 'name' => $name, 'email' => Str::random(6)."@{$org->slug}.test", 'password' => 'secret1234', 'role' => 'staff', 'status' => 'active']);
         StaffProfile::create(['user_id' => $staff->id, 'designation' => 'Stylist', 'working_days_json' => [1, 2, 3, 4, 5], 'working_hours_json' => ['start' => '09:00', 'end' => '17:00']]);
+
         return $staff;
     }
 

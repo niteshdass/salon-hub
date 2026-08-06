@@ -11,6 +11,7 @@ use App\Models\Service;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -108,7 +109,7 @@ class DashboardController extends Controller
      * The next few appointments from this moment on. Cancelled ones are
      * dropped — nobody needs to be reminded of a booking that is off.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Appointment>
+     * @return Collection<int, Appointment>
      */
     protected function upcoming(User $user, Carbon $now): mixed
     {

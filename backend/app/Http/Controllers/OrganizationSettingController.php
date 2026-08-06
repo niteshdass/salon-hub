@@ -17,9 +17,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class OrganizationSettingController extends Controller
 {
-    public function __construct(protected CurrentTenant $tenant)
-    {
-    }
+    public function __construct(protected CurrentTenant $tenant) {}
 
     public function show(): JsonResponse
     {

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Review\UpdateReviewRequest;
 use App\Http\Resources\ReviewAdminResource;
 use App\Models\Review;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 

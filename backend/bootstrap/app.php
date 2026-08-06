@@ -1,9 +1,13 @@
 <?php
 
+use App\Http\Middleware\ResolvePublicTenant;
+use App\Http\Middleware\ResolveTenant;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Sentry\Laravel\Integration;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,8 +22,8 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'tenant' => \App\Http\Middleware\ResolveTenant::class,
-            'public.tenant' => \App\Http\Middleware\ResolvePublicTenant::class,
+            'tenant' => ResolveTenant::class,
+            'public.tenant' => ResolvePublicTenant::class,
         ]);
 
         // Resolve the tenant BEFORE route-model binding runs, so implicit
@@ -27,14 +31,20 @@ return Application::configure(basePath: dirname(__DIR__))
         // tenant's global scope and a cross-tenant id yields a 404. Both the
         // authenticated and the public tenant resolvers run before bindings.
         $middleware->prependToPriorityList(
-            before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
-            prepend: \App\Http\Middleware\ResolveTenant::class,
+            before: SubstituteBindings::class,
+            prepend: ResolveTenant::class,
         );
         $middleware->prependToPriorityList(
-            before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
-            prepend: \App\Http\Middleware\ResolvePublicTenant::class,
+            before: SubstituteBindings::class,
+            prepend: ResolvePublicTenant::class,
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Report to Sentry when a DSN is configured. Empty DSN (local, CI)
+        // makes this a no-op, so nothing here needs a guard elsewhere.
+        $exceptions->reportable(function (Throwable $e): void {
+            if (app()->bound('sentry') && config('sentry.dsn')) {
+                Integration::captureUnhandledException($e);
+            }
+        });
     })->create();

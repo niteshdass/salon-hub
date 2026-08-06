@@ -12,9 +12,9 @@ use App\Http\Controllers\Customer\BookingController as CustomerBookingController
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GalleryController;
-use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\Public\BookingController;
@@ -35,11 +35,19 @@ Route::get('/hello', [HelloController::class, 'index']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware('auth:sanctum');
+})->middleware(['auth:sanctum', 'tenant']);
 
 Route::prefix('auth')->group(function () {
-    Route::post('register', [AuthController::class, 'register']);
-    Route::post('login', [AuthController::class, 'login']);
+    // Creating an organization is expensive (org + owner + domain + branch +
+    // settings rows, plus a verification email). Three per minute per IP is
+    // far above any human signup rate and well below a spam run.
+    Route::post('register', [AuthController::class, 'register'])
+        ->middleware('throttle:3,1');
+
+    // The per-email lockout lives in AuthController::login; this per-IP cap
+    // is the second layer, bounding an attacker spraying many accounts.
+    Route::post('login', [AuthController::class, 'login'])
+        ->middleware('throttle:20,1');
 
     // Password reset. Throttled hard: both endpoints are unauthenticated
     // and both send or consume a token tied to a real account.
@@ -54,10 +62,28 @@ Route::prefix('auth')->group(function () {
         ->name('verification.verify');
 
     Route::middleware('auth:sanctum')->group(function () {
+        // Deliberately OUTSIDE `tenant`. Signing out must keep working for a
+        // member whose organization was suspended or removed — otherwise the
+        // only way to drop a dead session is to clear browser storage. It
+        // touches the current access token and nothing tenant-scoped.
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::get('me', [AuthController::class, 'me']);
+
+        // Also outside `tenant`: it re-sends a verification link to the
+        // address on the user row, reads nothing tenant-scoped, and is
+        // already throttled.
         Route::post('email/resend', [EmailVerificationController::class, 'resend'])
             ->middleware('throttle:6,1');
+
+        // `tenant` here is the SESSION-layer status check, and it is the
+        // reason this route is declared separately. This endpoint is what the
+        // SPA calls to turn a stored token into a session. Without the
+        // middleware it answered 200 with the full user and organization for
+        // a suspended or inactive salon, so the owner was admitted into the
+        // dashboard shell and then met a 403 on every panel inside it, with
+        // no statement anywhere of what was actually wrong. Enforcing the
+        // same rule login enforces at the door means a dead session is
+        // refused once, with a reason the SPA can show.
+        Route::get('me', [AuthController::class, 'me'])->middleware('tenant');
     });
 });
 
@@ -139,6 +165,35 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     // Server-to-server IPN: SSLCommerz POSTs here directly, so a captured
     // payment is recorded even if the customer never returns to the browser.
     Route::post('payment/{tran}/ipn', [PaymentCallbackController::class, 'ipn']);
+});
+
+// The same booking site, tenant read from the Host header instead of the
+// path: <slug>.APP_DOMAIN hits these. It reuses `public.tenant`, whose
+// Host-header branch runs when there is no {org} parameter to read.
+//
+// The prefix is `public-site`, NOT `public`, and that is the whole point of
+// the split. While both groups shared `public/`, `api/public/site` was
+// ambiguous: it is the host-resolved site endpoint AND it is `api/public/{org}`
+// for the salon slugged "site". Whichever group is declared first wins, so one
+// of the two was always served the wrong tenant — declaration order can pick
+// the victim but cannot remove the ambiguity. Under different literal first
+// segments no URI in either group can ever be matched by a route in the other,
+// so any route added to either from now on is safe by construction rather than
+// by remembering to check.
+//
+// Shape-for-shape symmetric with the {org} group above, so one frontend view
+// calls the same endpoints under either prefix (frontend/src/lib/tenantHost.js,
+// publicApiBase). Reserved slugs (Organization::RESERVED_SLUGS) are a second,
+// independent guard: the platform's own hostnames cannot be registered.
+Route::prefix('public-site')->middleware('public.tenant')->group(function () {
+    Route::get('/', [BookingController::class, 'organization']);
+    Route::get('site', SiteController::class);
+    Route::get('services', [BookingController::class, 'services']);
+    // A distinct action from the path-scoped one: this URI has no {org}
+    // parameter, and Laravel passes route parameters positionally.
+    Route::get('services/{service}/staff', [BookingController::class, 'staffForServiceOnHost']);
+    Route::get('slots', [BookingController::class, 'slots']);
+    Route::post('book', [BookingController::class, 'book']);
 });
 
 // Public marketing-site contact form. No auth, not tenant-scoped. Rate-limited

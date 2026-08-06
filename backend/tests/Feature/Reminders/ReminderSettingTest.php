@@ -7,6 +7,7 @@ use App\Models\ReminderSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -52,7 +53,7 @@ class ReminderSettingTest extends TestCase
     public function test_appointment_has_reminder_sent_at_column(): void
     {
         $this->assertTrue(
-            \Illuminate\Support\Facades\Schema::hasColumn('appointments', 'reminder_sent_at')
+            Schema::hasColumn('appointments', 'reminder_sent_at')
         );
     }
 

@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Enums\UserRole;
 use App\Models\Appointment;
 use App\Models\Branch;
-use App\Models\BusinessHour;
 use App\Models\Customer;
 use App\Models\Domain;
 use App\Models\Gallery;
@@ -27,6 +26,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Demo data (DemoSalonSeeder: a single, hand-authored "demo-salon"
+        // org built on RegisterOrganization, for screenshots/sales demos/
+        // manual QA) is opt-in and deliberately NOT invoked from here. Run
+        // it explicitly with:
+        //   php artisan db:seed --class=DemoSalonSeeder
         Organization::factory()->count(3)->create()->each(function (Organization $organization) {
             $this->seedTenant($organization);
         });
@@ -39,26 +43,16 @@ class DatabaseSeeder extends Seeder
 
         // Primary domain.
         Domain::factory()->for($organization)->create([
-            'domain' => $organization->slug . '.salonhub.com',
+            'domain' => $organization->slug.'.salonhub.com',
             'is_primary' => true,
             'is_verified' => true,
             'ssl_enabled' => true,
         ]);
 
-        // Branch.
+        // Branch. Opening hours come from the factory default
+        // (opening_hours_json) — the same column SlotGenerator and the
+        // public site both read.
         $branch = Branch::factory()->for($organization)->create();
-
-        // Business hours: weekday 0..6 with one or two closed days.
-        $closedDays = fake()->randomElements([0, 1, 2, 3, 4, 5, 6], fake()->numberBetween(1, 2));
-        foreach (range(0, 6) as $weekday) {
-            $isClosed = in_array($weekday, $closedDays, true);
-            BusinessHour::factory()->for($branch)->create([
-                'weekday' => $weekday,
-                'open_time' => $isClosed ? null : '09:00:00',
-                'close_time' => $isClosed ? null : '18:00:00',
-                'is_closed' => $isClosed,
-            ]);
-        }
 
         // Owner + manager users.
         User::factory()->for($organization)->create([
