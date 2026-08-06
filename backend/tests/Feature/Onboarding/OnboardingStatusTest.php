@@ -45,6 +45,11 @@ class OnboardingStatusTest extends TestCase
         $response = $this->withToken($token)->getJson('/api/auth/me');
 
         $response->assertOk();
+        // assertJsonPath(..., null) alone can't tell "key present and null" apart from
+        // "key absent" — Arr::get resolves a missing path to null too, so it would pass
+        // even if OrganizationResource never exposed this field. The structural assertion
+        // is what actually pins the key's presence; keep both, they guard different things.
         $response->assertJsonPath('organization.onboarding_completed_at', null);
+        $response->assertJsonStructure(['organization' => ['onboarding_completed_at']]);
     }
 }
