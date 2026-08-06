@@ -44,10 +44,12 @@ use Symfony\Component\HttpFoundation\Response;
  *    booking site and left its dashboard, API, reports and payment settings
  *    fully operational. Now suspension means the same thing on both sides.
  *
- * Scope of the refusal: the `tenant` alias is applied only to the
- * authenticated group in routes/api.php. Public routes use `public.tenant`,
- * which already 404s, and the customer-account group has no tenant
- * middleware at all — neither is affected.
+ * Scope of the refusal: the `tenant` alias is applied to the authenticated
+ * group in routes/api.php, plus the two session-shaped routes outside it
+ * (`auth/me` and `/user`). Public routes use `public.tenant`, which already
+ * 404s, and the customer-account group has no tenant middleware at all —
+ * neither is affected. `auth/logout` is deliberately left outside: a
+ * suspended member must still be able to sign out.
  */
 class ResolveTenant
 {
@@ -61,7 +63,7 @@ class ResolveTenant
             abort_unless(
                 $organization && $organization->status === OrganizationStatus::ACTIVE,
                 403,
-                'Your organization is not active.'
+                self::refusalMessage($organization?->status)
             );
 
             $this->tenant->set($organization);
@@ -72,6 +74,28 @@ class ResolveTenant
         $this->tagSentryScope();
 
         return $next($request);
+    }
+
+    /**
+     * Why the request was refused, in words the SPA can show the person
+     * holding the token.
+     *
+     * The refusal is the only thing a suspended owner will see, so a single
+     * generic string would leave them staring at "something went wrong" with
+     * no idea their salon was suspended. These are deliberately not specific
+     * about *why* the account is in that state — that is a support
+     * conversation, not an API response — but they do name the state, which
+     * is the difference between an actionable message and a dead end.
+     */
+    private static function refusalMessage(?OrganizationStatus $status): string
+    {
+        return match ($status) {
+            OrganizationStatus::SUSPENDED => 'This salon account has been suspended. Please contact support.',
+            OrganizationStatus::INACTIVE => 'This salon account is inactive. Please contact support.',
+            // No organization at all: the row was removed out from under a
+            // still-valid token, or the account was never linked to one.
+            default => 'This account is not linked to a salon. Please contact support.',
+        };
     }
 
     /**

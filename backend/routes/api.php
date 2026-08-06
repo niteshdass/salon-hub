@@ -35,7 +35,7 @@ Route::get('/hello', [HelloController::class, 'index']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware('auth:sanctum');
+})->middleware(['auth:sanctum', 'tenant']);
 
 Route::prefix('auth')->group(function () {
     // Creating an organization is expensive (org + owner + domain + branch +
@@ -62,10 +62,28 @@ Route::prefix('auth')->group(function () {
         ->name('verification.verify');
 
     Route::middleware('auth:sanctum')->group(function () {
+        // Deliberately OUTSIDE `tenant`. Signing out must keep working for a
+        // member whose organization was suspended or removed — otherwise the
+        // only way to drop a dead session is to clear browser storage. It
+        // touches the current access token and nothing tenant-scoped.
         Route::post('logout', [AuthController::class, 'logout']);
-        Route::get('me', [AuthController::class, 'me']);
+
+        // Also outside `tenant`: it re-sends a verification link to the
+        // address on the user row, reads nothing tenant-scoped, and is
+        // already throttled.
         Route::post('email/resend', [EmailVerificationController::class, 'resend'])
             ->middleware('throttle:6,1');
+
+        // `tenant` here is the SESSION-layer status check, and it is the
+        // reason this route is declared separately. This endpoint is what the
+        // SPA calls to turn a stored token into a session. Without the
+        // middleware it answered 200 with the full user and organization for
+        // a suspended or inactive salon, so the owner was admitted into the
+        // dashboard shell and then met a 403 on every panel inside it, with
+        // no statement anywhere of what was actually wrong. Enforcing the
+        // same rule login enforces at the door means a dead session is
+        // refused once, with a reason the SPA can show.
+        Route::get('me', [AuthController::class, 'me'])->middleware('tenant');
     });
 });
 

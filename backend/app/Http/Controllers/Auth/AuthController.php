@@ -101,10 +101,25 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         $user = $request->user();
+        $organization = $user->organization;
+
+        // The `tenant` middleware on this route refuses an org-less user
+        // before the controller runs, so this is a second line, not the
+        // first. It stays because the previous round dismissed it as
+        // unreachable on the strength of that middleware — and at the time
+        // the middleware was not on this route at all. A guard whose
+        // justification is "some other layer covers it" is exactly the
+        // assumption that was wrong once here already; 500-ing on a null is
+        // never the better failure either way.
+        if (! $organization) {
+            return response()->json([
+                'message' => 'This account is not linked to a salon. Please contact support.',
+            ], 403);
+        }
 
         return response()->json([
             'user' => new UserResource($user),
-            'organization' => new OrganizationResource($user->organization->load('domains')),
+            'organization' => new OrganizationResource($organization->load('domains')),
         ]);
     }
 
