@@ -15,12 +15,16 @@ import LegalPage from '@/components/legal/LegalPage.vue'
 
     <h2>2. Cancelling a booking</h2>
     <p>
-      A customer can cancel or reschedule a changeable booking from the manage-booking
-      link sent with their confirmation, or from their SalonHub customer account. Whether
-      a cancellation entitles the customer to a refund of their deposit is set by the
-      individual salon's own cancellation policy. SalonHub does not collect, display or
-      enforce a cancellation policy on a salon's behalf, so ask the salon for theirs
-      before you pay a deposit — deposit terms vary with the salon's own business.
+      A customer can cancel or reschedule a changeable booking from their SalonHub
+      customer account. When a deposit is paid online, the payment gateway also returns
+      the customer to a self-service manage page for that one booking, at a link they can
+      keep. Booking confirmation emails do not carry a manage link — they ask the customer
+      to reply to the email or call the salon — so a customer with neither an account nor
+      a deposit link should contact the salon directly. Whether a cancellation entitles
+      the customer to a refund of their deposit is set by the individual salon's own
+      cancellation policy. SalonHub does not collect, display or enforce a cancellation
+      policy on a salon's behalf, so ask the salon for theirs before you pay a deposit —
+      deposit terms vary with the salon's own business.
     </p>
 
     <h2>3. How refunds are issued</h2>

@@ -24,7 +24,7 @@ const features = [
   },
   {
     title: 'Reviews that build trust',
-    body: 'Collect post-visit reviews automatically and show them off.',
+    body: 'Customers review their visit from their booking; published ones show on your site.',
     paths: ['M12 3.6l2.55 5.17 5.7.83-4.13 4.02.98 5.68L12 16.6l-5.08 2.7.98-5.68L3.75 9.6l5.7-.83z'],
   },
   {

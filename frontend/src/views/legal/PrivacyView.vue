@@ -28,7 +28,11 @@ import LegalPage from '@/components/legal/LegalPage.vue'
     <h2>3. Who we share it with</h2>
     <ul>
       <li>The salon that owns the record — it is their customer data, and we process it on their behalf.</li>
-      <li>Our email delivery provider, to send confirmations and receipts.</li>
+      <li>
+        Our email delivery provider, to send booking confirmations, reschedules and
+        cancellations, customer sign-in codes, and account email such as password resets
+        and address verification.
+      </li>
       <li>Our SMS/WhatsApp provider, only when a salon has reminders enabled for that channel.</li>
       <li>The relevant payment gateway, only when a deposit is taken for a booking.</li>
       <li>
