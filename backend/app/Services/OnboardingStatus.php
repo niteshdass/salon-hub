@@ -20,9 +20,6 @@ use App\Tenancy\CurrentTenant;
  */
 class OnboardingStatus
 {
-    /** The steps that must be done before a salon can take a booking. */
-    public const REQUIRED_STEPS = ['branch', 'services', 'staff'];
-
     /** Every step, in the order the wizard asks them. */
     public const STEPS = ['branch', 'services', 'staff', 'look'];
 

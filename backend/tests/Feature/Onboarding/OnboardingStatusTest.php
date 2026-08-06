@@ -156,9 +156,26 @@ class OnboardingStatusTest extends TestCase
 
         $stamped = $org->fresh()->onboarding_completed_at;
 
+        // Both calls would otherwise land inside the same one-second-resolution
+        // timestamp column, making a re-stamping implementation indistinguishable
+        // from a correct one. Advance the clock so a re-stamp is visible.
+        $this->travel(2)->seconds();
+
         $second = $this->withToken($token)->postJson('/api/onboarding/complete');
         $second->assertOk();
 
         $this->assertTrue($stamped->equalTo($org->fresh()->onboarding_completed_at));
+    }
+
+    public function test_the_look_step_is_done_with_only_a_logo_and_no_about(): void
+    {
+        [$org, , $token] = $this->makeOrgWithOwner('alpha');
+        $org->logo = 'organizations/1/logo.png';
+        $org->save();
+
+        $response = $this->withToken($token)->getJson('/api/onboarding/status');
+
+        $response->assertOk();
+        $response->assertJsonPath('data.steps.look', true);
     }
 }
