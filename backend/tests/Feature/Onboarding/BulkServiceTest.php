@@ -144,6 +144,33 @@ class BulkServiceTest extends TestCase
         $this->assertDatabaseCount('service_categories', 0);
     }
 
+    /**
+     * StepServices.vue displays a validation error's message verbatim to a
+     * non-technical salon owner. Laravel's default message for a rule that
+     * has no custom override renders the raw attribute path, e.g. "The
+     * rows.0.price field must be at least 0." — meaningless, and a raw field
+     * key, to that owner. `attributes()` on the request must map every
+     * `rows.*` field to a human noun so every rule (not just the two with
+     * custom messages()) reads in plain language.
+     */
+    public function test_a_negative_price_is_explained_in_plain_language_not_as_a_field_path(): void
+    {
+        [, $token] = $this->makeOrgWithOwner('alpha');
+
+        $response = $this->withToken($token)->postJson('/api/services/bulk', [
+            'category' => 'Hair salon',
+            'rows' => [
+                ['name' => 'Hair cut', 'duration' => 30, 'price' => -5],
+            ],
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('rows.0.price');
+
+        $message = $response->json('errors')['rows.0.price'][0];
+        $this->assertStringNotContainsString('rows.', $message);
+    }
+
     public function test_it_rejects_an_empty_row_list(): void
     {
         [, $token] = $this->makeOrgWithOwner('alpha');

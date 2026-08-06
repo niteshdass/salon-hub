@@ -45,4 +45,22 @@ class BulkStoreServiceRequest extends FormRequest
             'rows.min' => 'Pick at least one service.',
         ];
     }
+
+    /**
+     * Every rule on `rows.*` that falls back to Laravel's default message
+     * (i.e. everything but the two custom strings above) otherwise renders
+     * the raw attribute path verbatim, e.g. "The rows.1.price field must be
+     * at least 0." Laravel collapses numeric indices to `*` when resolving
+     * these, the same mechanism the custom messages above rely on.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'rows.*.name' => 'service name',
+            'rows.*.duration' => 'duration',
+            'rows.*.price' => 'price',
+        ];
+    }
 }

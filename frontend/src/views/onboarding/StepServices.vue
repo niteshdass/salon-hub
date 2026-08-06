@@ -38,20 +38,60 @@ function chooseType(type) {
     ticked: true,
   }))
   rowErrors.value = {}
+  error.value = ''
+}
+
+// "Change" backs out of the chosen menu entirely — any error from a
+// previous save attempt describes rows that no longer exist, so it must
+// not linger onto whatever the owner picks next.
+function changeType() {
+  chosenType.value = null
+  rowErrors.value = {}
+  error.value = ''
 }
 
 function addOwnRow() {
   rows.value.push({ name: '', duration: 30, price: '', ticked: true })
 }
 
+// A price the server will accept: present, a finite number, never negative
+// (server rule is `numeric|min:0`). Checked client-side so a bad value is
+// caught before the round trip, not after.
+function isValidPrice(price) {
+  const n = Number(price)
+  return String(price).trim() !== '' && Number.isFinite(n) && n >= 0
+}
+
+// A duration the server will accept: a whole number of minutes, at least
+// one (server rule is `integer|min:1`). Blanking the field leaves an empty
+// string; Vue's `.number` modifier can't parse that so it stays a string,
+// and `Number('')` is 0 — which must read as invalid, not "free".
+function isValidDuration(duration) {
+  const n = Number(duration)
+  return Number.isInteger(n) && n >= 1
+}
+
 const ticked = computed(() => rows.value.filter((row) => row.ticked))
 const canSave = computed(
-  () => ticked.value.length > 0 && ticked.value.every((row) => row.name.trim() && String(row.price).trim() !== ''),
+  () =>
+    ticked.value.length > 0 &&
+    ticked.value.every((row) => row.name.trim() && isValidDuration(row.duration) && isValidPrice(row.price)),
 )
 
 const blockingReason = computed(() => {
-  if (!chosenType.value) return ''
+  if (!chosenType.value) return 'Pick your salon type to continue.'
   if (ticked.value.length === 0) return 'Tick at least one service.'
+  if (ticked.value.some((row) => !isValidDuration(row.duration))) {
+    return 'Set a duration of at least 1 minute for every service you ticked.'
+  }
+  if (ticked.value.some((row) => String(row.price).trim() === '')) {
+    return 'Add a price for every service you ticked.'
+  }
+  if (ticked.value.some((row) => !isValidPrice(row.price))) {
+    return 'Enter a price of 0 or more for every service you ticked.'
+  }
+  // Only a blank service name can still fail canSave at this point — the
+  // catch-all keeps Continue from ever being disabled with nothing said.
   if (!canSave.value) return 'Add a price for every service you ticked.'
   return ''
 })
@@ -61,24 +101,39 @@ async function save() {
   saving.value = true
   error.value = ''
   rowErrors.value = {}
+  // Build the posted list and, in the same pass, a map from each posted
+  // row's position back to its position in the full `rows` array (the one
+  // the template renders and `rowErrors` is keyed against). Ticking a row
+  // out shifts every later row's position in the posted array but not in
+  // `rows`, so the two only agree by coincidence — never assume they match.
+  const postedRowIndexes = []
+  const postedRows = []
+  rows.value.forEach((row, index) => {
+    if (!row.ticked) return
+    postedRowIndexes.push(index)
+    postedRows.push({
+      name: row.name.trim(),
+      duration: Number(row.duration),
+      price: Number(row.price),
+    })
+  })
   try {
     await api.post('/services/bulk', {
       category: chosenType.value.label,
-      rows: ticked.value.map((row) => ({
-        name: row.name.trim(),
-        duration: Number(row.duration),
-        price: Number(row.price),
-      })),
+      rows: postedRows,
     })
     emit('done')
   } catch (err) {
     const parsed = parseApiError(err)
     error.value = parsed.message
-    // Errors arrive keyed `rows.2.price`; index them by position so the
-    // offending line can be highlighted rather than the whole list.
+    // Errors arrive keyed `rows.<postedIndex>.<field>`, e.g. `rows.1.price`.
+    // Translate the posted index back through postedRowIndexes to the row's
+    // real position before highlighting it.
     for (const [key, messages] of Object.entries(parsed.errors ?? {})) {
       const match = key.match(/^rows\.(\d+)\./)
-      if (match) rowErrors.value[Number(match[1])] = messages[0]
+      if (!match) continue
+      const rowIndex = postedRowIndexes[Number(match[1])]
+      if (rowIndex !== undefined) rowErrors.value[rowIndex] = messages[0]
     }
   } finally {
     saving.value = false
@@ -110,7 +165,7 @@ async function save() {
     <div v-else class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-center justify-between">
         <h2 class="font-semibold text-slate-900">{{ chosenType.label }}</h2>
-        <button type="button" class="text-sm font-medium text-indigo-600" @click="chosenType = null">Change</button>
+        <button type="button" class="text-sm font-medium text-indigo-600" @click="changeType">Change</button>
       </div>
 
       <ul class="mt-4 space-y-3">
