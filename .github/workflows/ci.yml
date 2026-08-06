@@ -8,6 +8,13 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+
+    # Read by DatabaseDriverTest, which fails the job if the suite connected
+    # to anything else. phpunit.xml pins DB_CONNECTION=sqlite; this asserts it
+    # took, rather than assuming it did.
+    env:
+      EXPECT_DB_DRIVER: sqlite
+
     steps:
       - uses: actions/checkout@v4
 
@@ -82,6 +89,12 @@ jobs:
       DB_DATABASE: salonhub_test
       DB_USERNAME: root
       DB_PASSWORD: root
+      # The other half of this job's premise. "Assert MySQL enforces foreign
+      # keys" below checks the SERVER; DatabaseDriverTest checks that the
+      # SUITE reached it. Without that, a force="true" added to phpunit.xml's
+      # DB_CONNECTION would send this job back to SQLite while every step
+      # still passed.
+      EXPECT_DB_DRIVER: mysql
 
     steps:
       - uses: actions/checkout@v4
