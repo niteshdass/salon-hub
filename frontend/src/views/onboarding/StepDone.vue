@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { parseApiError } from '@/lib/errors'
 import { bookingUrl, downloadPoster } from '@/lib/qrPoster'
 
 const emit = defineEmits(['finish', 'resume', 'leave'])
@@ -97,11 +98,21 @@ async function downloadPosterClicked() {
   }
 }
 
+// Every other action on this screen owns its failure; this one is the
+// primary exit and must too. A rejected complete() used to flick the label
+// back to "Go to dashboard" and say nothing, so the last button of the
+// wizard looked broken. Same message-not-retry-system shape as
+// SetupChecklistCard.dismiss(): the button stays clickable.
+const finishError = ref('')
+
 async function finish() {
   finishing.value = true
+  finishError.value = ''
   try {
     await onboarding.complete()
     emit('finish')
+  } catch (err) {
+    finishError.value = parseApiError(err, "Couldn't save that — please try again.").message
   } finally {
     finishing.value = false
   }
@@ -223,6 +234,8 @@ function leaveWithoutCompleting() {
           Try booking yourself &rarr;
         </a>
       </div>
+
+      <p v-if="finishError" class="mt-4 text-sm text-rose-600">{{ finishError }}</p>
 
       <button
         type="button"

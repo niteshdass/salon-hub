@@ -219,4 +219,26 @@ describe('StepDone', () => {
     expect(api.post).toHaveBeenCalledWith('/onboarding/complete')
     expect(wrapper.emitted('finish')).toBeTruthy()
   })
+
+  it('says so when finishing fails, instead of leaving the wizard\'s last button looking broken', async () => {
+    vi.mocked(api.get).mockResolvedValue(
+      statusWith({ branch: true, services: true, staff: true, look: true }),
+    )
+    vi.mocked(api.post).mockRejectedValue(new Error('network down'))
+
+    const wrapper = mountStepDone()
+    await flushPromises()
+
+    const goButton = wrapper.findAll('button').find((b) => b.text().includes('Go to dashboard'))
+    await goButton.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain("Couldn't save that")
+    // The owner must not be told they are on their way when they are not:
+    // the host's `finish` handler is what leaves the wizard.
+    expect(wrapper.emitted('finish')).toBeUndefined()
+    // And the button has to hand control back rather than staying stuck on
+    // its in-flight label.
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Go to dashboard'))).toBe(true)
+  })
 })
