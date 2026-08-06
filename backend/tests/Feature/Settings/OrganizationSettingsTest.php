@@ -167,6 +167,26 @@ class OrganizationSettingsTest extends TestCase
             ->assertJsonValidationErrors(['name', 'email', 'currency', 'theme_color', 'website']);
     }
 
+    public function test_an_over_length_about_gets_a_plain_language_message_with_no_raw_field_key(): void
+    {
+        $s = $this->scaffold();
+
+        $response = $this->actingAsRole($s, 'owner')->putJson('/api/settings/organization', [
+            'name' => 'Alpha',
+            'about' => str_repeat('a', 5001),
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('about');
+
+        $message = $response->json('errors.about.0');
+        $this->assertSame('Your salon story must be 5000 characters or fewer.', $message);
+        // Laravel's default message for this rule renders the raw attribute
+        // key verbatim ("The about field must not be greater than 5000
+        // characters."), which this project forbids without exception.
+        $this->assertStringNotContainsString('about field', $message);
+    }
+
     public function test_the_owner_uploads_and_replaces_a_logo(): void
     {
         Storage::fake('public');

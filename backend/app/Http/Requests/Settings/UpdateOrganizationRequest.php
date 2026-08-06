@@ -43,6 +43,7 @@ class UpdateOrganizationRequest extends FormRequest
     {
         return [
             'theme_color.regex' => 'The theme color must be a hex value like #6366f1.',
+            'about.max' => 'Your salon story must be 5000 characters or fewer.',
         ];
     }
 }

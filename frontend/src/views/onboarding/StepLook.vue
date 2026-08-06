@@ -57,7 +57,18 @@ async function save() {
       about: about.value.trim() || null,
       theme_color: themeColor.value,
     })
-    emit('done')
+    // OnboardingStatus derives this step as done from
+    // filled(about) || filled(logo) — a colour-only save satisfies
+    // neither, so emitting 'done' here would tell the owner the step is
+    // finished only for the next status fetch to quietly disagree. Advance
+    // either way (this step is optional and a colour-only save is a
+    // perfectly reasonable thing to do) but only mark it done when the
+    // server would actually agree it is.
+    if (about.value.trim() || logoUrl.value) {
+      emit('done')
+    } else {
+      emit('skip')
+    }
   } catch (err) {
     error.value = parseApiError(err).message
   } finally {
@@ -87,6 +98,7 @@ async function save() {
           <textarea
             v-model="about"
             rows="4"
+            maxlength="5000"
             placeholder="We have cut hair on this street since 1998."
             class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
           />

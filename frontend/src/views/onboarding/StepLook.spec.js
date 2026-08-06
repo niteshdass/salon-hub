@@ -84,7 +84,7 @@ describe('StepLook', () => {
     expect(preview.attributes('src')).toBe('https://cdn.test/organizations/9/logo.png')
   })
 
-  it('saves the theme colour the owner picked', async () => {
+  it('saves the theme colour the owner picked, but advances without marking the step done since a colour alone does not satisfy the server\'s "look" rule', async () => {
     vi.mocked(api.put).mockResolvedValue({ data: { data: {} } })
 
     const wrapper = mountStepLook()
@@ -101,7 +101,53 @@ describe('StepLook', () => {
     const [url, body] = vi.mocked(api.put).mock.calls[0]
     expect(url).toBe('/settings/organization')
     expect(body.theme_color).toBe('#be123c')
+
+    // OnboardingStatus derives 'look' as filled(about) || filled(logo) — a
+    // colour-only save satisfies neither, so the wizard must advance the
+    // owner (this step is optional) without telling the store the step is
+    // done, or the next status fetch would quietly bounce them back here.
+    expect(wrapper.emitted('skip')).toHaveLength(1)
+    expect(wrapper.emitted('done')).toBeUndefined()
+  })
+
+  it('marks the step done when the owner also writes an about line', async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { data: {} } })
+
+    const wrapper = mountStepLook()
+    await flushPromises()
+
+    await wrapper.find('textarea').setValue('We have cut hair on this street since 1998.')
+    await wrapper.find('button[type="button"].w-full').trigger('click')
+    await flushPromises()
+
+    const [, body] = vi.mocked(api.put).mock.calls[0]
+    expect(body.about).toBe('We have cut hair on this street since 1998.')
     expect(wrapper.emitted('done')).toHaveLength(1)
+    expect(wrapper.emitted('skip')).toBeUndefined()
+  })
+
+  it('marks the step done on a colour-only save when a logo was already uploaded', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { data: { logo_url: 'https://cdn.test/organizations/9/logo.png' } },
+    })
+    vi.mocked(api.put).mockResolvedValue({ data: { data: {} } })
+
+    const wrapper = mountStepLook()
+    await flushPromises()
+
+    const fileInput = wrapper.find('input[type="file"]')
+    const file = new File(['logo-bytes'], 'logo.png', { type: 'image/png' })
+    Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
+    await fileInput.trigger('change')
+    await flushPromises()
+
+    // No about text is added — the logo alone must be enough, matching
+    // the server's filled(about) || filled(logo) rule.
+    await wrapper.find('button[type="button"].w-full').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('done')).toHaveLength(1)
+    expect(wrapper.emitted('skip')).toBeUndefined()
   })
 
   it('saves the default swatch colour when the initial fetch never resolves a value and the owner changes nothing', async () => {
@@ -128,8 +174,11 @@ describe('StepLook', () => {
     await wrapper.find('button').trigger('click') // the stubbed "Skip for now" button
     await flushPromises()
 
+    // api.post is only reachable from uploadLogo, which this path never
+    // touches, so an assertion on it here would pass regardless of whether
+    // the skip wiring is correct — it belongs to the upload test, not this
+    // one. api.put is the one call skip could plausibly trigger by mistake.
     expect(api.put).not.toHaveBeenCalled()
-    expect(api.post).not.toHaveBeenCalled()
     expect(wrapper.emitted('skip')).toHaveLength(1)
     expect(wrapper.emitted('done')).toBeUndefined()
   })
