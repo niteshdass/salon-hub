@@ -13,6 +13,8 @@ const push = vi.fn()
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
 import api from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
+import { onboardingDeferred } from '@/lib/onboardingDeferral'
 import OnboardingView from './OnboardingView.vue'
 import StepDone from './StepDone.vue'
 
@@ -46,6 +48,7 @@ const mountView = (stubs = {}) =>
 describe('OnboardingView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    sessionStorage.clear()
     vi.mocked(api.get).mockReset()
     push.mockReset()
   })
@@ -82,6 +85,30 @@ describe('OnboardingView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-test="done"]').exists()).toBe(true)
+  })
+
+  it('records the deferral when leaving, so the guard stops reversing the navigation it just made', async () => {
+    // The other half of this lives in router/onboardingExit.spec.js, which
+    // drives the real router. This one pins the component's side of the
+    // contract: leaving writes the session flag the guard reads.
+    useAuthStore().setSession({
+      token: 'test-token',
+      user: { id: 1, name: 'Anwar', role: 'owner' },
+      organization: { id: 9, name: 'Beauty Queen', onboarding_completed_at: null },
+    })
+    vi.mocked(api.get).mockResolvedValue(
+      statusWith({ branch: false, services: false, staff: false, look: false }, 'branch'),
+    )
+
+    const wrapper = mountView({ StepBranch: SkippableStub })
+    await flushPromises()
+    expect(onboardingDeferred(9)).toBe(false)
+
+    await wrapper.find('[data-test="skip-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(onboardingDeferred(9)).toBe(true)
+    expect(push).toHaveBeenCalledWith('/dashboard')
   })
 
   it('skipping a required step (branch) leaves for the dashboard instead of advancing to the next screen', async () => {

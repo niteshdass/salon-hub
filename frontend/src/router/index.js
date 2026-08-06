@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useCustomerAuthStore } from '@/stores/customerAuth'
 import { resolveSlugFromHost } from '@/lib/tenantHost'
 import { parseApiError } from '@/lib/errors'
+import { onboardingDeferred } from '@/lib/onboardingDeferral'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
@@ -28,6 +29,15 @@ export function needsOnboarding(authStore, to) {
   // The organization is not loaded yet on a cold start; the guard fetches
   // it just above, and a null here means "don't know", not "not onboarded".
   if (!authStore.organization) return false
+
+  // Every non-completing exit from the wizard ("Skip for now", "Back" off the
+  // first screen, "I'll do this later") saves nothing by design, so there is
+  // nothing on the organization for this rule to read and it would divert the
+  // owner straight back into the wizard they just left — which is what made
+  // all three of those buttons do nothing at all. Divert once per session,
+  // not once per navigation: they get their dashboard now, and the wizard
+  // again next time they arrive fresh.
+  if (onboardingDeferred(authStore.organization.id)) return false
 
   return !authStore.organization.onboarding_completed_at
 }

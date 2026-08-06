@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useOnboardingStore, STEPS, REQUIRED_STEPS } from '@/stores/onboarding'
+import { deferOnboarding } from '@/lib/onboardingDeferral'
 import StepBranch from './StepBranch.vue'
 import StepServices from './StepServices.vue'
 import StepStaff from './StepStaff.vue'
@@ -9,6 +11,7 @@ import StepLook from './StepLook.vue'
 import StepDone from './StepDone.vue'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const onboarding = useOnboardingStore()
 
 // 0..3 map to STEPS; 4 is the success screen.
@@ -64,8 +67,14 @@ function back() {
 }
 
 // Leaving before the end is allowed by design — the dashboard card picks
-// up whatever is unfinished.
+// up whatever is unfinished. Nothing here stamps completion: the owner has
+// finished nothing and must still be nudged. That is exactly why the
+// deferral has to be recorded first — the router guard reads
+// `onboarding_completed_at`, finds it still null, and would send them
+// straight back into the wizard, which vue-router then aborts as a
+// duplicated navigation, so the button appears to do nothing at all.
 function leave() {
+  deferOnboarding(authStore.organization?.id)
   router.push('/dashboard')
 }
 </script>
