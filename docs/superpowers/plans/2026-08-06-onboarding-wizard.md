@@ -125,6 +125,11 @@ class OnboardingStatusTest extends TestCase
         $response = $this->withToken($token)->getJson('/api/auth/me');
 
         $response->assertOk();
+        // Both assertions, deliberately. assertJsonPath alone cannot fail
+        // here: a missing key and a key holding null both read as null, so
+        // it would pass against a resource that never exposed the field.
+        // The structural assertion is what actually guards that exposure.
+        $response->assertJsonStructure(['organization' => ['onboarding_completed_at']]);
         $response->assertJsonPath('organization.onboarding_completed_at', null);
     }
 }
@@ -133,7 +138,7 @@ class OnboardingStatusTest extends TestCase
 - [ ] **Step 2: Run it and watch it fail**
 
 Run: `php artisan test --filter=test_me_reports_a_fresh_organization_as_not_onboarded`
-Expected: FAIL — the key `organization.onboarding_completed_at` is missing from the payload.
+Expected: FAIL on the structural assertion — `organization.onboarding_completed_at` is missing from the payload.
 
 - [ ] **Step 3: Add the column**
 
@@ -309,6 +314,19 @@ Append to `OnboardingStatusTest.php` (inside the class):
         $this->withToken($token)->postJson('/api/onboarding/complete')->assertForbidden();
     }
 
+    public function test_the_look_step_is_satisfied_by_a_logo_alone(): void
+    {
+        [$org, , $token] = $this->makeOrgWithOwner('alpha');
+        // No settings row at all. `look` is an OR of two columns, and without
+        // this case the logo half of it is never exercised.
+        $org->logo = 'logos/alpha.png';
+        $org->save();
+
+        $this->withToken($token)
+            ->getJson('/api/onboarding/status')
+            ->assertJsonPath('data.steps.look', true);
+    }
+
     public function test_completing_is_idempotent_and_keeps_the_first_timestamp(): void
     {
         [$org, , $token] = $this->makeOrgWithOwner('alpha');
@@ -318,6 +336,12 @@ Append to `OnboardingStatusTest.php` (inside the class):
         $this->assertNotNull($first->json('data.completed_at'));
 
         $stamped = $org->fresh()->onboarding_completed_at;
+
+        // Advance the clock. The column has one-second resolution, so without
+        // this both calls land inside the same second and a controller that
+        // re-stamped on EVERY call would be byte-identical to a correct one —
+        // the test would pass against the bug it exists to catch.
+        $this->travel(2)->seconds();
 
         $second = $this->withToken($token)->postJson('/api/onboarding/complete');
         $second->assertOk();
@@ -366,10 +390,11 @@ use App\Tenancy\CurrentTenant;
  */
 class OnboardingStatus
 {
-    /** The steps that must be done before a salon can take a booking. */
-    public const REQUIRED_STEPS = ['branch', 'services', 'staff'];
-
-    /** Every step, in the order the wizard asks them. */
+    /**
+     * Every step, in the order the wizard asks them. The frontend store keeps
+     * its own list of which of these block a booking; the backend only reports
+     * what is done and does not need a second copy of that rule.
+     */
     public const STEPS = ['branch', 'services', 'staff', 'look'];
 
     public function __construct(protected CurrentTenant $tenant) {}
@@ -499,7 +524,7 @@ and inside the existing `Route::middleware(['auth:sanctum', 'tenant'])->group(..
 - [ ] **Step 6: Run the tests and watch them pass**
 
 Run: `php artisan test --filter=OnboardingStatusTest`
-Expected: PASS, all six tests.
+Expected: PASS, all seven tests.
 
 - [ ] **Step 7: Commit**
 
@@ -852,6 +877,49 @@ class BulkServiceTest extends TestCase
         $this->assertDatabaseCount('service_categories', 0);
     }
 
+    /**
+     * The test above proves validation runs before the transaction is ever
+     * entered — it does not prove the transaction rolls anything back, since
+     * FormRequest rejects that payload before bulkStore() runs at all. This
+     * test forces the failure *inside* the transaction body instead: row one
+     * is valid and would be written first, row two carries a price that
+     * clears `numeric|min:0` validation but exceeds what services.price
+     * (decimal(10,2), 8 integer digits) can store, so it throws at the
+     * database layer only after row one — and the category — already exist
+     * in the (uncommitted) transaction.
+     *
+     * SQLite has no precision/scale enforcement on a NUMERIC-affinity
+     * column — the same insert silently succeeds there — so this failure is
+     * only observable on a real MySQL connection, which is why this repo
+     * runs a dedicated backend-mysql CI job alongside the default SQLite one
+     * (see DatabaseDriverTest). Skipped rather than faked off MySQL.
+     */
+    public function test_a_row_that_overflows_the_price_column_rolls_back_the_whole_menu(): void
+    {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            $this->markTestSkipped(
+                'services.price is decimal(10,2); only MySQL enforces that range '
+                .'at the database layer, so only there does this row fail after '
+                .'row one is already written inside the transaction. SQLite has '
+                .'no such enforcement — see backend-mysql in ci.yml.'
+            );
+        }
+
+        [$org, $token] = $this->makeOrgWithOwner('alpha');
+
+        $response = $this->withToken($token)->postJson('/api/services/bulk', [
+            'category' => 'Hair salon',
+            'rows' => [
+                ['name' => 'Hair cut', 'duration' => 30, 'price' => 12.5],
+                ['name' => 'Overflow', 'duration' => 30, 'price' => 100000000],
+            ],
+        ]);
+
+        $response->assertServerError();
+        $this->assertDatabaseCount('services', 0);
+        $this->assertDatabaseCount('service_categories', 0);
+    }
+
     public function test_it_rejects_an_empty_row_list(): void
     {
         [, $token] = $this->makeOrgWithOwner('alpha');
@@ -882,27 +950,73 @@ class BulkServiceTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * Both organizations post under the identical category label
+     * ("Hair salon") — the exact condition that risks firstOrCreate()
+     * matching across tenants if the lookup ever loses its organization_id
+     * clause. Eloquent queries on ServiceCategory/Service are avoided here
+     * because BelongsToOrganization's global scope would auto-filter them
+     * to whichever tenant the *last* request bound, which would silently
+     * mask a cross-tenant leak instead of proving its absence; the raw
+     * assertDatabase* helpers and DB facade bypass that scope entirely.
+     */
     public function test_one_salons_menu_never_lands_in_another(): void
     {
         [$orgA, $tokenA] = $this->makeOrgWithOwner('alpha');
-        [$orgB] = $this->makeOrgWithOwner('bravo');
+        [$orgB, $tokenB] = $this->makeOrgWithOwner('bravo');
 
         $this->withToken($tokenA)->postJson('/api/services/bulk', [
             'category' => 'Hair salon',
             'rows' => [['name' => 'Trim', 'duration' => 20, 'price' => 5]],
         ])->assertCreated();
 
-        $this->assertDatabaseCount('services', 1);
-        $this->assertDatabaseHas('services', ['organization_id' => $orgA->id, 'name' => 'Trim']);
-        $this->assertDatabaseMissing('services', ['organization_id' => $orgB->id]);
+        // Sanctum's RequestGuard memoizes the resolved user within a single
+        // process; several requests sharing one app instance (as here) need
+        // the guard reset before the second token or it re-authenticates as
+        // org A. See AppointmentCrudTest::test_index_date_filter_and_tenant_isolation
+        // for the same idiom.
+        $this->app['auth']->forgetGuards();
+        $this->withToken($tokenB)->postJson('/api/services/bulk', [
+            'category' => 'Hair salon',
+            'rows' => [['name' => 'Blow Dry', 'duration' => 25, 'price' => 8]],
+        ])->assertCreated();
+
+        // firstOrCreate() must not have reused org A's category for org B.
+        $this->assertDatabaseCount('service_categories', 2);
+        $this->assertDatabaseHas('service_categories', ['organization_id' => $orgA->id, 'name' => 'Hair salon']);
+        $this->assertDatabaseHas('service_categories', ['organization_id' => $orgB->id, 'name' => 'Hair salon']);
+
+        $categoryA = DB::table('service_categories')->where('organization_id', $orgA->id)->value('id');
+        $categoryB = DB::table('service_categories')->where('organization_id', $orgB->id)->value('id');
+        $this->assertNotSame($categoryA, $categoryB);
+
+        $this->assertDatabaseHas('services', [
+            'organization_id' => $orgA->id,
+            'category_id' => $categoryA,
+            'name' => 'Trim',
+        ]);
+        $this->assertDatabaseHas('services', [
+            'organization_id' => $orgB->id,
+            'category_id' => $categoryB,
+            'name' => 'Blow Dry',
+        ]);
+
+        $this->assertDatabaseMissing('services', ['organization_id' => $orgA->id, 'name' => 'Blow Dry']);
+        $this->assertDatabaseMissing('services', ['organization_id' => $orgB->id, 'name' => 'Trim']);
     }
 }
 ```
 
+The test file also imports `Illuminate\Support\Facades\DB`, for the two
+raw-table lookups in the cross-tenant test.
+
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `php artisan test --filter=BulkServiceTest`
-Expected: FAIL — 404 on `/api/services/bulk`.
+Expected: FAIL — 405 Method Not Allowed on `/api/services/bulk`. (Not 404:
+`apiResource('services')` already registers `services/{service}` for other
+verbs, so the URI matches and Laravel reports the wrong method. The cause is
+the same route shadowing Step 5 guards against.)
 
 - [ ] **Step 3: Write the request**
 
@@ -1023,7 +1137,8 @@ In `routes/api.php`, **above** `Route::apiResource('services', ServiceController
 - [ ] **Step 6: Run the tests and watch them pass**
 
 Run: `php artisan test --filter=BulkServiceTest`
-Expected: PASS, all six tests.
+Expected: PASS, all seven tests — six on SQLite plus the rollback test, which
+skips off MySQL and passes on the backend-mysql CI job.
 
 - [ ] **Step 7: Commit**
 
@@ -1054,6 +1169,7 @@ Create `backend/tests/Feature/Onboarding/StaffWithoutEmailTest.php`:
 
 namespace Tests\Feature\Onboarding;
 
+use App\Enums\UserRole;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -1132,7 +1248,9 @@ class StaffWithoutEmailTest extends TestCase
 
         $owner = User::where('organization_id', $org->id)->where('role', 'owner')->first();
         $this->assertSame('owner@alpha.test', $owner->email);
-        $this->assertSame('owner', $owner->role);
+        // UserRole, not the string: User casts `role` to the backed enum, so
+        // assertSame('owner', ...) could never pass. Matches RegisterTest.
+        $this->assertSame(UserRole::OWNER, $owner->role);
     }
 
     public function test_a_real_email_is_still_honoured(): void
@@ -1907,15 +2025,50 @@ In `OnboardingView.vue`, import it and replace the placeholder block for `curren
 
 Add `import StepBranch from './StepBranch.vue'` to the script block.
 
-- [ ] **Step 3: Check it by hand**
+- [ ] **Step 3: Write the screen's tests**
+
+This step was missing from the plan as first written, and the screen shipped
+untested until a follow-up round added it. Create
+`frontend/src/views/onboarding/StepBranch.spec.js`, mounting the component
+with `OnboardingLayout` stubbed and `@/lib/api` mocked via `importOriginal`.
+Six tests, following the house pattern in `src/stores/onboarding.spec.js`:
+
+1. **Hydration** — `GET /branches/{id}` returns an address, a city, and an
+   `opening_hours_json` whose Monday is `["09:00","18:00"]` and whose Friday
+   is `null`; assert the fields fill, Monday shows open with those times, and
+   Friday shows Closed. Use a non-Sunday day for the closed case, so the
+   assertion cannot pass on the component's own Sunday default.
+2. **Hydration failure does not block setup** — `GET` rejects; the screen
+   still renders, shows no error, and keeps the registration defaults.
+3. **"Same time every day"** — after editing Monday and closing one day,
+   every open day carries Monday's times and the closed day is untouched.
+   Assert every open day, not one.
+4. **The saved payload** — the `PUT` body carries the trimmed address, `null`
+   for a blank city and phone, an `[from, to]` pair per open day, and `null`
+   for the closed day. This is the assertion that matters: a pair sent for a
+   closed day would let `SlotGenerator` take bookings on a day the salon is
+   shut. Then `done` is emitted.
+5. **Continue disabled without an address**, and clicking it in that state
+   sends no request — the disabled attribute alone does not prove the guard
+   inside `save()`.
+6. **A rejected save reads as a sentence** — a 422 keyed `address` shows the
+   human message, does not emit `done`, leaves the button usable again, and
+   never renders the string `opening_hours_json`.
+
+Prove tests 3, 4 and 6 by deliberate failure: drop `copyMondayDown`'s `open`
+check, send a pair for closed days, delete the `finally` that resets
+`saving`. Each must fail, then pass once restored.
+
+- [ ] **Step 4: Check it by hand**
 
 Run `npm run dev` (and the backend), register a fresh salon, and confirm: the wizard opens on this screen, "Same time every day" copies Monday's times onto Tue–Sat and leaves Sunday closed, Continue is disabled until an address is typed, and after saving the branch row has the address and the seven-key hours object.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add frontend/src/views/onboarding
 git commit -m "feat: ask a new salon for its address and opening hours"
+git commit -m "test: cover StepBranch hydration, hours shortcut, save payload, and error handling"
 ```
 
 ---
@@ -1981,14 +2134,44 @@ function addOwnRow() {
   rows.value.push({ name: '', duration: 30, price: '', ticked: true })
 }
 
+// A price the server will accept: present, a finite number, never negative
+// (server rule is `numeric|min:0`). Checked client-side so a bad value is
+// caught before the round trip, not after.
+function isValidPrice(price) {
+  const n = Number(price)
+  return String(price).trim() !== '' && Number.isFinite(n) && n >= 0
+}
+
+// A duration the server will accept: a whole number of minutes, at least
+// one (server rule is `integer|min:1`). Blanking the field leaves an empty
+// string; Vue's `.number` modifier can't parse that so it stays a string,
+// and `Number('')` is 0 — which must read as invalid, not "free".
+function isValidDuration(duration) {
+  const n = Number(duration)
+  return Number.isInteger(n) && n >= 1
+}
+
 const ticked = computed(() => rows.value.filter((row) => row.ticked))
 const canSave = computed(
-  () => ticked.value.length > 0 && ticked.value.every((row) => row.name.trim() && String(row.price).trim() !== ''),
+  () =>
+    ticked.value.length > 0 &&
+    ticked.value.every((row) => row.name.trim() && isValidDuration(row.duration) && isValidPrice(row.price)),
 )
 
 const blockingReason = computed(() => {
-  if (!chosenType.value) return ''
+  if (!chosenType.value) return 'Pick your salon type to continue.'
   if (ticked.value.length === 0) return 'Tick at least one service.'
+  if (ticked.value.some((row) => !isValidDuration(row.duration))) {
+    return 'Set a duration of at least 1 minute for every service you ticked.'
+  }
+  if (ticked.value.some((row) => String(row.price).trim() === '')) {
+    return 'Add a price for every service you ticked.'
+  }
+  if (ticked.value.some((row) => !isValidPrice(row.price))) {
+    return 'Enter a price of 0 or more for every service you ticked.'
+  }
+  // Only a blank service name can still fail canSave at this point — the
+  // catch-all keeps Continue from ever being disabled with nothing said.
   if (!canSave.value) return 'Add a price for every service you ticked.'
   return ''
 })
@@ -1998,24 +2181,39 @@ async function save() {
   saving.value = true
   error.value = ''
   rowErrors.value = {}
+  // Build the posted list and, in the same pass, a map from each posted
+  // row's position back to its position in the full `rows` array (the one
+  // the template renders and `rowErrors` is keyed against). Ticking a row
+  // out shifts every later row's position in the posted array but not in
+  // `rows`, so the two only agree by coincidence — never assume they match.
+  const postedRowIndexes = []
+  const postedRows = []
+  rows.value.forEach((row, index) => {
+    if (!row.ticked) return
+    postedRowIndexes.push(index)
+    postedRows.push({
+      name: row.name.trim(),
+      duration: Number(row.duration),
+      price: Number(row.price),
+    })
+  })
   try {
     await api.post('/services/bulk', {
       category: chosenType.value.label,
-      rows: ticked.value.map((row) => ({
-        name: row.name.trim(),
-        duration: Number(row.duration),
-        price: Number(row.price),
-      })),
+      rows: postedRows,
     })
     emit('done')
   } catch (err) {
     const parsed = parseApiError(err)
     error.value = parsed.message
-    // Errors arrive keyed `rows.2.price`; index them by position so the
-    // offending line can be highlighted rather than the whole list.
+    // Errors arrive keyed `rows.<postedIndex>.<field>`, e.g. `rows.1.price`.
+    // Translate the posted index back through postedRowIndexes to the row's
+    // real position before highlighting it.
     for (const [key, messages] of Object.entries(parsed.errors ?? {})) {
       const match = key.match(/^rows\.(\d+)\./)
-      if (match) rowErrors.value[Number(match[1])] = messages[0]
+      if (!match) continue
+      const rowIndex = postedRowIndexes[Number(match[1])]
+      if (rowIndex !== undefined) rowErrors.value[rowIndex] = messages[0]
     }
   } finally {
     saving.value = false
@@ -2784,14 +2982,22 @@ Expected: PASS, three tests. (`posterCanvas` is not unit-tested — jsdom has no
 
 Create `frontend/src/views/onboarding/StepDone.vue`:
 
+> **As shipped.** This snippet is the committed `StepDone.vue` (commits b83ff02,
+> 0929fde). It differs from the plan as originally written in three ways, all
+> required by review: the screen re-reads `GET /onboarding/status` on mount and
+> gates on the server's answer rather than optimistic local state, with a
+> distinct third state for a failed read; the clipboard and poster calls both
+> degrade instead of failing silently; and it emits `resume`/`leave` rather than
+> pushing routes itself.
+
 ```vue
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { bookingUrl, downloadPoster } from '@/lib/qrPoster'
 
-const emit = defineEmits(['finish'])
+const emit = defineEmits(['finish', 'resume', 'leave'])
 
 const authStore = useAuthStore()
 const onboarding = useOnboardingStore()
@@ -2799,16 +3005,42 @@ const onboarding = useOnboardingStore()
 const organization = computed(() => authStore.organization)
 const salonName = computed(() => organization.value?.name ?? 'Your salon')
 const url = computed(() => bookingUrl(organization.value))
-const copied = ref(false)
 const finishing = ref(false)
 
-const shareText = computed(() => `Book an appointment at ${salonName.value}: ${url.value}`)
-const whatsapp = computed(() => `https://wa.me/?text=${encodeURIComponent(shareText.value)}`)
-const facebook = computed(() => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url.value)}`)
+// markStepDone() only ever flips state locally, optimistically, without
+// asking the server. This screen is the one place that tells the owner
+// "you're live" — before it makes that claim it has to re-read the real
+// status, or it can congratulate someone whose salon cannot take a booking.
+const checking = ref(true)
 
-// What is still missing, stated plainly rather than hidden — a salon that
-// skipped services cannot take a booking and should be told so here, not
-// discover it from a customer.
+// A failed re-fetch is not the same as the server saying "not ready" — it
+// is the server never having answered at all. Falling back to whatever
+// `onboarding.steps` already holds (optimistic local flips, or nothing)
+// would either congratulate on unverified data or wrongly accuse the
+// owner of missing steps that were never actually checked. This is its
+// own state so neither the congrats branch nor the missing-steps branch
+// can render while the read is unresolved.
+const checkFailed = ref(false)
+
+async function checkStatus() {
+  checking.value = true
+  checkFailed.value = false
+  try {
+    await onboarding.fetchStatus()
+  } catch {
+    checkFailed.value = true
+  } finally {
+    checking.value = false
+  }
+}
+
+onMounted(checkStatus)
+
+// requiredDone is derived from the server's answer (branch/services/staff),
+// never from the optimistic local flips — this is the gate for whether we
+// congratulate or confess something is still missing.
+const bookable = computed(() => onboarding.requiredDone)
+
 const missing = computed(() =>
   [
     !onboarding.steps.branch && 'your address',
@@ -2817,10 +3049,45 @@ const missing = computed(() =>
   ].filter(Boolean),
 )
 
+const shareText = computed(() => `Book an appointment at ${salonName.value}: ${url.value}`)
+const whatsapp = computed(() => `https://wa.me/?text=${encodeURIComponent(shareText.value)}`)
+const facebook = computed(() => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url.value)}`)
+
+// 'idle' | 'copied' | 'unavailable'. `navigator.clipboard` is undefined on
+// any non-secure context and on older mobile browsers — this is the
+// payoff screen's primary call to action, so a silent throw here would
+// leave the button looking like it did nothing on exactly the devices
+// most likely to be used to set this up.
+const copyState = ref('idle')
+
 async function copy() {
-  await navigator.clipboard.writeText(url.value)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 2000)
+  if (!navigator.clipboard?.writeText) {
+    copyState.value = 'unavailable'
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(url.value)
+    copyState.value = 'copied'
+    setTimeout(() => (copyState.value = 'idle'), 2000)
+  } catch {
+    copyState.value = 'unavailable'
+  }
+}
+
+// 'idle' | 'downloading' | 'failed'. downloadPoster() was previously fired
+// as a floating promise — if canvas rendering or the data-URL conversion
+// throws, the owner clicked a button and nothing happened, with no way to
+// tell whether it worked.
+const posterState = ref('idle')
+
+async function downloadPosterClicked() {
+  posterState.value = 'downloading'
+  try {
+    await downloadPoster(url.value, salonName.value)
+    posterState.value = 'idle'
+  } catch {
+    posterState.value = 'failed'
+  }
 }
 
 async function finish() {
@@ -2832,29 +3099,93 @@ async function finish() {
     finishing.value = false
   }
 }
+
+// Go fix what's missing. This component already lives inside the
+// '/onboarding' route, so pushing back to that same path would be a
+// same-route no-op — ask the host to re-run its own resume logic instead,
+// which re-fetches status and repositions on the first unsatisfied step.
+function resumeSetup() {
+  emit('resume')
+}
+
+// Leaving is allowed by design everywhere else in the wizard (see
+// OnboardingView's leave()) — but unlike finish(), this must not call
+// onboarding.complete(). Stamping completion for a salon that is not
+// actually bookable would stop the router guard ever sending them back to
+// finish setup, and they would have only the dashboard card to notice.
+function leaveWithoutCompleting() {
+  emit('leave')
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-50 px-4 py-12">
-    <div class="mx-auto max-w-xl text-center">
+    <div v-if="checking" class="mx-auto max-w-xl text-center text-slate-500">Checking your setup…</div>
+
+    <div v-else-if="checkFailed" class="mx-auto max-w-xl text-center">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-slate-200 text-2xl">?</div>
+      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">Couldn't check your setup</h1>
+      <p class="mt-2 text-slate-600">
+        We weren't able to reach the server to confirm {{ salonName }} is ready to take bookings.
+      </p>
+      <button
+        type="button"
+        class="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+        @click="checkStatus"
+      >
+        Try again
+      </button>
+    </div>
+
+    <div v-else-if="!bookable" class="mx-auto max-w-xl text-center">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-2xl">!</div>
+      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">Almost there</h1>
+      <p class="mt-2 text-slate-600">
+        {{ salonName }} isn't ready to take bookings yet.
+      </p>
+
+      <div class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
+        You still need to add {{ missing.join(' and ') }} before customers can book you.
+      </div>
+
+      <button
+        type="button"
+        class="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+        @click="resumeSetup"
+      >
+        Finish setup
+      </button>
+
+      <button
+        type="button"
+        class="mt-3 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+        @click="leaveWithoutCompleting"
+      >
+        I'll do this later
+      </button>
+    </div>
+
+    <div v-else class="mx-auto max-w-xl text-center">
       <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-2xl">✓</div>
       <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">
         {{ salonName }} is live
       </h1>
       <p class="mt-2 text-slate-600">Share this link and customers can book you right now.</p>
 
-      <div v-if="missing.length" class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
-        You still need to add {{ missing.join(' and ') }} before anyone can book. Your dashboard will remind you.
-      </div>
-
       <div class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <p class="break-all text-lg font-medium text-indigo-700">{{ url }}</p>
+        <p class="select-all break-all text-lg font-medium text-indigo-700">{{ url }}</p>
         <button
           type="button"
           class="mt-3 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
           @click="copy"
         >
-          {{ copied ? 'Copied' : 'Copy link' }}
+          {{
+            copyState === 'copied'
+              ? 'Copied'
+              : copyState === 'unavailable'
+                ? "Can't copy automatically — select the link above"
+                : 'Copy link'
+          }}
         </button>
 
         <div class="mt-3 grid grid-cols-2 gap-3">
@@ -2868,10 +3199,17 @@ async function finish() {
 
         <button
           type="button"
+          :disabled="posterState === 'downloading'"
           class="mt-3 w-full rounded-xl px-4 py-2.5 font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50"
-          @click="downloadPoster(url, salonName)"
+          @click="downloadPosterClicked"
         >
-          Download QR poster for your shop
+          {{
+            posterState === 'downloading'
+              ? 'Preparing your poster…'
+              : posterState === 'failed'
+                ? "Couldn't create the poster — try again"
+                : 'Download QR poster for your shop'
+          }}
         </button>
 
         <a :href="url" target="_blank" rel="noopener" class="mt-3 block text-sm font-medium text-indigo-600">
@@ -2895,10 +3233,12 @@ async function finish() {
 - [ ] **Step 7: Wire it into the host**
 
 ```vue
-<StepDone v-else @finish="leave" />
+<StepDone v-else @finish="leave" @leave="leave" @resume="resume" />
 ```
 
 `finish()` in `OnboardingView.vue` is now unused — `StepDone` calls `onboarding.complete()` itself and emits. Delete `finish()` from the host and keep `leave()`.
+
+`resume` exists because the plan originally had `StepDone` call `router.push('/onboarding')` to send an owner back to an unfinished step — a no-op, since the wizard *is* `/onboarding`. Only the host knows the step index, so the screen asks and the host moves.
 
 - [ ] **Step 8: Test that the wizard resumes where the owner left off**
 
