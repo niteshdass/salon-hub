@@ -87,6 +87,52 @@ describe('OnboardingView', () => {
     expect(wrapper.find('[data-test="done"]').exists()).toBe(true)
   })
 
+  it('says the setup could not be read, instead of rendering step 1 on top of an answer the server never gave', async () => {
+    // With no catch on resume(), `ready` flipped true anyway and StepBranch
+    // rendered with branchId null — an enabled Continue that refused every
+    // click in silence, on the first screen of the product.
+    vi.mocked(api.get).mockRejectedValue(new Error('network down'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="branch"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="done"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain("We couldn't load your setup")
+  })
+
+  it('retries the status read on demand and gets on with setup once it succeeds', async () => {
+    vi.mocked(api.get)
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(
+        statusWith({ branch: false, services: false, staff: false, look: false }, 'branch'),
+      )
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-test="branch"]').exists()).toBe(false)
+
+    const retry = wrapper.findAll('button').find((b) => b.text().includes('Try again'))
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain("We couldn't load your setup")
+    expect(wrapper.find('[data-test="branch"]').exists()).toBe(true)
+  })
+
+  it('lets the owner leave from the failed-load screen rather than trapping them behind a retry', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('network down'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const later = wrapper.findAll('button').find((b) => b.text().includes("I'll do this later"))
+    await later.trigger('click')
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/dashboard')
+  })
+
   it('records the deferral when leaving, so the guard stops reversing the navigation it just made', async () => {
     // The other half of this lives in router/onboardingExit.spec.js, which
     // drives the real router. This one pins the component's side of the

@@ -64,10 +64,23 @@ function copyMondayDown() {
   }
 }
 
-const canSave = computed(() => form.value.address.trim().length > 0)
+// `branchId` is part of what makes saving possible, not a detail the button
+// may quietly swallow: without it there is no branch to PUT to. Leaving it
+// out of `canSave` is what let Continue render enabled and then refuse every
+// click in silence — on the very first screen of the product.
+const canSave = computed(() => !!props.branchId && form.value.address.trim().length > 0)
+
+// A disabled Continue must always say why, in words an owner can act on.
+const blockedReason = computed(() => {
+  if (!props.branchId) {
+    return "We couldn't find your salon's location, so there's nothing to save this to yet. Please reload the page and try again."
+  }
+  if (!form.value.address.trim()) return 'Add your address to continue.'
+  return ''
+})
 
 async function save() {
-  if (!canSave.value || !props.branchId) return
+  if (!canSave.value) return
   saving.value = true
   error.value = ''
   fieldErrors.value = {}
@@ -166,7 +179,7 @@ async function save() {
       >
         {{ saving ? 'Saving…' : 'Continue' }}
       </button>
-      <p v-if="!canSave" class="mt-2 text-center text-sm text-slate-500">Add your address to continue.</p>
+      <p v-if="blockedReason" class="mt-2 text-center text-sm text-slate-500">{{ blockedReason }}</p>
     </template>
   </OnboardingLayout>
 </template>

@@ -19,6 +19,13 @@ const index = ref(0)
 const ready = ref(false)
 const current = computed(() => (index.value < STEPS.length ? STEPS[index.value] : 'done'))
 
+// A failed status read is not "nothing is done yet". Without this, the wizard
+// used to render step 1 anyway, with `branchId` null, and the only button on
+// the screen refused every click in silence. Its own state, so no step screen
+// can render on top of an answer the server never gave. Same shape as
+// StepDone's `checkFailed`.
+const loadFailed = ref(false)
+
 // Re-read status and reposition on whichever step it says is next. Used on
 // mount, and again when StepDone finds the server disagrees with the
 // optimistic local state and the owner asks to fix it — pushing to
@@ -26,12 +33,15 @@ const current = computed(() => (index.value < STEPS.length ? STEPS[index.value] 
 // be a same-route no-op, so StepDone asks the host to re-run this instead.
 async function resume() {
   ready.value = false
+  loadFailed.value = false
   try {
     await onboarding.fetchStatus()
     const next = onboarding.nextStep
     // 'done' means every step is already satisfied, so go straight to the
     // payoff screen.
     index.value = next === 'done' ? STEPS.length : STEPS.indexOf(next)
+  } catch {
+    loadFailed.value = true
   } finally {
     ready.value = true
   }
@@ -81,6 +91,34 @@ function leave() {
 
 <template>
   <div v-if="!ready" class="grid min-h-screen place-items-center text-slate-500">Loading…</div>
+
+  <div v-else-if="loadFailed" class="min-h-screen bg-slate-50 px-4 py-12">
+    <div class="mx-auto max-w-xl text-center">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-slate-200 text-2xl">?</div>
+      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">
+        We couldn't load your setup
+      </h1>
+      <p class="mt-2 text-slate-600">
+        Something went wrong on our side, so we don't know how far you've got. Nothing you've
+        already saved is lost.
+      </p>
+      <button
+        type="button"
+        class="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+        @click="resume"
+      >
+        Try again
+      </button>
+      <button
+        type="button"
+        class="mt-3 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+        @click="leave"
+      >
+        I'll do this later
+      </button>
+    </div>
+  </div>
+
   <template v-else>
     <StepBranch
       v-if="current === 'branch'"

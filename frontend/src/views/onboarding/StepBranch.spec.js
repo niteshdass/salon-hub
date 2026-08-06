@@ -183,6 +183,34 @@ describe('StepBranch', () => {
     expect(api.put).not.toHaveBeenCalled()
   })
 
+  it('says why it cannot save, rather than offering an enabled Continue, when there is no branch behind the screen', async () => {
+    // Reachable two ways: the status read failed on mount so the host has no
+    // branch_id to pass down, or the response carried a null branch_id (an
+    // org whose only branch row was deleted). Both used to produce an enabled
+    // Continue that hit `if (!props.branchId) return` and said nothing.
+    const wrapper = mountStepBranch({ branchId: null })
+    await flushPromises()
+
+    // Address filled in, so nothing but the missing branch can be blocking.
+    await wrapper.get('input[placeholder="12 Green Road, Dhanmondi"]').setValue('12 Green Road')
+
+    const continueButton = buttonNamed(wrapper, 'Continue')
+    expect(continueButton.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain("We couldn't find your salon's location")
+    // The reason must be usable by someone who has never heard of a "branch".
+    expect(wrapper.text()).not.toContain('branch_id')
+
+    // A native `disabled` attribute suppresses a jsdom click on its own, so
+    // the assertion below would pass whether or not save()'s guard works.
+    // Force the click through to exercise the guard inside save() itself.
+    continueButton.element.removeAttribute('disabled')
+    await continueButton.trigger('click')
+    await flushPromises()
+
+    expect(api.put).not.toHaveBeenCalled()
+    expect(wrapper.emitted('done')).toBeUndefined()
+  })
+
   it('explains a rejected save in plain language, without emitting done or leaking the field name', async () => {
     vi.mocked(api.get).mockRejectedValue(new Error('not found'))
     vi.mocked(api.put).mockRejectedValue({
