@@ -177,6 +177,10 @@ describe('StepBranch', () => {
     const continueButton = buttonNamed(wrapper, 'Continue')
     expect(continueButton.attributes('disabled')).toBeDefined()
 
+    // Same reason as the test below: the native `disabled` attribute stops a
+    // jsdom click by itself, so clicking it as rendered would prove nothing
+    // about save()'s own guard. Force it through.
+    continueButton.element.removeAttribute('disabled')
     await continueButton.trigger('click')
     await flushPromises()
 
