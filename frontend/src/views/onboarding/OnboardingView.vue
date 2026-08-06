@@ -1,11 +1,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useOnboardingStore, STEPS } from '@/stores/onboarding'
+import { useOnboardingStore, STEPS, REQUIRED_STEPS } from '@/stores/onboarding'
 import StepBranch from './StepBranch.vue'
 import StepServices from './StepServices.vue'
 import StepStaff from './StepStaff.vue'
 import StepLook from './StepLook.vue'
+import StepDone from './StepDone.vue'
 
 const router = useRouter()
 const onboarding = useOnboardingStore()
@@ -15,24 +16,42 @@ const index = ref(0)
 const ready = ref(false)
 const current = computed(() => (index.value < STEPS.length ? STEPS[index.value] : 'done'))
 
-onMounted(async () => {
+// Re-read status and reposition on whichever step it says is next. Used on
+// mount, and again when StepDone finds the server disagrees with the
+// optimistic local state and the owner asks to fix it — pushing to
+// '/onboarding' from inside the component that route already renders would
+// be a same-route no-op, so StepDone asks the host to re-run this instead.
+async function resume() {
+  ready.value = false
   try {
     await onboarding.fetchStatus()
     const next = onboarding.nextStep
-    // Resume where they left off. 'done' means every step is already
-    // satisfied, so go straight to the payoff screen.
+    // 'done' means every step is already satisfied, so go straight to the
+    // payoff screen.
     index.value = next === 'done' ? STEPS.length : STEPS.indexOf(next)
   } finally {
     ready.value = true
   }
-})
+}
+
+onMounted(resume)
 
 function advance(stepKey) {
   onboarding.markStepDone(stepKey)
   index.value = Math.min(index.value + 1, STEPS.length)
 }
 
+// Skipping a required step (branch/services/staff) cannot be allowed to
+// land on the success screen — that screen's whole job is to tell the
+// owner they can take a booking, and a salon missing one of these
+// literally cannot. Send them to the dashboard instead, where the
+// unfinished-setup card picks it back up. `look` is the one step that
+// never blocks bookability, so skipping it is free to advance normally.
 function skip() {
+  if (REQUIRED_STEPS.includes(current.value)) {
+    leave()
+    return
+  }
   index.value = Math.min(index.value + 1, STEPS.length)
 }
 
@@ -47,11 +66,6 @@ function back() {
 // Leaving before the end is allowed by design — the dashboard card picks
 // up whatever is unfinished.
 function leave() {
-  router.push('/dashboard')
-}
-
-async function finish() {
-  await onboarding.complete()
   router.push('/dashboard')
 }
 </script>
@@ -75,15 +89,6 @@ async function finish() {
       @back="back"
     />
     <StepLook v-else-if="current === 'look'" @done="advance('look')" @skip="skip" @back="back" />
-    <template v-else>
-      <p class="p-8 text-slate-500">Step: {{ current }}</p>
-      <!-- Task 12 replaces this with the payoff screen. -->
-      <div class="flex gap-3 px-8">
-        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-white" @click="advance(current)">Next</button>
-        <button class="rounded-lg px-4 py-2 text-slate-500" @click="skip">Skip</button>
-        <button class="rounded-lg px-4 py-2 text-slate-500" @click="back">Back</button>
-        <button class="rounded-lg px-4 py-2 text-slate-500" @click="finish">Finish</button>
-      </div>
-    </template>
+    <StepDone v-else @finish="leave" @leave="leave" @resume="resume" />
   </template>
 </template>
