@@ -675,19 +675,30 @@ writes must stay owned `deploy`, group `www-data`, matching `storage/` and
 `is_verified = true` on every unverified primary single-label
 `*.APP_DOMAIN` domain row, and its `down()` is a deliberate no-op — there is
 no rollback. If an organization registered before `Organization::
-RESERVED_SLUGS` existed holds a platform hostname, the migration hands it a
-*verified* claim that `Domain::resolveOrganizationForHost` will then honour,
-and `app.salonhub.com` starts resolving to a tenant. Check first:
+RESERVED_SLUGS` existed holds a platform hostname, a *verified* claim on it is
+one `Domain::resolveOrganizationForHost` will honour, and `app.salonhub.com`
+starts resolving to a tenant.
+
+The migration itself now excludes every hostname composed from
+`Organization::RESERVED_SLUGS`, so skipping this check cannot cause that harm.
+Run it anyway: it tells you a reserved slug is sitting in your database, which
+is a thing to fix before it confuses something else.
+
+Generate the list from the constant rather than retyping it, so this step
+cannot drift from the code it is checking:
 
 ```bash
+cd /var/www/salonhub/backend
+SLUGS=$(php -r "require 'vendor/autoload.php'; \
+  echo \"'\" . implode(\"','\", App\Models\Organization::RESERVED_SLUGS) . \"'\";")
 mysql -u salonhub -p -h 127.0.0.1 salonhub -e \
-  "SELECT id, slug FROM organizations WHERE slug IN ('app','www','api','admin','mail','static');"
+  "SELECT id, slug FROM organizations WHERE slug IN ($SLUGS);"
 ```
 
 Expected: `Empty set`. **If any row comes back, stop** — do not run
 `deploy.sh`. Rename those slugs (and the matching `domains.domain` values)
-first; once the migration has run, the claim cannot be un-verified by
-rolling anything back.
+first. The migration will leave the domain row unverified, so the salon's
+subdomain will not work until the slug is changed.
 
 ```bash
 sudo -iu deploy

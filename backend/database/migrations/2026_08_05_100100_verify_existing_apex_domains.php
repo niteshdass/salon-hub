@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Organization;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -24,7 +25,26 @@ return new class extends Migration
     {
         $apex = addcslashes((string) config('app.domain'), '%_\\');
 
+        // The one row this migration must never touch. An organization that
+        // registered before Organization::RESERVED_SLUGS existed can hold a
+        // platform hostname, and verifying it hands that tenant a claim
+        // Domain::resolveOrganizationForHost will honour — app.APP_DOMAIN
+        // starts resolving to a salon. down() is a deliberate no-op, so there
+        // is no undo.
+        //
+        // The runbook asks the operator to check for this before deploying,
+        // but a manual pre-check is a step that can be skipped, and skipping
+        // it is unrecoverable. Excluding the hostnames here means the harm
+        // needs the migration to be wrong, not the operator to be careful.
+        // Composed from the constant rather than a copied list so it cannot
+        // drift from it.
+        $reservedHosts = array_map(
+            fn (string $slug): string => $slug.'.'.config('app.domain'),
+            Organization::RESERVED_SLUGS,
+        );
+
         DB::table('domains')
+            ->whereNotIn('domain', $reservedHosts)
             ->where('is_verified', false)
             // Exactly the row registration mints, and nothing else: the
             // organization's own primary host. A non-primary row is a domain
