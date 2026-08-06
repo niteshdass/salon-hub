@@ -23,7 +23,11 @@ class StoreStaffRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            // Optional: a salon assistant known only by name and phone is the
+            // common case, and requiring an address for them would either
+            // block the wizard or invite junk. StaffController mints an
+            // undeliverable placeholder when this is absent.
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:255'],
             'password' => ['nullable', 'string', 'min:8'],
             'designation' => ['nullable', 'string', 'max:255'],

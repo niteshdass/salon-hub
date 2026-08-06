@@ -51,7 +51,7 @@ class StaffController extends Controller
             $user = User::create([
                 'organization_id' => $tenantId,
                 'name' => $data['name'],
-                'email' => $data['email'],
+                'email' => $data['email'] ?? $this->placeholderEmail(),
                 'password' => Hash::make($data['password'] ?? Str::password(12)),
                 'role' => UserRole::STAFF->value,
                 'status' => UserStatus::ACTIVE->value,
@@ -172,5 +172,22 @@ class StaffController extends Controller
     protected function findStaffOrFail(string $id): User
     {
         return $this->baseQuery()->findOrFail($id);
+    }
+
+    /**
+     * An address for a staff member who has none.
+     *
+     * `.invalid` is reserved by RFC 2606 and is guaranteed never to resolve,
+     * so a placeholder can never deliver mail to a real stranger who happens
+     * to own the domain we would otherwise have invented. The row still
+     * cannot be signed into: the password is the random one store() already
+     * generates and is never shown to anyone, and no verification mail is
+     * sent.
+     */
+    protected function placeholderEmail(): string
+    {
+        $slug = app(CurrentTenant::class)->get()?->slug ?? 'salon';
+
+        return 'staff-'.Str::lower(Str::random(10)).'@'.$slug.'.invalid';
     }
 }
