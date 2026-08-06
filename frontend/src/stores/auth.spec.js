@@ -68,6 +68,43 @@ describe('useAuthStore', () => {
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
   })
 
+  // The session-layer half of the suspension fix. The backend refuses
+  // /auth/me with 403 and a sentence naming the state; the router calls
+  // endSession with it and bounces to /login, where LoginView reads it once.
+  // Without the hand-off the user sees a bare redirect and no reason.
+  it('endSession drops the token and keeps the reason for the sign-in page', () => {
+    const store = useAuthStore()
+    store.setSession({ token: 'abc123', user: { id: 1 }, organization: { id: 9 } })
+
+    store.endSession('This salon account has been suspended. Please contact support.')
+
+    expect(store.isAuthenticated).toBe(false)
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+    expect(store.sessionMessage).toBe(
+      'This salon account has been suspended. Please contact support.'
+    )
+  })
+
+  it('takeSessionMessage returns the reason once and then forgets it', () => {
+    const store = useAuthStore()
+    store.endSession('This salon account is inactive. Please contact support.')
+
+    expect(store.takeSessionMessage()).toBe(
+      'This salon account is inactive. Please contact support.'
+    )
+    // A second visit to /login is not the redirect that produced the message.
+    expect(store.takeSessionMessage()).toBe('')
+  })
+
+  it('signing in again clears a previous refusal message', () => {
+    const store = useAuthStore()
+    store.endSession('This salon account has been suspended. Please contact support.')
+
+    store.setSession({ token: 'fresh', user: { id: 2 }, organization: { id: 3 } })
+
+    expect(store.sessionMessage).toBe('')
+  })
+
   it('logout calls the server to revoke the token', async () => {
     const store = useAuthStore()
     store.setSession({ token: 'abc123', user: { id: 1 }, organization: { id: 9 } })

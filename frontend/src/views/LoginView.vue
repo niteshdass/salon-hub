@@ -13,7 +13,11 @@ const form = reactive({
 })
 
 const errors = ref({})
-const generalError = ref('')
+// Seeded from the store when a stored token was just refused with a reason —
+// a suspended or inactive salon, an account no longer linked to one. The
+// router bounces those here, and this banner is the only place the person
+// ever learns why. Read-once, so it does not haunt later visits.
+const generalError = ref(authStore.takeSessionMessage())
 
 async function onSubmit() {
   errors.value = {}

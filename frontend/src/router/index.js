@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCustomerAuthStore } from '@/stores/customerAuth'
 import { resolveSlugFromHost } from '@/lib/tenantHost'
+import { parseApiError } from '@/lib/errors'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
@@ -191,21 +192,32 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return '/login'
   }
+  // A token in localStorage is not a live session. The organization behind it
+  // may have been suspended, deactivated or removed since it was issued, and
+  // /auth/me is the endpoint that says so (it carries the `tenant`
+  // middleware). Resolve it once, for EVERY authenticated route rather than
+  // only the role-gated ones, before the dashboard shell mounts — otherwise a
+  // refused member is admitted to the shell and meets a 403 on each panel in
+  // turn, which reads as "the app is broken" rather than "your salon is
+  // suspended".
+  if (to.meta.requiresAuth && !authStore.user) {
+    try {
+      await authStore.fetchMe()
+    } catch (err) {
+      // 401 is a plain expiry and the api interceptor already redirects; say
+      // nothing extra about it. Anything else — 403 with a reason from
+      // ResolveTenant, or a server fault — carries a message worth showing.
+      const status = err?.response?.status
+      authStore.endSession(
+        status && status !== 401 ? parseApiError(err).message : ''
+      )
+      return '/login'
+    }
+  }
   // `meta.roles` mirrors the policy behind the page; no list means any
   // authenticated member may look.
-  if (to.meta.roles) {
-    // On a hard refresh the role is not loaded yet; fetch it before
-    // deciding, otherwise an owner would bounce off their own page.
-    if (!authStore.user) {
-      try {
-        await authStore.fetchMe()
-      } catch {
-        return '/login'
-      }
-    }
-    if (!to.meta.roles.includes(authStore.role)) {
-      return '/dashboard'
-    }
+  if (to.meta.roles && !to.meta.roles.includes(authStore.role)) {
+    return '/dashboard'
   }
   // On the apex, `/` is the marketing home and a signed-in member belongs on
   // their dashboard. On a salon subdomain `/` is that salon's public
