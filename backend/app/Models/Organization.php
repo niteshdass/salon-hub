@@ -74,6 +74,7 @@ class Organization extends Model
         return [
             'subscription_plan' => SubscriptionPlan::class,
             'status' => OrganizationStatus::class,
+            'onboarding_completed_at' => 'datetime',
         ];
     }
 

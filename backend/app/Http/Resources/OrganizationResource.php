@@ -30,6 +30,7 @@ class OrganizationResource extends JsonResource
                 ? $this->subscription_plan->value
                 : $this->subscription_plan,
             'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
+            'onboarding_completed_at' => $this->onboarding_completed_at?->toIso8601String(),
             'primary_domain' => $this->primaryDomain(),
         ];
     }
