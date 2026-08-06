@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useOnboardingStore, STEPS } from '@/stores/onboarding'
 import StepBranch from './StepBranch.vue'
 import StepServices from './StepServices.vue'
+import StepStaff from './StepStaff.vue'
 
 const router = useRouter()
 const onboarding = useOnboardingStore()
@@ -65,9 +66,16 @@ async function finish() {
       @back="back"
     />
     <StepServices v-else-if="current === 'services'" @done="advance('services')" @skip="skip" @back="back" />
+    <StepStaff
+      v-else-if="current === 'staff'"
+      :branch-id="onboarding.branchId"
+      @done="advance('staff')"
+      @skip="skip"
+      @back="back"
+    />
     <template v-else>
       <p class="p-8 text-slate-500">Step: {{ current }}</p>
-      <!-- Tasks 10-12 replace this with the real screens. -->
+      <!-- Tasks 11-12 replace this with the real screens. -->
       <div class="flex gap-3 px-8">
         <button class="rounded-lg bg-indigo-600 px-4 py-2 text-white" @click="advance(current)">Next</button>
         <button class="rounded-lg px-4 py-2 text-slate-500" @click="skip">Skip</button>
