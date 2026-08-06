@@ -204,14 +204,22 @@ router.beforeEach(async (to) => {
     try {
       await authStore.fetchMe()
     } catch (err) {
-      // 401 is a plain expiry and the api interceptor already redirects; say
-      // nothing extra about it. Anything else — 403 with a reason from
-      // ResolveTenant, or a server fault — carries a message worth showing.
       const status = err?.response?.status
-      authStore.endSession(
-        status && status !== 401 ? parseApiError(err).message : ''
-      )
-      return '/login'
+      // 401 and 403 are the server refusing this token: an expiry, or
+      // ResolveTenant naming a suspended, inactive or unlinked salon. Only
+      // the 403 carries a sentence worth repeating — a plain expiry says
+      // nothing the sign-in page does not. Dropping the token is also what
+      // keeps this terminating: /login bounces an authenticated visitor
+      // straight back to /dashboard, so a redirect that left the token in
+      // place would loop.
+      if (status === 401 || status === 403) {
+        authStore.endSession(status === 403 ? parseApiError(err).message : '')
+        return '/login'
+      }
+      // Anything else — a 5xx, a dropped connection — is not a verdict on the
+      // session. Signing someone out because their train went into a tunnel
+      // is the worse failure, so keep the token and let the page render and
+      // report its own error.
     }
   }
   // `meta.roles` mirrors the policy behind the page; no list means any
