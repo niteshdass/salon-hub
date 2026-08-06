@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useOnboardingStore, STEPS } from '@/stores/onboarding'
 import StepBranch from './StepBranch.vue'
+import StepServices from './StepServices.vue'
 
 const router = useRouter()
 const onboarding = useOnboardingStore()
@@ -63,9 +64,10 @@ async function finish() {
       @skip="skip"
       @back="back"
     />
+    <StepServices v-else-if="current === 'services'" @done="advance('services')" @skip="skip" @back="back" />
     <template v-else>
       <p class="p-8 text-slate-500">Step: {{ current }}</p>
-      <!-- Tasks 9-12 replace this with the real screens. -->
+      <!-- Tasks 10-12 replace this with the real screens. -->
       <div class="flex gap-3 px-8">
         <button class="rounded-lg bg-indigo-600 px-4 py-2 text-white" @click="advance(current)">Next</button>
         <button class="rounded-lg px-4 py-2 text-slate-500" @click="skip">Skip</button>

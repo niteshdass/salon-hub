@@ -1,0 +1,172 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import api from '@/lib/api'
+import { parseApiError } from '@/lib/errors'
+import { useAuthStore } from '@/stores/auth'
+import OnboardingLayout from '@/layouts/OnboardingLayout.vue'
+
+const emit = defineEmits(['done', 'skip', 'back'])
+const authStore = useAuthStore()
+
+const presets = ref([])
+const chosenType = ref(null)
+const rows = ref([])
+const saving = ref(false)
+const error = ref('')
+const rowErrors = ref({})
+
+const currency = computed(() => authStore.organization?.currency || 'USD')
+
+onMounted(async () => {
+  try {
+    const { data } = await api.get('/service-presets')
+    presets.value = data.data
+  } catch (err) {
+    error.value = parseApiError(err).message
+  }
+})
+
+// Picking a type fills the list with that menu, everything ticked. The
+// owner unticks what they do not do — reading and unticking is far less
+// work for a non-technical user than composing a menu from nothing.
+function chooseType(type) {
+  chosenType.value = type
+  rows.value = type.services.map((service) => ({
+    name: service.name,
+    duration: service.duration,
+    price: '',
+    ticked: true,
+  }))
+  rowErrors.value = {}
+}
+
+function addOwnRow() {
+  rows.value.push({ name: '', duration: 30, price: '', ticked: true })
+}
+
+const ticked = computed(() => rows.value.filter((row) => row.ticked))
+const canSave = computed(
+  () => ticked.value.length > 0 && ticked.value.every((row) => row.name.trim() && String(row.price).trim() !== ''),
+)
+
+const blockingReason = computed(() => {
+  if (!chosenType.value) return ''
+  if (ticked.value.length === 0) return 'Tick at least one service.'
+  if (!canSave.value) return 'Add a price for every service you ticked.'
+  return ''
+})
+
+async function save() {
+  if (!canSave.value) return
+  saving.value = true
+  error.value = ''
+  rowErrors.value = {}
+  try {
+    await api.post('/services/bulk', {
+      category: chosenType.value.label,
+      rows: ticked.value.map((row) => ({
+        name: row.name.trim(),
+        duration: Number(row.duration),
+        price: Number(row.price),
+      })),
+    })
+    emit('done')
+  } catch (err) {
+    const parsed = parseApiError(err)
+    error.value = parsed.message
+    // Errors arrive keyed `rows.2.price`; index them by position so the
+    // offending line can be highlighted rather than the whole list.
+    for (const [key, messages] of Object.entries(parsed.errors ?? {})) {
+      const match = key.match(/^rows\.(\d+)\./)
+      if (match) rowErrors.value[Number(match[1])] = messages[0]
+    }
+  } finally {
+    saving.value = false
+  }
+}
+</script>
+
+<template>
+  <OnboardingLayout
+    :step="2"
+    title="What do you offer?"
+    subtitle="Pick your salon type, then set your prices. You can change all of this later."
+    @skip="emit('skip')"
+    @back="emit('back')"
+  >
+    <div v-if="!chosenType" class="grid gap-3 sm:grid-cols-2">
+      <button
+        v-for="type in presets"
+        :key="type.key"
+        type="button"
+        class="rounded-2xl bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-400"
+        @click="chooseType(type)"
+      >
+        <span class="block font-semibold text-slate-900">{{ type.label }}</span>
+        <span class="mt-1 block text-sm text-slate-500">{{ type.services.length }} popular services ready to go</span>
+      </button>
+    </div>
+
+    <div v-else class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold text-slate-900">{{ chosenType.label }}</h2>
+        <button type="button" class="text-sm font-medium text-indigo-600" @click="chosenType = null">Change</button>
+      </div>
+
+      <ul class="mt-4 space-y-3">
+        <li
+          v-for="(row, i) in rows"
+          :key="i"
+          class="rounded-xl p-3 ring-1"
+          :class="rowErrors[i] ? 'ring-rose-300 bg-rose-50' : 'ring-slate-200'"
+        >
+          <div class="flex items-center gap-3">
+            <input v-model="row.ticked" type="checkbox" class="h-5 w-5 rounded border-slate-300 text-indigo-600" />
+            <input
+              v-model="row.name"
+              type="text"
+              placeholder="Service name"
+              class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            />
+          </div>
+          <div v-if="row.ticked" class="mt-2 flex items-center gap-3 pl-8">
+            <label class="flex items-center gap-1.5 text-sm text-slate-600">
+              <input v-model.number="row.duration" type="number" min="5" step="5" class="w-20 rounded-lg border border-slate-300 px-2 py-1.5" />
+              min
+            </label>
+            <label class="flex items-center gap-1.5 text-sm text-slate-600">
+              <span>{{ currency }}</span>
+              <input
+                v-model="row.price"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="Price"
+                class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"
+              />
+            </label>
+          </div>
+          <p v-if="rowErrors[i]" class="mt-1 pl-8 text-sm text-rose-600">{{ rowErrors[i] }}</p>
+        </li>
+      </ul>
+
+      <button type="button" class="mt-4 text-sm font-medium text-indigo-600" @click="addOwnRow">
+        + Add your own
+      </button>
+    </div>
+
+    <p v-if="error" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ error }}</p>
+
+    <template #action>
+      <button
+        type="button"
+        :disabled="!canSave || saving"
+        class="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        @click="save"
+      >
+        {{ saving ? 'Saving…' : 'Continue' }}
+      </button>
+      <p v-if="blockingReason" class="mt-2 text-center text-sm text-slate-500">{{ blockingReason }}</p>
+    </template>
+  </OnboardingLayout>
+</template>
