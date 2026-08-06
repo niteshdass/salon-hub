@@ -27,6 +27,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\ServicePresetController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StaffTimeOffController;
 use Illuminate\Http\Request;
@@ -94,6 +95,11 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     // First-run setup. Owner-only; the policy check lives in the controller.
     Route::get('onboarding/status', [OnboardingController::class, 'status']);
     Route::post('onboarding/complete', [OnboardingController::class, 'complete']);
+
+    // Starter service menus for the wizard's "What do you offer?" screen.
+    // Static config, no tenant data — authenticated only because it has no
+    // reason to be public.
+    Route::get('service-presets', ServicePresetController::class);
 
     Route::get('dashboard', DashboardController::class);
 
