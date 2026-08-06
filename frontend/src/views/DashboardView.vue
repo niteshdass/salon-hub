@@ -5,6 +5,7 @@ import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import SubdomainBanner from '@/components/SubdomainBanner.vue'
+import SetupChecklistCard from '@/components/SetupChecklistCard.vue'
 
 const authStore = useAuthStore()
 
@@ -130,6 +131,7 @@ onMounted(async () => {
 <template>
   <div>
     <SubdomainBanner />
+    <SetupChecklistCard class="mb-6" />
 
     <div
       v-if="loadError"
