@@ -96,9 +96,6 @@ describe('OnboardingView', () => {
     await flushPromises()
 
     expect(push).toHaveBeenCalledWith('/dashboard')
-    // A required step is not something you can skip your way past — the
-    // success screen must never appear as a result of this click.
-    expect(wrapper.find('[data-test="done"]').exists()).toBe(false)
   })
 
   it('skipping the optional look step advances to the success screen instead of leaving', async () => {

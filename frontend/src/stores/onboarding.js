@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import api from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
 
 // The wizard's screen order. `look` is last and optional: the public page
 // renders with defaults, so nothing about it stops a salon taking bookings.
@@ -50,6 +51,21 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   async function complete() {
     const { data } = await api.post('/onboarding/complete')
     status.value = data.data
+
+    // The router guard (`needsOnboarding`) decides whether to bounce an
+    // owner back into this wizard by reading
+    // `authStore.organization.onboarding_completed_at` — a field that
+    // lives on the auth store, not this one, and that nothing else ever
+    // writes. Without this, "Go to dashboard" pushes to a route the guard
+    // immediately reverses, because it is still looking at the stale
+    // value fetchMe() set at login. Taken from the server's answer rather
+    // than a client-synthesised timestamp, so it can never disagree with
+    // what actually got persisted.
+    const authStore = useAuthStore()
+    if (authStore.organization) {
+      authStore.organization.onboarding_completed_at = status.value.completed_at
+    }
+
     return status.value
   }
 

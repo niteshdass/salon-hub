@@ -12,7 +12,6 @@ const onboarding = useOnboardingStore()
 const organization = computed(() => authStore.organization)
 const salonName = computed(() => organization.value?.name ?? 'Your salon')
 const url = computed(() => bookingUrl(organization.value))
-const copied = ref(false)
 const finishing = ref(false)
 
 // markStepDone() only ever flips state locally, optimistically, without
@@ -21,13 +20,28 @@ const finishing = ref(false)
 // status, or it can congratulate someone whose salon cannot take a booking.
 const checking = ref(true)
 
-onMounted(async () => {
+// A failed re-fetch is not the same as the server saying "not ready" — it
+// is the server never having answered at all. Falling back to whatever
+// `onboarding.steps` already holds (optimistic local flips, or nothing)
+// would either congratulate on unverified data or wrongly accuse the
+// owner of missing steps that were never actually checked. This is its
+// own state so neither the congrats branch nor the missing-steps branch
+// can render while the read is unresolved.
+const checkFailed = ref(false)
+
+async function checkStatus() {
+  checking.value = true
+  checkFailed.value = false
   try {
     await onboarding.fetchStatus()
+  } catch {
+    checkFailed.value = true
   } finally {
     checking.value = false
   }
-})
+}
+
+onMounted(checkStatus)
 
 // requiredDone is derived from the server's answer (branch/services/staff),
 // never from the optimistic local flips — this is the gate for whether we
@@ -46,10 +60,41 @@ const shareText = computed(() => `Book an appointment at ${salonName.value}: ${u
 const whatsapp = computed(() => `https://wa.me/?text=${encodeURIComponent(shareText.value)}`)
 const facebook = computed(() => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url.value)}`)
 
+// 'idle' | 'copied' | 'unavailable'. `navigator.clipboard` is undefined on
+// any non-secure context and on older mobile browsers — this is the
+// payoff screen's primary call to action, so a silent throw here would
+// leave the button looking like it did nothing on exactly the devices
+// most likely to be used to set this up.
+const copyState = ref('idle')
+
 async function copy() {
-  await navigator.clipboard.writeText(url.value)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 2000)
+  if (!navigator.clipboard?.writeText) {
+    copyState.value = 'unavailable'
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(url.value)
+    copyState.value = 'copied'
+    setTimeout(() => (copyState.value = 'idle'), 2000)
+  } catch {
+    copyState.value = 'unavailable'
+  }
+}
+
+// 'idle' | 'downloading' | 'failed'. downloadPoster() was previously fired
+// as a floating promise — if canvas rendering or the data-URL conversion
+// throws, the owner clicked a button and nothing happened, with no way to
+// tell whether it worked.
+const posterState = ref('idle')
+
+async function downloadPosterClicked() {
+  posterState.value = 'downloading'
+  try {
+    await downloadPoster(url.value, salonName.value)
+    posterState.value = 'idle'
+  } catch {
+    posterState.value = 'failed'
+  }
 }
 
 async function finish() {
@@ -83,6 +128,21 @@ function leaveWithoutCompleting() {
 <template>
   <div class="min-h-screen bg-slate-50 px-4 py-12">
     <div v-if="checking" class="mx-auto max-w-xl text-center text-slate-500">Checking your setup…</div>
+
+    <div v-else-if="checkFailed" class="mx-auto max-w-xl text-center">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-slate-200 text-2xl">?</div>
+      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">Couldn't check your setup</h1>
+      <p class="mt-2 text-slate-600">
+        We weren't able to reach the server to confirm {{ salonName }} is ready to take bookings.
+      </p>
+      <button
+        type="button"
+        class="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+        @click="checkStatus"
+      >
+        Try again
+      </button>
+    </div>
 
     <div v-else-if="!bookable" class="mx-auto max-w-xl text-center">
       <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-2xl">!</div>
@@ -120,13 +180,19 @@ function leaveWithoutCompleting() {
       <p class="mt-2 text-slate-600">Share this link and customers can book you right now.</p>
 
       <div class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <p class="break-all text-lg font-medium text-indigo-700">{{ url }}</p>
+        <p class="select-all break-all text-lg font-medium text-indigo-700">{{ url }}</p>
         <button
           type="button"
           class="mt-3 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
           @click="copy"
         >
-          {{ copied ? 'Copied' : 'Copy link' }}
+          {{
+            copyState === 'copied'
+              ? 'Copied'
+              : copyState === 'unavailable'
+                ? "Can't copy automatically — select the link above"
+                : 'Copy link'
+          }}
         </button>
 
         <div class="mt-3 grid grid-cols-2 gap-3">
@@ -140,10 +206,17 @@ function leaveWithoutCompleting() {
 
         <button
           type="button"
+          :disabled="posterState === 'downloading'"
           class="mt-3 w-full rounded-xl px-4 py-2.5 font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50"
-          @click="downloadPoster(url, salonName)"
+          @click="downloadPosterClicked"
         >
-          Download QR poster for your shop
+          {{
+            posterState === 'downloading'
+              ? 'Preparing your poster…'
+              : posterState === 'failed'
+                ? "Couldn't create the poster — try again"
+                : 'Download QR poster for your shop'
+          }}
         </button>
 
         <a :href="url" target="_blank" rel="noopener" class="mt-3 block text-sm font-medium text-indigo-600">
