@@ -23,20 +23,49 @@ const services = ref([])
 const branchHours = ref(null)
 const people = ref([])
 const saving = ref(false)
+const loading = ref(true)
 const error = ref('')
 
-onMounted(async () => {
+// The services step is REQUIRED and runs before this screen, so by the time
+// the owner reaches here at least one service exists server-side. An empty
+// list here therefore never means "this salon truly has no services" — it
+// means the fetch failed. That distinction matters: Public\BookingController
+// only falls back to "show every staff member" while NO service anywhere
+// has a staff assignment. A person created here with service_ids: [] looks
+// fine right up until the owner links any other staff member to any other
+// service, at which point this person silently drops out of every service
+// they were never explicitly linked to. So neither entry path may open
+// until services have actually loaded.
+const servicesFailed = computed(() => !loading.value && services.value.length === 0)
+
+async function loadServices() {
   try {
-    const [serviceRes, branchRes] = await Promise.all([
-      api.get('/services'),
-      props.branchId ? api.get(`/branches/${props.branchId}`) : Promise.resolve(null),
-    ])
-    services.value = serviceRes.data.data
-    branchHours.value = branchRes?.data?.data?.opening_hours_json ?? null
-  } catch (err) {
-    error.value = parseApiError(err).message
+    const { data } = await api.get('/services')
+    services.value = data.data
+  } catch {
+    services.value = []
   }
-})
+}
+
+async function loadBranchHours() {
+  if (!props.branchId) return
+  try {
+    const { data } = await api.get(`/branches/${props.branchId}`)
+    branchHours.value = data?.data?.opening_hours_json ?? null
+  } catch {
+    // Non-blocking: a branch that can't be read just falls back to the
+    // Mon-Sat 09:00-18:00 default below, same as StepBranch does for its
+    // own fetch failure. Only a failed *services* fetch stops the owner.
+  }
+}
+
+async function loadEverything() {
+  loading.value = true
+  await Promise.all([loadServices(), loadBranchHours()])
+  loading.value = false
+}
+
+onMounted(loadEverything)
 
 const allServiceIds = computed(() => services.value.map((s) => s.id))
 
@@ -139,7 +168,24 @@ async function save() {
     @skip="emit('skip')"
     @back="emit('back')"
   >
-    <div v-if="!mode" class="grid gap-3 sm:grid-cols-2">
+    <div v-if="loading" class="rounded-2xl bg-white p-6 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
+      Loading your services…
+    </div>
+
+    <div v-else-if="servicesFailed" class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <p class="text-sm text-slate-600">
+        We couldn't load your services just now, so we can't show what each person can do yet.
+      </p>
+      <button
+        type="button"
+        class="mt-3 text-sm font-medium text-indigo-600"
+        @click="loadEverything"
+      >
+        Try again
+      </button>
+    </div>
+
+    <div v-else-if="!mode" class="grid gap-3 sm:grid-cols-2">
       <button
         type="button"
         class="rounded-2xl bg-white p-6 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-400"

@@ -155,8 +155,26 @@ describe('StepStaff', () => {
     expect(continueButton.attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('Add a name for each person before continuing.')
 
+    // A native `disabled` attribute already suppresses a jsdom click
+    // regardless of whether save()'s own guard is correct, so that alone
+    // would not prove the guard works. Force the click through to exercise
+    // `if (!canSave.value) return` inside save() itself.
+    continueButton.element.removeAttribute('disabled')
     await continueButton.trigger('click')
     await flushPromises()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('refuses to open either path when the services fetch fails, and never posts an empty service list', async () => {
+    vi.mocked(api.get).mockReset().mockRejectedValue(new Error('Network error'))
+
+    const wrapper = mountStepStaff()
+    await flushPromises()
+
+    expect(buttonIncluding(wrapper, 'I work alone')).toBeUndefined()
+    expect(buttonIncluding(wrapper, 'I have a team')).toBeUndefined()
+    expect(wrapper.text()).toContain("We couldn't load your services")
+
     expect(api.post).not.toHaveBeenCalled()
   })
 
