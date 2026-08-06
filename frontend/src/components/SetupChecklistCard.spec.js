@@ -17,6 +17,7 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { useOnboardingStore } from '@/stores/onboarding'
 import SetupChecklistCard from './SetupChecklistCard.vue'
 
 const statusWith = (steps, completedAt = null) => ({
@@ -95,6 +96,41 @@ describe('SetupChecklistCard', () => {
     await flushPromises()
 
     expect(wrapper.find('section').exists()).toBe(false)
+  })
+
+  it('stays silent when it could not read the status, rather than telling a finished salon it has done nothing', async () => {
+    loginAs('owner')
+    // A salon that is fully configured and already stamped complete. The
+    // failed fetch used to leave `steps` at its all-false default, so this
+    // card appeared on that owner's dashboard reading "0 of 4 done" — its
+    // only reachable render was the one that was false.
+    useAuthStore().organization.onboarding_completed_at = '2026-08-06T10:00:00+00:00'
+    vi.mocked(api.get).mockRejectedValue(new Error('network down'))
+
+    const wrapper = mountCard()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('0 of 4 done')
+    expect(wrapper.find('section').exists()).toBe(false)
+  })
+
+  it('stays silent when it could not read the status, even after a wizard screen optimistically flipped a step earlier in the session', async () => {
+    loginAs('owner')
+    // markStepDone() is deliberately local and optimistic. This card is the
+    // one consumer that could turn that optimism into a claim about the
+    // world, so a failed read must silence it here too — not fall back to
+    // whatever the local flips left behind.
+    useOnboardingStore().markStepDone('branch')
+    vi.mocked(api.get).mockRejectedValue(new Error('network down'))
+
+    const wrapper = mountCard()
+    await flushPromises()
+
+    // Ordered the other way round from the test above so that a regression
+    // in the `loaded` gate is proven to fail on the structural assertion as
+    // well as on the copy.
+    expect(wrapper.find('section').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('1 of 4 done')
   })
 
   it('"Don\'t show this again" calls /onboarding/complete and the card then disappears', async () => {

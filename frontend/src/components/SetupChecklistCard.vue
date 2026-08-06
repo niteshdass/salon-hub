@@ -23,8 +23,22 @@ const dismissing = ref(false)
 // clickable and the owner can just try again.
 const dismissError = ref('')
 
+// "We haven't been told anything yet" is not "nothing has been done". A
+// failed fetch leaves `steps` at its all-false default (or at whatever
+// optimistic local flips a wizard screen left behind earlier in this SPA
+// session), which used to render this card at "0 of 4 done" on the dashboard
+// of a salon that is fully set up and already taking bookings. A card that
+// does not know what it is talking about stays silent.
+const loaded = ref(false)
+
 onMounted(() => {
-  if (authStore.isOwner) onboarding.fetchStatus().catch(() => {})
+  if (!authStore.isOwner) return
+  onboarding
+    .fetchStatus()
+    .then(() => {
+      loaded.value = true
+    })
+    .catch(() => {})
 })
 
 const items = computed(() =>
@@ -35,7 +49,9 @@ const doneCount = computed(() => items.value.filter((item) => item.done).length)
 // Owners only, and only while something is genuinely unfinished. A salon
 // that has completed the wizard, or that has every step satisfied, is not
 // nagged.
-const show = computed(() => authStore.isOwner && !onboarding.isComplete && doneCount.value < items.value.length)
+const show = computed(
+  () => authStore.isOwner && loaded.value && !onboarding.isComplete && doneCount.value < items.value.length,
+)
 
 async function dismiss() {
   dismissing.value = true
