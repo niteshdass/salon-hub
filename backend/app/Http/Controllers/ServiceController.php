@@ -3,13 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ServiceStatus;
+use App\Http\Requests\Service\BulkStoreServiceRequest;
 use App\Http\Requests\Service\StoreServiceRequest;
 use App\Http\Requests\Service\UpdateServiceRequest;
 use App\Http\Resources\ServiceResource;
 use App\Models\Service;
+use App\Models\ServiceCategory;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class ServiceController extends Controller
 {
@@ -35,6 +39,40 @@ class ServiceController extends Controller
 
         return (new ServiceResource($service->load('category')))
             ->response()->setStatusCode(201);
+    }
+
+    /**
+     * Create a whole starter menu in one transaction, for the onboarding
+     * wizard's second screen.
+     *
+     * The salon type becomes a category so the public page gets its
+     * grouping without asking the owner a second question. firstOrCreate,
+     * not create: an owner who walks the wizard twice — or backs up and
+     * continues — must not end up with two "Hair salon" categories.
+     */
+    public function bulkStore(BulkStoreServiceRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $tenantId = app(CurrentTenant::class)->id();
+
+        $services = DB::transaction(function () use ($data, $tenantId) {
+            $category = ServiceCategory::firstOrCreate([
+                'organization_id' => $tenantId,
+                'name' => $data['category'],
+            ]);
+
+            return collect($data['rows'])->map(fn (array $row) => Service::create([
+                'category_id' => $category->id,
+                'name' => $row['name'],
+                'duration' => $row['duration'],
+                'price' => $row['price'],
+                'status' => ServiceStatus::ACTIVE->value,
+            ]))->all();
+        });
+
+        return ServiceResource::collection(
+            Service::with('category')->whereIn('id', collect($services)->pluck('id'))->get()
+        )->response()->setStatusCode(201);
     }
 
     public function show(Service $service): ServiceResource

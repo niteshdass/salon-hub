@@ -120,6 +120,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::delete('branch-closures/{branchClosure}', [BranchClosureController::class, 'destroy']);
     Route::apiResource('categories', ServiceCategoryController::class)
         ->parameters(['categories' => 'category']);
+    // Declared before the resource: `services/bulk` must not be read as
+    // `services/{service}` with an id of "bulk".
+    Route::post('services/bulk', [ServiceController::class, 'bulkStore']);
     Route::apiResource('services', ServiceController::class);
     Route::apiResource('staff', StaffController::class)
         ->parameters(['staff' => 'staff']);
