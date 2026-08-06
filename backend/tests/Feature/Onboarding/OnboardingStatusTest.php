@@ -129,21 +129,41 @@ class OnboardingStatusTest extends TestCase
         $response->assertJsonPath('data.steps.services', false);
     }
 
-    public function test_a_manager_may_not_read_or_complete_onboarding(): void
+    /**
+     * Setting up the salon is the owner's job. Both non-owner roles go through
+     * the same OrganizationPolicy::update -> isOwner() check, but "it will
+     * behave the same" is an argument, not an assertion — a role-specific
+     * bypass added to either route would only be caught by naming both.
+     */
+    public function test_non_owner_roles_may_not_read_or_complete_onboarding(): void
     {
         [$org] = $this->makeOrgWithOwner('alpha');
-        $manager = User::create([
-            'organization_id' => $org->id,
-            'name' => 'Manager',
-            'email' => 'manager@alpha.test',
-            'password' => 'secret1234',
-            'role' => 'manager',
-            'status' => 'active',
-        ]);
-        $token = $manager->createToken('api')->plainTextToken;
 
-        $this->withToken($token)->getJson('/api/onboarding/status')->assertForbidden();
-        $this->withToken($token)->postJson('/api/onboarding/complete')->assertForbidden();
+        foreach (['manager', 'staff'] as $role) {
+            $member = User::create([
+                'organization_id' => $org->id,
+                'name' => ucfirst($role),
+                'email' => "{$role}@alpha.test",
+                'password' => 'secret1234',
+                'role' => $role,
+                'status' => 'active',
+            ]);
+            $token = $member->createToken('api')->plainTextToken;
+
+            // Without this the second role is not actually tested. Every HTTP
+            // call in one test method shares the application container, and
+            // the sanctum guard caches the user it resolved on the first
+            // request — so the `staff` iteration was silently re-answering as
+            // `manager`, and stayed green even with a policy that explicitly
+            // let staff through. Dropping the guards forces the new token to
+            // be resolved from scratch.
+            $this->app['auth']->forgetGuards();
+
+            $this->withToken($token)->getJson('/api/onboarding/status')
+                ->assertForbidden();
+            $this->withToken($token)->postJson('/api/onboarding/complete')
+                ->assertForbidden();
+        }
     }
 
     public function test_completing_is_idempotent_and_keeps_the_first_timestamp(): void

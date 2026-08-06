@@ -171,11 +171,15 @@ describe('StepStaff', () => {
     const wrapper = mountStepStaff()
     await flushPromises()
 
+    // The guard here is structural: both entry cards leave the DOM, so `mode`
+    // can never be set and save() is unreachable. That is what these three
+    // assertions pin. A trailing `expect(api.post).not.toHaveBeenCalled()`
+    // used to sit below them and could not fail — nothing in this test ever
+    // clicks, and the buttons that would have posted have just been asserted
+    // absent.
     expect(buttonIncluding(wrapper, 'I work alone')).toBeUndefined()
     expect(buttonIncluding(wrapper, 'I have a team')).toBeUndefined()
     expect(wrapper.text()).toContain("We couldn't load your services")
-
-    expect(api.post).not.toHaveBeenCalled()
   })
 
   it('explains a rejected save in plain language and returns the owner to the team form without emitting done', async () => {
