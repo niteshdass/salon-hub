@@ -1,4 +1,5 @@
 <script setup>
+import { CONTACT_EMAIL } from '@/lib/contact'
 import LegalPage from '@/components/legal/LegalPage.vue'
 </script>
 
@@ -62,7 +63,7 @@ import LegalPage from '@/components/legal/LegalPage.vue'
       booking record and the first point of contact for accessing, correcting or deleting
       it. If a salon is unable to help, or you have a question about how SalonHub itself
       handles data, contact us directly at
-      <a href="mailto:hello@salonhub.com">hello@salonhub.com</a>.
+      <a :href="`mailto:${CONTACT_EMAIL}`">{{ CONTACT_EMAIL }}</a>.
     </p>
 
     <h2>6. Cookies</h2>
@@ -74,6 +75,6 @@ import LegalPage from '@/components/legal/LegalPage.vue'
     </p>
 
     <h2>7. Contact</h2>
-    <p>Questions about this policy: <a href="mailto:hello@salonhub.com">hello@salonhub.com</a>.</p>
+    <p>Questions about this policy: <a :href="`mailto:${CONTACT_EMAIL}`">{{ CONTACT_EMAIL }}</a>.</p>
   </LegalPage>
 </template>

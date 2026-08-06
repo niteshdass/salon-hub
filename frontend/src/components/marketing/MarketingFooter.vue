@@ -1,4 +1,5 @@
 <script setup>
+import { CONTACT_EMAIL } from '@/lib/contact'
 import { RouterLink } from 'vue-router'
 
 const productLinks = [
@@ -23,10 +24,10 @@ const productLinks = [
           </div>
           <p class="mt-4 max-w-xs leading-relaxed text-paper/55">Booking software for modern salons.</p>
           <a
-            href="mailto:hello@salonhub.com"
+            :href="`mailto:${CONTACT_EMAIL}`"
             class="mt-5 inline-block text-sm text-paper/70 underline decoration-paper/20 underline-offset-4 transition-colors hover:text-paper hover:decoration-paper/50"
           >
-            hello@salonhub.com
+            {{ CONTACT_EMAIL }}
           </a>
         </div>
 

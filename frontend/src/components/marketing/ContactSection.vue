@@ -1,4 +1,5 @@
 <script setup>
+import { CONTACT_EMAIL } from '@/lib/contact'
 import { reactive, ref } from 'vue'
 import api from '@/lib/api'
 
@@ -139,10 +140,10 @@ async function submit() {
             </span>
             <p class="mt-5 text-lg text-ink/70">Prefer email? Reach us at</p>
             <a
-              href="mailto:hello@salonhub.com"
+              :href="`mailto:${CONTACT_EMAIL}`"
               class="mt-1 inline-block font-display text-2xl font-semibold text-brand-600 underline decoration-brand-200 decoration-2 underline-offset-4 transition-colors hover:text-brand-700 hover:decoration-brand-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
-              hello@salonhub.com
+              {{ CONTACT_EMAIL }}
             </a>
           </div>
         </div>

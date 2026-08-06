@@ -125,6 +125,6 @@ return [
     |
     */
 
-    'contact_address' => env('CONTACT_EMAIL', 'hello@salonhub.com'),
+    'contact_address' => env('CONTACT_EMAIL', 'support@salonhub.com'),
 
 ];

@@ -1,4 +1,5 @@
 <script setup>
+import { CONTACT_EMAIL } from '@/lib/contact'
 import LegalPage from '@/components/legal/LegalPage.vue'
 </script>
 
@@ -61,6 +62,6 @@ import LegalPage from '@/components/legal/LegalPage.vue'
     </p>
 
     <h2>9. Contact</h2>
-    <p>Questions about these terms: <a href="mailto:hello@salonhub.com">hello@salonhub.com</a>.</p>
+    <p>Questions about these terms: <a :href="`mailto:${CONTACT_EMAIL}`">{{ CONTACT_EMAIL }}</a>.</p>
   </LegalPage>
 </template>

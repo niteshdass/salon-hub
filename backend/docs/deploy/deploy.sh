@@ -39,6 +39,17 @@ if [ -z "$APP_DOMAIN" ]; then
 fi
 echo "Building frontend for APP_DOMAIN=$APP_DOMAIN"
 
+# CONTACT_EMAIL is read the same way and for the same reason: the legal pages
+# publish it as the contact for data-subject requests and refund disputes, and
+# the contact form delivers to the backend's copy. If the bundle and the backend
+# disagree, the pages invite people to write to a mailbox that receives nothing.
+# Not fatal if unset — the pages fall back to the same default the backend does.
+CONTACT_EMAIL="$(sed -n 's/^CONTACT_EMAIL=[[:space:]]*//p' "$APP_DIR/backend/.env" | head -n1 | tr -d '"'\'' ')"
+if [ -z "$CONTACT_EMAIL" ]; then
+  echo "CONTACT_EMAIL is not set in $APP_DIR/backend/.env — the legal pages will" >&2
+  echo "fall back to the built-in default. See frontend/.env.example." >&2
+fi
+
 # --base=/app/ is required: without it, Vite emits root-relative
 # url(/assets/...) references inside the built CSS (webfonts) and index.html
 # (favicon) that 404 once served from /app/ instead of /, silently breaking
@@ -47,7 +58,7 @@ echo "Building frontend for APP_DOMAIN=$APP_DOMAIN"
 # tags is unaffected.
 cd "$APP_DIR/frontend"
 npm ci
-VITE_APP_DOMAIN="$APP_DOMAIN" npx vite build --base=/app/
+VITE_APP_DOMAIN="$APP_DOMAIN" VITE_CONTACT_EMAIL="$CONTACT_EMAIL" npx vite build --base=/app/
 
 # ---------------------------------------------------------------------------
 # 2. Backend dependencies and schema.
