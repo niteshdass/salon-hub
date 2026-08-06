@@ -14,6 +14,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
@@ -90,6 +91,10 @@ Route::prefix('auth')->group(function () {
 // Tenant-scoped API: auth:sanctum authenticates, then `tenant` binds the
 // current organization so every query is auto-filtered by organization_id.
 Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
+    // First-run setup. Owner-only; the policy check lives in the controller.
+    Route::get('onboarding/status', [OnboardingController::class, 'status']);
+    Route::post('onboarding/complete', [OnboardingController::class, 'complete']);
+
     Route::get('dashboard', DashboardController::class);
 
     Route::apiResource('customers', CustomerController::class);
