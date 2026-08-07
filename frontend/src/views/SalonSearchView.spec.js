@@ -116,4 +116,40 @@ describe('SalonSearchView', () => {
 
     expect(wrapper.text()).toContain("Couldn't load salons")
   })
+
+  it('keeps the newer search results when an older search resolves after it', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+    vi.mocked(searchSalons).mockReset()
+
+    // Deferred promises so resolution order is under this test's control,
+    // not the order the requests were sent in.
+    let resolveOlder
+    let resolveNewer
+    const olderResponse = new Promise((resolve) => { resolveOlder = resolve })
+    const newerResponse = new Promise((resolve) => { resolveNewer = resolve })
+    vi.mocked(searchSalons).mockReturnValueOnce(olderResponse).mockReturnValueOnce(newerResponse)
+
+    await wrapper.find('input[type="search"]').setValue('aaa')
+    vi.advanceTimersByTime(300)
+
+    await wrapper.find('input[type="search"]').setValue('bbb')
+    vi.advanceTimersByTime(300)
+
+    expect(vi.mocked(searchSalons)).toHaveBeenCalledTimes(2)
+
+    // The newer search ("bbb") settles first; the older, slower one ("aaa")
+    // settles after it. The stale response must not overwrite the fresh one.
+    resolveNewer(results([salon({ slug: 'bbb-salon', name: 'Bbb Salon' })]))
+    await flushPromises()
+
+    resolveOlder(results([salon({ slug: 'aaa-salon', name: 'Aaa Salon' })]))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Bbb Salon')
+    expect(wrapper.text()).not.toContain('Aaa Salon')
+    // A stale `finally` must not strand the page in the loading skeleton.
+    expect(wrapper.find('.animate-pulse').exists()).toBe(false)
+  })
 })
