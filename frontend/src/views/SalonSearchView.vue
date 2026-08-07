@@ -35,6 +35,11 @@ async function run() {
   failed.value = false
   searched.value = term !== ''
   page.value = 1
+  // A fresh search always wins the race (see the `attempt !== latest` guards
+  // below and in showMore()), so any "Show more" in flight is now stale and
+  // its own `finally` will never run to clear this. Reset it unconditionally
+  // here or the button is stuck reading "Loading…", disabled, forever.
+  loadingMore.value = false
 
   try {
     const { data, meta } = await searchSalons({ q: term, page: 1 })

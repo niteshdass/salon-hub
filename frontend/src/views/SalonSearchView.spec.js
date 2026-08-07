@@ -28,7 +28,7 @@ const salon = (overrides = {}) => ({
   ...overrides,
 })
 
-const results = (rows) => ({ data: rows, meta: { total: rows.length, page: 1, per_page: 12 } })
+const results = (rows, total = rows.length) => ({ data: rows, meta: { total, page: 1, per_page: 12 } })
 
 describe('SalonSearchView', () => {
   beforeEach(() => {
@@ -179,6 +179,43 @@ describe('SalonSearchView', () => {
 
     expect(wrapper.text()).not.toContain('Stale Salon')
     expect(wrapper.text()).not.toContain('Aaa Salon')
+  })
+
+  it('does not leave "Show more" stuck loading when a new query wins the race', async () => {
+    vi.useFakeTimers()
+    vi.mocked(searchSalons).mockResolvedValueOnce({
+      data: [salon({ slug: 'aaa-salon', name: 'Aaa Salon' })],
+      meta: { total: 2, page: 1, per_page: 12 },
+    })
+
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+
+    // Kick off "Show more" but leave its page-2 response unresolved.
+    let resolveShowMore
+    const showMoreResponse = new Promise((resolve) => { resolveShowMore = resolve })
+    vi.mocked(searchSalons).mockReturnValueOnce(showMoreResponse)
+    await wrapper.find('[data-test="show-more"]').trigger('click')
+    expect(wrapper.find('[data-test="show-more"]').text()).toBe('Loading…')
+
+    // A new query wins the race and resolves — with more pages of its own,
+    // so "Show more" should render again, not stay stuck on the old click.
+    vi.mocked(searchSalons).mockResolvedValueOnce(results([salon({ slug: 'new-salon', name: 'New Salon' })], 2))
+    await wrapper.find('input[type="search"]').setValue('new')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    // The stale "Show more" response lands after the new query already won.
+    resolveShowMore({
+      data: [salon({ slug: 'stale-salon', name: 'Stale Salon' })],
+      meta: { total: 2, page: 1, per_page: 12 },
+    })
+    await flushPromises()
+
+    const showMore = wrapper.find('[data-test="show-more"]')
+    expect(showMore.exists()).toBe(true)
+    expect(showMore.attributes('disabled')).toBeUndefined()
+    expect(showMore.text()).toBe('Show more')
   })
 
   it('keeps the newer search results when an older search resolves after it', async () => {
