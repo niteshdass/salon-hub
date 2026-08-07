@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\OrganizationStatus;
+use App\Enums\ServiceStatus;
 use App\Enums\SubscriptionPlan;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -67,6 +69,7 @@ class Organization extends Model
         'cover_image',
         'subscription_plan',
         'status',
+        'onboarding_completed_at',
     ];
 
     protected function casts(): array
@@ -121,5 +124,25 @@ class Organization extends Model
     public function setting(): HasOne
     {
         return $this->hasOne(Setting::class);
+    }
+
+    /**
+     * Salons that may appear in public discovery: open for business, finished
+     * setting up, somewhere to go, and something to book.
+     *
+     * One scope so the listing and anything built on it later cannot drift
+     * into disagreeing about who is listed.
+     *
+     * @param  Builder<Organization>  $query
+     * @return Builder<Organization>
+     */
+    public function scopeListable(Builder $query): Builder
+    {
+        return $query
+            ->where('status', OrganizationStatus::ACTIVE)
+            ->whereNotNull('onboarding_completed_at')
+            ->whereHas('branches')
+            ->whereHas('services', fn (Builder $services) => $services
+                ->where('status', ServiceStatus::ACTIVE));
     }
 }

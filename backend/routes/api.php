@@ -19,6 +19,7 @@ use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
 use App\Http\Controllers\Public\BookingController;
+use App\Http\Controllers\Public\DiscoveryController;
 use App\Http\Controllers\Public\PaymentCallbackController;
 use App\Http\Controllers\Public\ReviewController as PublicReviewController;
 use App\Http\Controllers\Public\SiteController;
@@ -231,3 +232,11 @@ Route::prefix('customer')->group(function () {
         Route::post('bookings/{appointment}/review', [CustomerBookingController::class, 'review']);
     });
 });
+
+// Cross-tenant salon discovery for the platform's own search page. Public and
+// deliberately NOT tenant-scoped: the point is to look across organizations,
+// which is why it lives outside both the `public/{org}` and `public-site`
+// groups — `public.tenant` would bind one salon and filter the rest away.
+// Throttled because a debounced search box is chatty and an unauthenticated
+// cross-tenant endpoint should not be free to scrape.
+Route::get('discover/salons', DiscoveryController::class)->middleware('throttle:60,1');
