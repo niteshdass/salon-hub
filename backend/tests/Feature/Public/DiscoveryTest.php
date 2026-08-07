@@ -212,6 +212,90 @@ class DiscoveryTest extends TestCase
         $response->assertJsonPath('data.0.rating.count', 3);
     }
 
+    public function test_it_matches_a_salon_by_name_case_insensitively(): void
+    {
+        $this->salon('chastity-hyde');
+        $this->salon('heaven-touch');
+
+        $response = $this->getJson('/api/discover/salons?q=CHASTITY');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'chastity-hyde');
+    }
+
+    public function test_it_matches_a_salon_by_slug(): void
+    {
+        $this->salon('chastity-hyde');
+        $this->salon('heaven-touch');
+
+        $response = $this->getJson('/api/discover/salons?q=heaven-touch');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'heaven-touch');
+    }
+
+    public function test_it_matches_a_salon_by_city(): void
+    {
+        $this->salon('chastity-hyde');
+        $dhaka = $this->salon('heaven-touch');
+        Branch::withoutGlobalScopes()
+            ->where('organization_id', $dhaka->id)
+            ->update(['city' => 'Dhaka']);
+
+        $response = $this->getJson('/api/discover/salons?q=dhaka');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'heaven-touch');
+    }
+
+    public function test_it_matches_a_salon_by_service_name(): void
+    {
+        $this->salon('chastity-hyde');
+        $spa = $this->salon('heaven-touch');
+        Service::create([
+            'organization_id' => $spa->id,
+            'name' => 'Hot stone massage',
+            'duration' => 60,
+            'price' => 2000,
+            'status' => 'active',
+        ]);
+
+        $response = $this->getJson('/api/discover/salons?q=massage');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'heaven-touch');
+    }
+
+    public function test_it_never_matches_an_inactive_service(): void
+    {
+        $org = $this->salon('chastity-hyde');
+        Service::create([
+            'organization_id' => $org->id,
+            'name' => 'Hot stone massage',
+            'duration' => 60,
+            'price' => 2000,
+            'status' => 'inactive',
+        ]);
+
+        $response = $this->getJson('/api/discover/salons?q=massage');
+
+        $response->assertJsonCount(0, 'data');
+        $response->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_an_empty_query_browses_every_listed_salon(): void
+    {
+        $this->salon('chastity-hyde');
+        $this->salon('heaven-touch');
+
+        // Raw spaces in a URI are rejected outright by Symfony's request
+        // parser before the app ever sees them, so the whitespace-only
+        // query has to travel percent-encoded, as a browser would send it.
+        $response = $this->getJson('/api/discover/salons?q=%20%20%20');
+
+        $response->assertJsonCount(2, 'data');
+    }
+
     /**
      * A review attached to a salon. `reviews.appointment_id` is NOT NULL and
      * unique — a review only exists because someone was served — so each one

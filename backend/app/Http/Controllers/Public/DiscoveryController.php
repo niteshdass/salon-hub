@@ -31,7 +31,24 @@ class DiscoveryController extends Controller
     {
         $page = max(1, (int) $request->query('page', 1));
 
+        $term = $this->term($request);
+
         $query = Organization::query()->listable()->orderBy('name');
+
+        if ($term !== null) {
+            $like = '%'.$term.'%';
+
+            $query->where(function ($match) use ($like) {
+                $match
+                    ->whereRaw('LOWER(organizations.name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(organizations.slug) LIKE ?', [$like])
+                    ->orWhereHas('branches', fn ($branches) => $branches
+                        ->whereRaw('LOWER(branches.city) LIKE ?', [$like]))
+                    ->orWhereHas('services', fn ($services) => $services
+                        ->where('status', ServiceStatus::ACTIVE)
+                        ->whereRaw('LOWER(services.name) LIKE ?', [$like]));
+            });
+        }
 
         $total = (clone $query)->count();
 
@@ -152,5 +169,20 @@ class DiscoveryController extends Controller
     protected function url(?string $path): ?string
     {
         return $path ? Storage::disk('public')->url($path) : null;
+    }
+
+    /**
+     * The search term, lowercased for matching, or null when the box is empty.
+     *
+     * Lowercasing both sides rather than trusting collation keeps sqlite (in
+     * tests) and MySQL (in production) agreeing. The length cap bounds the
+     * LIKE pattern; nobody types a salon name longer than this.
+     */
+    protected function term(Request $request): ?string
+    {
+        $raw = $request->query('q');
+        $term = is_string($raw) ? trim($raw) : '';
+
+        return $term === '' ? null : mb_strtolower(mb_substr($term, 0, 80));
     }
 }
