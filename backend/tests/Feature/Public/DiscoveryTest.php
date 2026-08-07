@@ -362,12 +362,26 @@ class DiscoveryTest extends TestCase
         $response->assertJsonPath('data.1.slug', 'zenith-massage');
     }
 
-    public function test_tied_salons_break_the_tie_by_id_so_pagination_never_repeats_or_skips(): void
+    /**
+     * Documents the tie-break contract; it cannot guard it on sqlite.
+     *
+     * Two salons that share a name tie on name_rank (no q), on activity
+     * (neither ever booked), and on name itself. Only organizations.id can
+     * break that tie in principle — without it, the pair's relative order
+     * across two separate paginated queries is not guaranteed by the SQL
+     * standard. In practice, though, sqlite's table scan for a query with
+     * no distinguishing ORDER BY comes back in ascending rowid order no
+     * matter the insertion sequence — verified by force-assigning row ids
+     * against insertion order (id 1 to the row inserted second, id 9000 to
+     * the row inserted first) and observing the tied rows still return
+     * ordered 1 then 9000. So removing `->orderBy('organizations.id')`
+     * from the controller cannot be caught by any data arrangement here;
+     * this test was confirmed to still pass with that line deleted. Only a
+     * MySQL run (production's engine) could prove the ORDER BY is
+     * load-bearing.
+     */
+    public function test_tied_salons_are_documented_to_break_the_tie_by_id(): void
     {
-        // Two salons that share a name tie on name_rank (no q), on activity
-        // (neither ever booked), and on name itself. Only organizations.id
-        // can break that tie — without it, the pair's relative order across
-        // two separate paginated queries is not guaranteed by either engine.
         foreach (range(1, 11) as $n) {
             $this->salon('filler-'.str_pad((string) $n, 2, '0', STR_PAD_LEFT));
         }
