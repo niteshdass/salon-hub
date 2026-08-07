@@ -117,6 +117,70 @@ describe('SalonSearchView', () => {
     expect(wrapper.text()).toContain("Couldn't load salons")
   })
 
+  it('only shows "Show more" when more results exist beyond the current page', async () => {
+    vi.mocked(searchSalons).mockResolvedValue(results([salon()]))
+
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="show-more"]').exists()).toBe(false)
+  })
+
+  it('shows "Show more" when the total exceeds what has loaded, and appends on click', async () => {
+    const first = salon({ slug: 'aaa-salon', name: 'Aaa Salon' })
+    const second = salon({ slug: 'bbb-salon', name: 'Bbb Salon' })
+    vi.mocked(searchSalons).mockResolvedValueOnce({ data: [first], meta: { total: 2, page: 1, per_page: 12 } })
+
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+
+    const showMore = wrapper.find('[data-test="show-more"]')
+    expect(showMore.exists()).toBe(true)
+
+    vi.mocked(searchSalons).mockResolvedValueOnce({ data: [second], meta: { total: 2, page: 1, per_page: 12 } })
+    await showMore.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(searchSalons)).toHaveBeenLastCalledWith({ q: '', page: 2 })
+    expect(wrapper.text()).toContain('Aaa Salon')
+    expect(wrapper.text()).toContain('Bbb Salon')
+    // Both salons are now showing, so total (2) is no longer greater than what's loaded.
+    expect(wrapper.find('[data-test="show-more"]').exists()).toBe(false)
+  })
+
+  it('resets to page 1 when a new query is typed, and a stale page-2 response is discarded', async () => {
+    vi.useFakeTimers()
+    vi.mocked(searchSalons).mockResolvedValueOnce({
+      data: [salon({ slug: 'aaa-salon', name: 'Aaa Salon' })],
+      meta: { total: 2, page: 1, per_page: 12 },
+    })
+
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+
+    // Kick off "Show more" but leave it unresolved.
+    let resolveShowMore
+    const showMoreResponse = new Promise((resolve) => { resolveShowMore = resolve })
+    vi.mocked(searchSalons).mockReturnValueOnce(showMoreResponse)
+    await wrapper.find('[data-test="show-more"]').trigger('click')
+
+    // Typing a new query supersedes the in-flight "Show more" request.
+    vi.mocked(searchSalons).mockResolvedValueOnce(results([salon({ slug: 'new-salon', name: 'New Salon' })]))
+    await wrapper.find('input[type="search"]').setValue('new')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    expect(vi.mocked(searchSalons)).toHaveBeenLastCalledWith({ q: 'new', page: 1 })
+    expect(wrapper.text()).toContain('New Salon')
+
+    // The stale "Show more" response resolves after the new query already won.
+    resolveShowMore({ data: [salon({ slug: 'stale-salon', name: 'Stale Salon' })], meta: { total: 2, page: 1, per_page: 12 } })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Stale Salon')
+    expect(wrapper.text()).not.toContain('Aaa Salon')
+  })
+
   it('keeps the newer search results when an older search resolves after it', async () => {
     vi.useFakeTimers()
     const wrapper = mount(SalonSearchView)

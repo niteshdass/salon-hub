@@ -13,7 +13,9 @@ const router = useRouter()
 const q = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const salons = ref([])
 const total = ref(0)
+const page = ref(1)
 const loading = ref(true)
+const loadingMore = ref(false)
 const failed = ref(false)
 
 // Set once a search has actually been run with text in the box, so the empty
@@ -32,6 +34,7 @@ async function run() {
   loading.value = true
   failed.value = false
   searched.value = term !== ''
+  page.value = 1
 
   try {
     const { data, meta } = await searchSalons({ q: term, page: 1 })
@@ -45,6 +48,30 @@ async function run() {
     total.value = 0
   } finally {
     if (attempt === latest) loading.value = false
+  }
+}
+
+// Fetches the next page and appends it to what's already showing. Guarded
+// by the same `attempt === latest` token as run(): a new search started
+// while this is in flight must win, not have a late page-2 response
+// tacked onto its results.
+async function showMore() {
+  const term = q.value.trim()
+  const attempt = ++latest
+  const nextPage = page.value + 1
+
+  loadingMore.value = true
+
+  try {
+    const { data } = await searchSalons({ q: term, page: nextPage })
+    if (attempt !== latest) return
+    salons.value = [...salons.value, ...data]
+    page.value = nextPage
+  } catch {
+    // Leave the existing results and control in place; the customer can
+    // just try "Show more" again.
+  } finally {
+    if (attempt === latest) loadingMore.value = false
   }
 }
 
@@ -97,91 +124,105 @@ onBeforeUnmount(() => clearTimeout(timer))
         />
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <div v-for="n in 6" :key="n" class="animate-pulse rounded-2xl border border-brand-100 bg-white p-5">
-          <div class="h-36 rounded-xl bg-brand-50"></div>
-          <div class="mt-4 h-4 w-2/3 rounded bg-brand-50"></div>
-          <div class="mt-2 h-3 w-1/3 rounded bg-brand-50"></div>
+      <div aria-live="polite">
+        <!-- Loading -->
+        <div v-if="loading" class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div v-for="n in 6" :key="n" class="animate-pulse rounded-2xl border border-brand-100 bg-white p-5">
+            <div class="h-36 rounded-xl bg-brand-50"></div>
+            <div class="mt-4 h-4 w-2/3 rounded bg-brand-50"></div>
+            <div class="mt-2 h-3 w-1/3 rounded bg-brand-50"></div>
+          </div>
         </div>
-      </div>
 
-      <!-- Failed -->
-      <p v-else-if="failed" class="mt-12 text-ink/60">
-        Couldn't load salons. Check your connection and try again.
-      </p>
+        <!-- Failed -->
+        <p v-else-if="failed" class="mt-12 text-ink/60">
+          Couldn't load salons. Check your connection and try again.
+        </p>
 
-      <!-- Results -->
-      <template v-else-if="salons.length">
-        <p class="mt-8 text-sm text-ink/50">{{ total }} {{ total === 1 ? 'salon' : 'salons' }}</p>
+        <!-- Results -->
+        <template v-else-if="salons.length">
+          <p class="mt-8 text-sm text-ink/50">{{ total }} {{ total === 1 ? 'salon' : 'salons' }}</p>
 
-        <div class="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <RouterLink
-            v-for="salon in salons"
-            :key="salon.slug"
-            :to="`/salon/${salon.slug}`"
-            class="group block overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          <div class="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <RouterLink
+              v-for="salon in salons"
+              :key="salon.slug"
+              :to="`/salon/${salon.slug}`"
+              class="group block overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            >
+              <div class="h-40 bg-brand-50">
+                <img
+                  v-if="salon.cover_image_url"
+                  :src="salon.cover_image_url"
+                  :alt="salon.name"
+                  class="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              </div>
+
+              <div class="p-5">
+                <h2 class="font-display text-lg font-semibold text-ink">{{ salon.name }}</h2>
+                <p class="mt-1 text-sm text-ink/55">
+                  <span v-if="salon.city">{{ salon.city }}</span>
+                  <span v-if="salon.city && priceLabel(salon)" class="text-ink/25"> · </span>
+                  <span v-if="priceLabel(salon)">{{ priceLabel(salon) }}</span>
+                </p>
+
+                <p v-if="salon.rating" data-test="rating" class="mt-2 text-sm text-ink/70">
+                  ★ {{ salon.rating.average }}
+                  <span class="text-ink/40">({{ salon.rating.count }})</span>
+                </p>
+
+                <ul v-if="salon.services.length" class="mt-4 flex flex-wrap gap-1.5">
+                  <li
+                    v-for="service in salon.services"
+                    :key="service"
+                    class="rounded-full bg-brand-50 px-2.5 py-1 text-xs text-brand-700"
+                  >
+                    {{ service }}
+                  </li>
+                </ul>
+              </div>
+            </RouterLink>
+          </div>
+
+          <div v-if="salons.length < total" class="mt-8 flex justify-center">
+            <button
+              type="button"
+              data-test="show-more"
+              :disabled="loadingMore"
+              class="inline-flex items-center justify-center rounded-full border border-brand-200 bg-white/60 px-7 py-3 text-sm font-semibold text-brand-700 transition-all duration-200 hover:border-brand-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:cursor-not-allowed disabled:opacity-60"
+              @click="showMore"
+            >
+              {{ loadingMore ? 'Loading…' : 'Show more' }}
+            </button>
+          </div>
+        </template>
+
+        <!-- Searched, nothing matched -->
+        <div v-else-if="searched" class="mt-12">
+          <p class="text-ink/60">Nothing matches "{{ q.trim() }}".</p>
+          <button
+            type="button"
+            data-test="clear"
+            class="mt-4 rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
+            @click="clear"
           >
-            <div class="h-40 bg-brand-50">
-              <img
-                v-if="salon.cover_image_url"
-                :src="salon.cover_image_url"
-                :alt="salon.name"
-                class="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-            </div>
+            Show all salons
+          </button>
+        </div>
 
-            <div class="p-5">
-              <h2 class="font-display text-lg font-semibold text-ink">{{ salon.name }}</h2>
-              <p class="mt-1 text-sm text-ink/55">
-                <span v-if="salon.city">{{ salon.city }}</span>
-                <span v-if="salon.city && priceLabel(salon)" class="text-ink/25"> · </span>
-                <span v-if="priceLabel(salon)">{{ priceLabel(salon) }}</span>
-              </p>
-
-              <p v-if="salon.rating" data-test="rating" class="mt-2 text-sm text-ink/70">
-                ★ {{ salon.rating.average }}
-                <span class="text-ink/40">({{ salon.rating.count }})</span>
-              </p>
-
-              <ul v-if="salon.services.length" class="mt-4 flex flex-wrap gap-1.5">
-                <li
-                  v-for="service in salon.services"
-                  :key="service"
-                  class="rounded-full bg-brand-50 px-2.5 py-1 text-xs text-brand-700"
-                >
-                  {{ service }}
-                </li>
-              </ul>
-            </div>
+        <!-- Nothing listed at all -->
+        <div v-else class="mt-12">
+          <p class="text-ink/60">
+            SalonHub is just getting started here, so there are no salons to show yet.
+          </p>
+          <RouterLink
+            to="/register"
+            class="mt-4 inline-block rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
+          >
+            Register a salon
           </RouterLink>
         </div>
-      </template>
-
-      <!-- Searched, nothing matched -->
-      <div v-else-if="searched" class="mt-12">
-        <p class="text-ink/60">Nothing matches "{{ q.trim() }}".</p>
-        <button
-          type="button"
-          data-test="clear"
-          class="mt-4 rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
-          @click="clear"
-        >
-          Show all salons
-        </button>
-      </div>
-
-      <!-- Nothing listed at all -->
-      <div v-else class="mt-12">
-        <p class="text-ink/60">
-          SalonHub is just getting started here, so there are no salons to show yet.
-        </p>
-        <RouterLink
-          to="/register"
-          class="mt-4 inline-block rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
-        >
-          Register a salon
-        </RouterLink>
       </div>
     </main>
 
