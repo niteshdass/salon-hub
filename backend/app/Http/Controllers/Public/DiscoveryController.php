@@ -69,10 +69,16 @@ class DiscoveryController extends Controller
         // A salon that recently took a booking is a salon that still exists.
         // Nulls last: never booked is worse than booked long ago. The boolean
         // expression evaluates to 0/1 on both sqlite and MySQL.
+        // `organizations.name` is not unique, so two same-named salons with
+        // no bookings would otherwise tie on every key above. Break the tie
+        // on id — the only column guaranteed unique here — so pagination
+        // can never repeat or skip a salon. Qualified because the query
+        // aggregates over `appointments`, which also has an `id` column.
         $query
             ->withMax('appointments', 'created_at')
             ->orderByRaw('appointments_max_created_at IS NULL, appointments_max_created_at DESC')
-            ->orderBy('organizations.name');
+            ->orderBy('organizations.name')
+            ->orderBy('organizations.id');
 
         // Counted off a clean copy: `count()` over the ranking select
         // expressions is both wasteful and, with an ORDER BY on an alias,

@@ -341,6 +341,35 @@ class DiscoveryTest extends TestCase
         $response->assertJsonPath('data.1.slug', 'zenith-massage');
     }
 
+    public function test_tied_salons_break_the_tie_by_id_so_pagination_never_repeats_or_skips(): void
+    {
+        // Two salons that share a name tie on name_rank (no q), on activity
+        // (neither ever booked), and on name itself. Only organizations.id
+        // can break that tie — without it, the pair's relative order across
+        // two separate paginated queries is not guaranteed by either engine.
+        foreach (range(1, 11) as $n) {
+            $this->salon('filler-'.str_pad((string) $n, 2, '0', STR_PAD_LEFT));
+        }
+        $first = $this->salon('same-name-first', ['name' => 'Same Salon']);
+        $second = $this->salon('same-name-second', ['name' => 'Same Salon']);
+
+        $page1 = $this->getJson('/api/discover/salons')->assertOk();
+        $page2 = $this->getJson('/api/discover/salons?page=2')->assertOk();
+
+        $this->assertCount(12, $page1->json('data'));
+        $this->assertCount(1, $page2->json('data'));
+
+        // Lower id (created first) sorts first once name is tied.
+        $this->assertSame('same-name-first', $page1->json('data.11.slug'));
+        $this->assertSame('same-name-second', $page2->json('data.0.slug'));
+
+        $slugs = array_merge(
+            array_column($page1->json('data'), 'slug'),
+            array_column($page2->json('data'), 'slug'),
+        );
+        $this->assertSame($slugs, array_unique($slugs));
+    }
+
     /**
      * A review attached to a salon. `reviews.appointment_id` is NOT NULL and
      * unique — a review only exists because someone was served — so each one
