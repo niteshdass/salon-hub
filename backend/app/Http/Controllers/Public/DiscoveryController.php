@@ -55,8 +55,8 @@ class DiscoveryController extends Controller
             // withMax()/withMin() below normally add `organizations.*` to the
             // select list for us, but only when nothing has selected yet;
             // selectRaw() here claims that slot first, so it has to bring
-            // `organizations.*` along itself or every whitelisted column
-            // this query ends with comes back null.
+            // `organizations.*` along itself or every column this query
+            // needs comes back null.
             $query
                 ->addSelect('organizations.*')
                 ->selectRaw(
@@ -85,6 +85,16 @@ class DiscoveryController extends Controller
         // invalid on MySQL.
         $total = (clone $query)->reorder()->count('organizations.id');
 
+        // get()'s column list is NOT a whitelist: withMax() above already
+        // forced `organizations.*` onto the select (or, on the $term
+        // branch, addSelect('organizations.*') did), and onceWithColumns()
+        // only applies a get() column list when nothing has selected yet.
+        // So every organizations column — email, phone, uuid, status, etc —
+        // comes back on $salons regardless of what is passed here. The
+        // only real whitelist is the hand-built ->map() below; never swap
+        // it for ->toArray() or an API Resource without keeping that in
+        // mind, and never add an $appends accessor to Organization that
+        // would leak through it.
         /** @var Collection<int, Organization> $salons */
         $salons = $query
             ->withMin(
@@ -93,7 +103,7 @@ class DiscoveryController extends Controller
                 'price',
             )
             ->forPage($page, self::PER_PAGE)
-            ->get(['id', 'name', 'slug', 'currency', 'logo', 'cover_image']);
+            ->get();
 
         $ids = $salons->pluck('id')->all();
         $cities = $this->citiesFor($ids);

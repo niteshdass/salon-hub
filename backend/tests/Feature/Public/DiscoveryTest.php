@@ -75,6 +75,26 @@ class DiscoveryTest extends TestCase
         $response->assertJsonPath('meta.per_page', 12);
     }
 
+    /**
+     * The endpoint runs with no tenant bound, so the BelongsToOrganization
+     * scope can't protect it — the hand-built ->map() in the controller is
+     * the only thing standing between this query and a cross-tenant leak.
+     * assertSame on the exact key set (not just the values) means a stray
+     * key added to that map — organizations.email, say — fails this test
+     * even though nothing here asserts what such a key would contain.
+     */
+    public function test_a_card_exposes_exactly_the_documented_fields(): void
+    {
+        $this->salon('chastity-hyde');
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $this->assertSame(
+            ['slug', 'name', 'city', 'cover_image_url', 'logo_url', 'currency', 'price_from', 'rating', 'services'],
+            array_keys($response->json('data.0')),
+        );
+    }
+
     public function test_it_hides_a_suspended_salon(): void
     {
         $this->salon('open-one');
