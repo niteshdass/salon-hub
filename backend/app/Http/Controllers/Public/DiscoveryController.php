@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Enums\ServiceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Organization;
+use App\Models\Review;
+use App\Models\Service;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -34,10 +37,18 @@ class DiscoveryController extends Controller
 
         /** @var Collection<int, Organization> $salons */
         $salons = $query
+            ->withMin(
+                ['services as price_from' => fn ($services) => $services
+                    ->where('status', ServiceStatus::ACTIVE)],
+                'price',
+            )
             ->forPage($page, self::PER_PAGE)
             ->get(['id', 'name', 'slug', 'currency', 'logo', 'cover_image']);
 
-        $cities = $this->citiesFor($salons->pluck('id')->all());
+        $ids = $salons->pluck('id')->all();
+        $cities = $this->citiesFor($ids);
+        $services = $this->servicesFor($ids);
+        $ratings = $this->ratingsFor($ids);
 
         return response()->json([
             'data' => $salons->map(fn (Organization $salon) => [
@@ -47,6 +58,11 @@ class DiscoveryController extends Controller
                 'cover_image_url' => $this->url($salon->cover_image),
                 'logo_url' => $this->url($salon->logo),
                 'currency' => $salon->currency,
+                'price_from' => $salon->price_from !== null
+                    ? number_format((float) $salon->price_from, 2, '.', '')
+                    : null,
+                'rating' => $ratings[$salon->id] ?? null,
+                'services' => $services[$salon->id] ?? [],
             ])->values()->all(),
             'meta' => [
                 'total' => $total,
@@ -74,6 +90,62 @@ class DiscoveryController extends Controller
             ->whereIn('organization_id', $organizationIds)
             ->orderByDesc('id')
             ->pluck('city', 'organization_id')
+            ->all();
+    }
+
+    /**
+     * Up to three active service names per salon, oldest first — enough for a
+     * customer to see what kind of salon this is without opening it.
+     *
+     * @param  array<int, int>  $organizationIds
+     * @return array<int, array<int, string>>
+     */
+    protected function servicesFor(array $organizationIds): array
+    {
+        if (! $organizationIds) {
+            return [];
+        }
+
+        return Service::query()
+            ->whereIn('organization_id', $organizationIds)
+            ->where('status', ServiceStatus::ACTIVE)
+            ->orderBy('id')
+            ->get(['organization_id', 'name'])
+            ->groupBy('organization_id')
+            ->map(fn (Collection $rows) => $rows->take(3)->pluck('name')->all())
+            ->all();
+    }
+
+    /**
+     * Published-review average and count per salon, but only once a salon has
+     * three of them.
+     *
+     * A single review is noise, and a blank rating beside an established
+     * salon's reads as "bad" when it only means "new" — so a salon below the
+     * threshold shows no rating at all rather than a thin one.
+     *
+     * @param  array<int, int>  $organizationIds
+     * @return array<int, array{average: float, count: int}>
+     */
+    protected function ratingsFor(array $organizationIds): array
+    {
+        if (! $organizationIds) {
+            return [];
+        }
+
+        return Review::query()
+            ->whereIn('organization_id', $organizationIds)
+            ->where('status', 'published')
+            ->selectRaw('organization_id, AVG(rating) as avg_rating, COUNT(*) as cnt')
+            ->groupBy('organization_id')
+            ->get()
+            ->filter(fn ($row) => (int) $row->cnt >= 3)
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->organization_id => [
+                    'average' => round((float) $row->avg_rating, 1),
+                    'count' => (int) $row->cnt,
+                ],
+            ])
             ->all();
     }
 

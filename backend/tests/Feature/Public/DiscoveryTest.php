@@ -2,9 +2,13 @@
 
 namespace Tests\Feature\Public;
 
+use App\Models\Appointment;
 use App\Models\Branch;
+use App\Models\Customer;
 use App\Models\Organization;
+use App\Models\Review;
 use App\Models\Service;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -138,5 +142,125 @@ class DiscoveryTest extends TestCase
             array_column($second->json('data'), 'slug'),
         );
         $this->assertSame($slugs, array_unique($slugs));
+    }
+
+    public function test_a_card_shows_the_cheapest_active_service_and_a_service_preview(): void
+    {
+        $org = $this->salon('chastity-hyde');
+        Service::create([
+            'organization_id' => $org->id,
+            'name' => 'Hair spa',
+            'duration' => 60,
+            'price' => 1200,
+            'status' => 'active',
+        ]);
+        Service::create([
+            'organization_id' => $org->id,
+            'name' => 'Bridal package',
+            'duration' => 180,
+            'price' => 100,
+            'status' => 'inactive',
+        ]);
+        Service::create([
+            'organization_id' => $org->id,
+            'name' => 'Facial',
+            'duration' => 45,
+            'price' => 900,
+            'status' => 'active',
+        ]);
+        Service::create([
+            'organization_id' => $org->id,
+            'name' => 'Manicure',
+            'duration' => 30,
+            'price' => 700,
+            'status' => 'active',
+        ]);
+
+        $response = $this->getJson('/api/discover/salons');
+
+        // 100 belongs to the inactive service and must not be advertised.
+        $this->assertSame('500.00', $response->json('data.0.price_from'));
+        $this->assertSame(
+            ['Hair cut', 'Hair spa', 'Facial'],
+            $response->json('data.0.services'),
+        );
+    }
+
+    public function test_a_salon_with_two_published_reviews_shows_no_rating(): void
+    {
+        $org = $this->salon('chastity-hyde');
+        $this->review($org, 5);
+        $this->review($org, 5);
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $this->assertNull($response->json('data.0.rating'));
+    }
+
+    public function test_a_salon_with_three_published_reviews_shows_its_rating(): void
+    {
+        $org = $this->salon('chastity-hyde');
+        $this->review($org, 5);
+        $this->review($org, 4);
+        $this->review($org, 4);
+        $this->review($org, 1, 'hidden');
+
+        $response = $this->getJson('/api/discover/salons');
+
+        // The hidden review counts for neither the average nor the count.
+        $response->assertJsonPath('data.0.rating.average', 4.3);
+        $response->assertJsonPath('data.0.rating.count', 3);
+    }
+
+    /**
+     * A review attached to a salon. `reviews.appointment_id` is NOT NULL and
+     * unique — a review only exists because someone was served — so each one
+     * needs its own booking.
+     */
+    private function review(Organization $org, int $rating, string $status = 'published'): Review
+    {
+        return Review::create([
+            'organization_id' => $org->id,
+            'appointment_id' => $this->booking($org)->id,
+            'rating' => $rating,
+            'comment' => 'Lovely.',
+            'reviewer_name' => 'Sadia Rahman',
+            'status' => $status,
+        ]);
+    }
+
+    /** One booking taken by a salon, which is what "still running" means here. */
+    private function booking(Organization $org): Appointment
+    {
+        $branch = Branch::withoutGlobalScopes()->where('organization_id', $org->id)->firstOrFail();
+        $service = Service::withoutGlobalScopes()->where('organization_id', $org->id)->firstOrFail();
+
+        $staff = User::create([
+            'organization_id' => $org->id,
+            'branch_id' => $branch->id,
+            'name' => 'Rifat',
+            'email' => 'rifat-'.fake()->unique()->numerify('####').'@'.$org->slug.'.test',
+            'password' => bcrypt('secret1234'),
+            'role' => 'staff',
+            'status' => 'active',
+        ]);
+
+        $customer = Customer::create([
+            'organization_id' => $org->id,
+            'name' => 'Nabila',
+            'phone' => '555-'.fake()->unique()->numerify('####'),
+        ]);
+
+        return Appointment::create([
+            'organization_id' => $org->id,
+            'branch_id' => $branch->id,
+            'customer_id' => $customer->id,
+            'staff_id' => $staff->id,
+            'service_id' => $service->id,
+            'booking_date' => now()->addDay()->toDateString(),
+            'start_time' => '10:00',
+            'end_time' => '10:30',
+            'status' => 'confirmed',
+        ]);
     }
 }
