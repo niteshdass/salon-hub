@@ -1,6 +1,11 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useSessionLink } from '@/lib/sessionLink'
+
+// A signed-in visitor gets the way back into their own area instead of the
+// "Log in" they have already done.
+const session = useSessionLink()
 
 const open = ref(false)
 const scrolled = ref(false)
@@ -51,31 +56,46 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
         >
           {{ link.label }}
         </a>
+        <RouterLink
+          to="/salons"
+          class="rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+        >
+          Find a salon
+        </RouterLink>
       </div>
 
       <!-- Desktop actions -->
       <div class="hidden items-center gap-2 md:flex">
         <RouterLink
-          to="/login"
-          class="rounded-full px-4 py-2 text-sm font-semibold text-ink/75 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-        >
-          Log in
-        </RouterLink>
-        <RouterLink
-          to="/register"
+          v-if="session"
+          :to="session.to"
           class="inline-flex items-center rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
         >
-          Register a salon
+          {{ session.label }}
         </RouterLink>
+        <template v-else>
+          <RouterLink
+            to="/login"
+            class="rounded-full px-4 py-2 text-sm font-semibold text-ink/75 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          >
+            Log in
+          </RouterLink>
+          <RouterLink
+            to="/register"
+            class="inline-flex items-center rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+          >
+            Register a salon
+          </RouterLink>
+        </template>
       </div>
 
       <!-- Mobile: keep primary CTA + toggle -->
       <div class="flex items-center gap-2 md:hidden">
         <RouterLink
-          to="/register"
+          :to="session ? session.to : '/register'"
           class="inline-flex items-center rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-brand-500/25 transition-colors hover:bg-brand-600"
         >
-          Register a salon
+          {{ session ? session.label : 'Register a salon' }}
         </RouterLink>
         <button
           type="button"
@@ -115,11 +135,18 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
             {{ link.label }}
           </a>
           <RouterLink
-            to="/login"
+            to="/salons"
+            class="rounded-xl px-3 py-2.5 text-base font-medium text-ink/80 transition-colors hover:bg-brand-50 hover:text-ink"
+            @click="open = false"
+          >
+            Find a salon
+          </RouterLink>
+          <RouterLink
+            :to="session ? session.to : '/login'"
             class="rounded-xl px-3 py-2.5 text-base font-semibold text-brand-700 transition-colors hover:bg-brand-50"
             @click="open = false"
           >
-            Log in
+            {{ session ? session.label : 'Log in' }}
           </RouterLink>
         </div>
       </div>

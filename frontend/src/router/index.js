@@ -121,6 +121,13 @@ const router = createRouter({
         resolveSlugFromHost() ? import('@/views/SalonSiteView.vue') : import('@/views/LandingView.vue'),
     },
     {
+      // Cross-tenant salon search. Public, and apex-only in practice: a
+      // customer already on a salon's subdomain has found their salon.
+      path: '/salons',
+      name: 'salons',
+      component: () => import('@/views/SalonSearchView.vue'),
+    },
+    {
       path: '/terms',
       name: 'terms',
       component: () => import('@/views/legal/TermsView.vue'),

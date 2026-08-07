@@ -35,6 +35,11 @@ const productLinks = [
         <div>
           <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Product</p>
           <ul class="mt-4 space-y-3">
+            <li>
+              <RouterLink to="/salons" class="text-paper/70 transition-colors hover:text-paper">
+                Find a salon
+              </RouterLink>
+            </li>
             <li v-for="link in productLinks" :key="link.href">
               <a :href="link.href" class="text-paper/70 transition-colors hover:text-paper">{{ link.label }}</a>
             </li>
