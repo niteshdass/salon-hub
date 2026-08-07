@@ -33,7 +33,7 @@ class DiscoveryController extends Controller
 
         $term = $this->term($request);
 
-        $query = Organization::query()->listable()->orderBy('name');
+        $query = Organization::query()->listable();
 
         if ($term !== null) {
             $like = '%'.$term.'%';
@@ -48,9 +48,36 @@ class DiscoveryController extends Controller
                         ->where('status', ServiceStatus::ACTIVE)
                         ->whereRaw('LOWER(services.name) LIKE ?', [$like]));
             });
+
+            // A customer typing a salon's name wants that salon, not every
+            // salon that happens to sell a service with a similar name.
+            //
+            // withMax()/withMin() below normally add `organizations.*` to the
+            // select list for us, but only when nothing has selected yet;
+            // selectRaw() here claims that slot first, so it has to bring
+            // `organizations.*` along itself or every whitelisted column
+            // this query ends with comes back null.
+            $query
+                ->addSelect('organizations.*')
+                ->selectRaw(
+                    'CASE WHEN LOWER(organizations.name) LIKE ? THEN 0 ELSE 1 END as name_rank',
+                    [$like],
+                )
+                ->orderBy('name_rank');
         }
 
-        $total = (clone $query)->count();
+        // A salon that recently took a booking is a salon that still exists.
+        // Nulls last: never booked is worse than booked long ago. The boolean
+        // expression evaluates to 0/1 on both sqlite and MySQL.
+        $query
+            ->withMax('appointments', 'created_at')
+            ->orderByRaw('appointments_max_created_at IS NULL, appointments_max_created_at DESC')
+            ->orderBy('organizations.name');
+
+        // Counted off a clean copy: `count()` over the ranking select
+        // expressions is both wasteful and, with an ORDER BY on an alias,
+        // invalid on MySQL.
+        $total = (clone $query)->reorder()->count('organizations.id');
 
         /** @var Collection<int, Organization> $salons */
         $salons = $query

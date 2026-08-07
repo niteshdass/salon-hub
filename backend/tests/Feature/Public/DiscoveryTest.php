@@ -296,6 +296,51 @@ class DiscoveryTest extends TestCase
         $response->assertJsonCount(2, 'data');
     }
 
+    public function test_a_name_match_outranks_a_service_only_match(): void
+    {
+        // "Zenith" is named for what the other salon merely sells, and sorts
+        // last alphabetically — so only ranking can put it first.
+        $this->salon('zenith-massage');
+        $other = $this->salon('aabode-spa');
+        Service::create([
+            'organization_id' => $other->id,
+            'name' => 'Hot stone massage',
+            'duration' => 60,
+            'price' => 2000,
+            'status' => 'active',
+        ]);
+
+        $response = $this->getJson('/api/discover/salons?q=massage');
+
+        $response->assertJsonCount(2, 'data');
+        $response->assertJsonPath('data.0.slug', 'zenith-massage');
+        $response->assertJsonPath('data.1.slug', 'aabode-spa');
+    }
+
+    public function test_a_salon_taking_bookings_outranks_a_quiet_one(): void
+    {
+        // Alphabetical order would put "aabode" first; recent activity must not.
+        $this->salon('aabode-spa');
+        $busy = $this->salon('zenith-massage');
+        $this->booking($busy);
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $response->assertJsonPath('data.0.slug', 'zenith-massage');
+        $response->assertJsonPath('data.1.slug', 'aabode-spa');
+    }
+
+    public function test_equally_quiet_salons_are_ordered_by_name(): void
+    {
+        $this->salon('zenith-massage');
+        $this->salon('aabode-spa');
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $response->assertJsonPath('data.0.slug', 'aabode-spa');
+        $response->assertJsonPath('data.1.slug', 'zenith-massage');
+    }
+
     /**
      * A review attached to a salon. `reviews.appointment_id` is NOT NULL and
      * unique — a review only exists because someone was served — so each one
