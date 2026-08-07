@@ -214,6 +214,7 @@ class DiscoveryTest extends TestCase
 
         $response = $this->getJson('/api/discover/salons');
 
+        $response->assertJsonCount(1, 'data');
         $this->assertNull($response->json('data.0.rating'));
     }
 
