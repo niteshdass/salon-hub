@@ -7,7 +7,7 @@ use App\Models\Appointment;
 use Illuminate\Http\JsonResponse;
 
 /**
- * The invoice for a single booking: every service line snapshotted at
+ * The invoice for a single booking: the service lines snapshotted at
  * booking time, every payment taken, and the resulting balance. Nothing is
  * stored — it is computed on read from the appointment and its payments, so
  * it always reflects the current payment state.
@@ -51,6 +51,13 @@ class InvoiceController extends Controller
             'subtotal' => $appointment->price,
             'amount_paid' => $appointment->amountPaid(),
             'amount_pending' => $appointment->amountPending(),
+            // Tips sit outside the balance: they settle nothing, so they are
+            // reported next to it rather than inside it.
+            'tips' => $appointment->tipsCollected(),
+            'total_collected' => number_format(
+                (float) $appointment->amountPaid() + (float) $appointment->tipsCollected(),
+                2, '.', ''
+            ),
             'balance_due' => $appointment->balanceDue(),
             'paid_in_full' => (float) $appointment->balanceDue() <= 0,
 

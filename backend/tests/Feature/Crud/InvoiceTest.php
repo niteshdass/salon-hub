@@ -109,6 +109,37 @@ class InvoiceTest extends TestCase
         $response->assertJsonPath('data.paid_in_full', true);
     }
 
+    public function test_the_invoice_lists_every_service_and_separates_tips(): void
+    {
+        $ctx = $this->scaffold('inv-tips');
+        $appointment = $ctx['appointment'];
+
+        // scaffold() already attached a £40 Colour line; add a second so the
+        // per-line listing is distinguishable from a single £55 row.
+        $appointment->lines()->create([
+            'service_id' => null, 'name' => 'Blow Dry',
+            'price' => 15, 'duration' => 20, 'sort_order' => 1,
+        ]);
+        $appointment->forceFill(['price' => 55])->save();
+
+        $this->withToken($ctx['token'])
+            ->postJson("/api/appointments/{$appointment->id}/payments", [
+                'amount' => 55, 'tip_amount' => 5, 'method' => 'cash',
+            ])->assertCreated();
+
+        $this->withToken($ctx['token'])
+            ->getJson("/api/appointments/{$appointment->id}/invoice")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.line_items')
+            ->assertJsonPath('data.line_items.0.description', 'Colour')
+            ->assertJsonPath('data.line_items.1.amount', '15.00')
+            ->assertJsonPath('data.subtotal', '55.00')
+            ->assertJsonPath('data.tips', '5.00')
+            ->assertJsonPath('data.total_collected', '60.00')
+            ->assertJsonPath('data.balance_due', '0.00')
+            ->assertJsonPath('data.paid_in_full', true);
+    }
+
     public function test_another_tenants_invoice_is_not_reachable(): void
     {
         $mine = $this->scaffold('inv-mine');
