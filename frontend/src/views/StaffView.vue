@@ -3,10 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { isPlanLimit, parseApiError } from '@/lib/errors'
+import { PAY_TYPES, showsSalary, showsRate } from '@/lib/payroll'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const authStore = useAuthStore()
+const isOwner = computed(() => authStore.role === 'owner')
 
 // ISO weekday: 1=Mon .. 7=Sun (matches SlotGenerator + working_days_json).
 const WEEKDAYS = [
@@ -40,6 +42,9 @@ const form = reactive({
   password: '',
   designation: '',
   bio: '',
+  pay_type: 'none',
+  monthly_salary: '',
+  commission_rate: '',
   service_ids: [],
   // Empty working_days => available every day; blank hours => 09:00–18:00
   // (SlotGenerator applies those same defaults server-side).
@@ -94,6 +99,9 @@ function resetForm() {
     password: '',
     designation: '',
     bio: '',
+    pay_type: 'none',
+    monthly_salary: '',
+    commission_rate: '',
     service_ids: [],
     working_days: [],
     working_hours_start: '',
@@ -119,6 +127,9 @@ function openEdit(member) {
     password: '',
     designation: member.designation || '',
     bio: member.bio || '',
+    pay_type: member.pay_type || 'none',
+    monthly_salary: member.monthly_salary ?? '',
+    commission_rate: member.commission_rate ?? '',
     service_ids: (member.services || []).map((s) => s.id),
     working_days: Array.isArray(member.working_days_json) ? [...member.working_days_json] : [],
     working_hours_start: member.working_hours_json?.start || '',
@@ -151,6 +162,13 @@ async function submitForm() {
       form.working_hours_start && form.working_hours_end
         ? { start: form.working_hours_start, end: form.working_hours_end }
         : null,
+  }
+  // Only owners may set pay rules — a manager's payload never carries them,
+  // matching the API which silently drops these fields from non-owners.
+  if (isOwner.value) {
+    payload.pay_type = form.pay_type
+    payload.monthly_salary = showsSalary(form.pay_type) ? Number(form.monthly_salary || 0) : 0
+    payload.commission_rate = showsRate(form.pay_type) ? Number(form.commission_rate || 0) : 0
   }
   // Only send a password when one was typed (blank => backend auto-generates).
   if (form.password) payload.password = form.password
@@ -491,6 +509,52 @@ onMounted(() => {
           <label class="mb-1 block text-sm font-medium text-slate-700">Designation</label>
           <input v-model="form.designation" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" placeholder="Stylist" />
           <p v-if="formErrors.designation" class="mt-1 text-sm text-rose-600">{{ formErrors.designation[0] }}</p>
+        </div>
+
+        <div v-if="isOwner" class="sm:col-span-2 border-t border-slate-200 pt-4">
+          <h3 class="text-sm font-semibold text-slate-900">Compensation</h3>
+          <p class="mt-1 text-xs text-slate-500">Used to work out this person's pay in a monthly payroll run.</p>
+
+          <div class="mt-3 space-y-2">
+            <label
+              v-for="type in PAY_TYPES"
+              :key="type.value"
+              class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-3 py-2.5"
+              :class="form.pay_type === type.value ? 'border-indigo-500 bg-indigo-50' : ''"
+            >
+              <input v-model="form.pay_type" type="radio" :value="type.value" class="mt-1" />
+              <span>
+                <span class="block text-sm font-medium text-slate-900">{{ type.label }}</span>
+                <span class="block text-xs text-slate-500">{{ type.hint }}</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <div v-if="showsSalary(form.pay_type)">
+              <label class="mb-1 block text-sm font-medium text-slate-700">Monthly salary</label>
+              <input
+                v-model="form.monthly_salary"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              />
+              <p v-if="formErrors.monthly_salary" class="mt-1 text-sm text-rose-600">{{ formErrors.monthly_salary[0] }}</p>
+            </div>
+            <div v-if="showsRate(form.pay_type)">
+              <label class="mb-1 block text-sm font-medium text-slate-700">Commission rate (%)</label>
+              <input
+                v-model="form.commission_rate"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              />
+              <p v-if="formErrors.commission_rate" class="mt-1 text-sm text-rose-600">{{ formErrors.commission_rate[0] }}</p>
+            </div>
+          </div>
         </div>
 
         <div class="sm:col-span-2">
