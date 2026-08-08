@@ -2516,6 +2516,8 @@ git commit -m "feat: multi-service dashboard bookings and a tip at checkout"
 **Files:**
 - Modify: `frontend/src/views/ManageBookingView.vue:200`, `:207`, `:365`
 - Modify: `frontend/src/views/CustomerDashboardView.vue:179`, `:214`, `:256`, `:295`
+- Modify: `frontend/src/views/CalendarView.vue:388`, `:423`, `:467`
+- Modify: `frontend/src/views/DashboardView.vue:257`
 - Modify: `frontend/src/views/ReportsView.vue:209`
 - Modify: the payroll view under `frontend/src/views/` (find it with `grep -rln "commission_amount" frontend/src`)
 
@@ -2540,25 +2542,41 @@ at a blank line where their booking used to be described.
 - `:256` becomes `{{ rescheduling.services.join(', ') }}`.
 - `:295` becomes `{{ reviewing.services.join(', ') }}`.
 
-- [ ] **Step 3: Update `ReportsView`**
+- [ ] **Step 3: Update `CalendarView` and `DashboardView`**
+
+Added during execution: Task 14's reviewer found these two files still reading
+the singular `service` key that `AppointmentResource` stopped emitting in Task 8,
+which Vue renders as an empty string. A stylist looking at the calendar sees a
+blank line where the service name used to be. No other task owned them.
+
+A calendar block and a dashboard row are both tight on space, so these read the
+joined names rather than a list:
+
+- `CalendarView.vue:388` and `:423`, and `DashboardView.vue:257`, become
+  `{{ (appt.services || []).map((s) => s.name).join(', ') }}`.
+- `CalendarView.vue:467` (the detail drawer) becomes
+  `{{ (selected.services || []).map((s) => s.name).join(', ') || '—' }}` —
+  keep the existing `'—'` fallback.
+
+- [ ] **Step 4: Update `ReportsView`**
 
 The Top services table header at `:209` changes from `Bookings` to `Services booked` — the column now counts service lines, not visits, and an unchanged header would quietly misreport. Leave the second `Bookings` header at `:231` (staff performance) alone; that one still counts visits.
 
-- [ ] **Step 4: Add the payroll Tips column**
+- [ ] **Step 5: Add the payroll Tips column**
 
 In the payroll view, add a `Tips` header and cell between Commission and Total, reading `line.tips_amount`.
 
-- [ ] **Step 5: Run the frontend suite and build**
+- [ ] **Step 6: Run the frontend suite and build**
 
 Run: `cd frontend && npm run test:unit && npm run build`
 Expected: PASS, and a clean build.
 
-- [ ] **Step 6: Run the whole backend suite once more**
+- [ ] **Step 7: Run the whole backend suite once more**
 
 Run: `cd backend && php artisan test`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add frontend/src
