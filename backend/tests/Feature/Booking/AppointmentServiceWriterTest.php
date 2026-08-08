@@ -106,6 +106,18 @@ class AppointmentServiceWriterTest extends TestCase
     {
         $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
 
-        app(AppointmentServiceWriter::class)->totalsFor([$this->services['cut']->id, 99999]);
+        // Create a second organization with its own service
+        $otherOrg = Organization::create([
+            'uuid' => (string) Str::uuid(), 'name' => 'Other Salon', 'slug' => 'other',
+            'email' => 'owner@other.test', 'subscription_plan' => 'free', 'status' => 'active',
+        ]);
+
+        $foreignService = Service::create([
+            'organization_id' => $otherOrg->id, 'name' => 'Foreign Service',
+            'duration' => 15, 'price' => 25, 'status' => 'active',
+        ]);
+
+        // Scoped to first org, should reject the second org's service
+        app(AppointmentServiceWriter::class)->totalsFor([$this->services['cut']->id, $foreignService->id]);
     }
 }

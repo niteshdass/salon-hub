@@ -7,6 +7,7 @@ use App\Models\Service;
 use App\Services\AppointmentScheduler;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The single definition of what a visit costs and how long it takes.
@@ -26,27 +27,29 @@ class AppointmentServiceWriter
      */
     public function sync(Appointment $appointment, array $serviceIds): void
     {
-        $totals = $this->totalsFor($serviceIds);
+        DB::transaction(function () use ($appointment, $serviceIds) {
+            $totals = $this->totalsFor($serviceIds);
 
-        $appointment->lines()->delete();
+            $appointment->lines()->delete();
 
-        foreach ($totals['services']->values() as $index => $service) {
-            $appointment->lines()->create([
-                'service_id' => $service->id,
-                'name' => $service->name,
-                'price' => $service->price,
-                'duration' => $service->duration,
-                'sort_order' => $index,
-            ]);
-        }
+            foreach ($totals['services']->values() as $index => $service) {
+                $appointment->lines()->create([
+                    'service_id' => $service->id,
+                    'name' => $service->name,
+                    'price' => $service->price,
+                    'duration' => $service->duration,
+                    'sort_order' => $index,
+                ]);
+            }
 
-        $appointment->forceFill([
-            'price' => $totals['price'],
-            'end_time' => $this->scheduler->deriveEndTime(
-                $appointment->start_time,
-                $totals['duration'],
-            ),
-        ])->save();
+            $appointment->forceFill([
+                'price' => $totals['price'],
+                'end_time' => $this->scheduler->deriveEndTime(
+                    $appointment->start_time,
+                    $totals['duration'],
+                ),
+            ])->save();
+        });
 
         $appointment->unsetRelation('lines');
     }
