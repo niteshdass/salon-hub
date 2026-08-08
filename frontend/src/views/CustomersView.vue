@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 // Staff may read the customer book but not edit it.
 const authStore = useAuthStore()
@@ -126,23 +127,19 @@ onMounted(loadCustomers)
 
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">Customers</h1>
-        <p class="mt-1 text-sm text-slate-500">Manage the people who book with you.</p>
-      </div>
-      <button
-        v-if="canWrite"
-        type="button"
-        class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-        @click="openCreate"
-      >
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        Add customer
-      </button>
-    </div>
+    <PageHeader
+      title="Customers"
+      :subtitle="`${customers.length} customer${customers.length === 1 ? '' : 's'} in your book`"
+    >
+      <template #actions>
+        <button v-if="canWrite" type="button" class="sh-btn sh-btn-primary" @click="openCreate">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add customer
+        </button>
+      </template>
+    </PageHeader>
 
     <div
       v-if="listError"
@@ -152,63 +149,52 @@ onMounted(loadCustomers)
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="rounded-2xl bg-white p-10 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+    <div v-if="loading" class="sh-card p-10 text-center text-sm text-ink/60">
       Loading customers…
     </div>
 
     <!-- Empty -->
-    <div
-      v-else-if="customers.length === 0"
-      class="rounded-2xl bg-white p-10 text-center ring-1 ring-slate-200"
-    >
-      <p class="text-sm font-medium text-slate-900">No customers yet</p>
-      <p class="mt-1 text-sm text-slate-500">Add your first customer to get started.</p>
-      <button
-        v-if="canWrite"
-        type="button"
-        class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-        @click="openCreate"
-      >
+    <div v-else-if="customers.length === 0" class="sh-empty">
+      <p class="font-medium text-ink">No customers yet</p>
+      <p class="mt-1">Add your first customer to get started.</p>
+      <button v-if="canWrite" type="button" class="sh-btn sh-btn-primary mt-4" @click="openCreate">
         Add customer
       </button>
     </div>
 
-    <!-- List -->
-    <div v-else class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200">
-          <thead class="bg-slate-50">
+    <!-- List. The four columns plus the row actions need more width than a
+         phone has, so below md the table is replaced by a stacked card list
+         rather than left to scroll sideways behind an overlay scrollbar that
+         renders no affordance. Every field and every control appears in both
+         branches. -->
+    <template v-else>
+      <div class="sh-card hidden overflow-x-auto md:block">
+        <table class="sh-table">
+          <thead>
             <tr>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
-              <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:table-cell">Phone</th>
-              <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 md:table-cell">Email</th>
-              <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 lg:table-cell">Notes</th>
-              <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Notes</th>
+              <th class="text-right">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="customer in customers" :key="customer.id" class="hover:bg-slate-50">
-              <td class="px-5 py-3.5">
-                <p class="font-medium text-slate-900">{{ customer.name }}</p>
-                <p class="text-xs text-slate-500 sm:hidden">{{ customer.phone || customer.email || '—' }}</p>
-              </td>
-              <td class="hidden px-5 py-3.5 text-sm text-slate-600 sm:table-cell">{{ customer.phone || '—' }}</td>
-              <td class="hidden px-5 py-3.5 text-sm text-slate-600 md:table-cell">{{ customer.email || '—' }}</td>
-              <td class="hidden max-w-xs px-5 py-3.5 text-sm text-slate-600 lg:table-cell">
+          <tbody>
+            <tr v-for="customer in customers" :key="customer.id">
+              <td class="font-medium text-ink">{{ customer.name }}</td>
+              <td class="text-ink/75">{{ customer.phone || '—' }}</td>
+              <td class="text-ink/75">{{ customer.email || '—' }}</td>
+              <td class="max-w-xs text-ink/75">
                 <span class="block truncate">{{ customer.notes || '—' }}</span>
               </td>
-              <td class="px-5 py-3.5 text-right">
-                <div v-if="canWrite" class="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-                    @click="openEdit(customer)"
-                  >
+              <td class="text-right whitespace-nowrap">
+                <div v-if="canWrite" class="inline-flex items-center gap-1">
+                  <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(customer)">
                     Edit
                   </button>
                   <button
                     type="button"
-                    class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                    class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
                     @click="confirmTarget = customer"
                   >
                     Delete
@@ -219,7 +205,43 @@ onMounted(loadCustomers)
           </tbody>
         </table>
       </div>
-    </div>
+
+      <!-- Same data, same handlers, stacked so nothing sits off the right
+           edge of a 390px viewport. -->
+      <div class="space-y-3 md:hidden">
+        <div v-for="customer in customers" :key="customer.id" class="sh-card p-5">
+          <p class="font-medium text-ink">{{ customer.name }}</p>
+
+          <dl class="mt-2 grid grid-cols-1 gap-y-1 text-sm">
+            <div class="flex gap-2">
+              <dt class="w-14 shrink-0 text-ink/40">Phone</dt>
+              <dd class="truncate text-ink/75">{{ customer.phone || '—' }}</dd>
+            </div>
+            <div class="flex gap-2">
+              <dt class="w-14 shrink-0 text-ink/40">Email</dt>
+              <dd class="truncate text-ink/75">{{ customer.email || '—' }}</dd>
+            </div>
+            <div class="flex gap-2">
+              <dt class="w-14 shrink-0 text-ink/40">Notes</dt>
+              <dd class="truncate text-ink/75">{{ customer.notes || '—' }}</dd>
+            </div>
+          </dl>
+
+          <div v-if="canWrite" class="mt-4 flex justify-end gap-1 border-t border-ink/10 pt-4">
+            <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(customer)">
+              Edit
+            </button>
+            <button
+              type="button"
+              class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+              @click="confirmTarget = customer"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <!-- Create / edit form -->
     <Modal
@@ -237,55 +259,33 @@ onMounted(loadCustomers)
 
       <form id="customer-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="submitForm">
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Name <span class="text-rose-500">*</span></label>
-          <input
-            v-model="form.name"
-            type="text"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="Jane Doe"
-          />
-          <p v-if="formErrors.name" class="mt-1 text-sm text-rose-600">{{ formErrors.name[0] }}</p>
+          <label class="sh-label">Name <span class="text-rose-500">*</span></label>
+          <input v-model="form.name" type="text" required class="sh-input" placeholder="Jane Doe" />
+          <p v-if="formErrors.name" class="sh-error">{{ formErrors.name[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Phone</label>
-          <input v-model="form.phone" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.phone" class="mt-1 text-sm text-rose-600">{{ formErrors.phone[0] }}</p>
+          <label class="sh-label">Phone</label>
+          <input v-model="form.phone" type="text" class="sh-input" />
+          <p v-if="formErrors.phone" class="sh-error">{{ formErrors.phone[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
-          <input v-model="form.email" type="email" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.email" class="mt-1 text-sm text-rose-600">{{ formErrors.email[0] }}</p>
+          <label class="sh-label">Email</label>
+          <input v-model="form.email" type="email" class="sh-input" />
+          <p v-if="formErrors.email" class="sh-error">{{ formErrors.email[0] }}</p>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
-          <textarea
-            v-model="form.notes"
-            rows="3"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="Optional details"
-          ></textarea>
-          <p v-if="formErrors.notes" class="mt-1 text-sm text-rose-600">{{ formErrors.notes[0] }}</p>
+          <label class="sh-label">Notes</label>
+          <textarea v-model="form.notes" rows="3" class="sh-input" placeholder="Optional details"></textarea>
+          <p v-if="formErrors.notes" class="sh-error">{{ formErrors.notes[0] }}</p>
         </div>
       </form>
 
       <template #footer>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          @click="closeForm"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          form="customer-form"
-          :disabled="saving"
-          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <button type="button" class="sh-btn" @click="closeForm">Cancel</button>
+        <button type="submit" form="customer-form" :disabled="saving" class="sh-btn sh-btn-primary">
           {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Create customer' }}
         </button>
       </template>

@@ -6,6 +6,7 @@ import { isPlanLimit, parseApiError } from '@/lib/errors'
 import { PAY_TYPES, showsSalary, showsRate } from '@/lib/payroll'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const authStore = useAuthStore()
 const isOwner = computed(() => authStore.role === 'owner')
@@ -68,6 +69,15 @@ const isFreePlan = computed(() => {
 const staffLimitReached = computed(
   () => isFreePlan.value && staff.value.length >= 10,
 )
+
+// Page subtitle: the headcount, and on the free plan the ceiling it counts
+// towards, so the ten-member limit is visible before "Add staff" disappears.
+const planLimitSentence = computed(() => {
+  const count = staff.value.length
+  return isFreePlan.value
+    ? `${count} of 10 team members on the free plan`
+    : `${count} team member${count === 1 ? '' : 's'}`
+})
 
 async function loadStaff() {
   loading.value = true
@@ -332,26 +342,24 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">Staff</h1>
-        <p class="mt-1 text-sm text-slate-500">Manage your team and their services.</p>
-      </div>
-      <button
-        v-if="canWrite && !staffLimitReached"
-        type="button"
-        class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-        @click="openCreate"
-      >
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        Add staff
-      </button>
-      <p v-else-if="canWrite" class="text-xs text-slate-500">
-        Your free plan allows only 10 staff.
-      </p>
-    </div>
+    <PageHeader title="Staff" :subtitle="planLimitSentence">
+      <template #actions>
+        <button
+          v-if="canWrite && !staffLimitReached"
+          type="button"
+          class="sh-btn sh-btn-primary"
+          @click="openCreate"
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add staff
+        </button>
+        <p v-else-if="canWrite" class="text-xs text-ink/60">
+          Your free plan allows only 10 staff.
+        </p>
+      </template>
+    </PageHeader>
 
     <div
       v-if="planLimitMessage"
@@ -370,54 +378,42 @@ onMounted(() => {
       {{ listError }}
     </div>
 
-    <div v-if="loading" class="rounded-2xl bg-white p-10 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+    <div v-if="loading" class="sh-card p-10 text-center text-sm text-ink/60">
       Loading staff…
     </div>
 
-    <div
-      v-else-if="staff.length === 0"
-      class="rounded-2xl bg-white p-10 text-center ring-1 ring-slate-200"
-    >
-      <p class="text-sm font-medium text-slate-900">No staff yet</p>
-      <p class="mt-1 text-sm text-slate-500">Add your first team member to get started.</p>
-      <button
-        v-if="canWrite"
-        type="button"
-        class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-        @click="openCreate"
-      >
+    <div v-else-if="staff.length === 0" class="sh-empty">
+      <p class="font-medium text-ink">No staff yet</p>
+      <p class="mt-1">Add your first team member to get started.</p>
+      <button v-if="canWrite" type="button" class="sh-btn sh-btn-primary mt-4" @click="openCreate">
         Add staff
       </button>
     </div>
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <div
-        v-for="member in staff"
-        :key="member.id"
-        class="flex flex-col rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
-      >
+      <div v-for="member in staff" :key="member.id" class="sh-card flex flex-col p-5">
         <div class="flex items-start gap-3">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-700">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink/5 text-sm font-semibold text-ink/40">
             {{ (member.name || '?').charAt(0).toUpperCase() }}
           </div>
           <div class="min-w-0 flex-1">
-            <p class="truncate font-semibold text-slate-900">{{ member.name }}</p>
-            <p v-if="member.designation" class="truncate text-xs text-slate-500">{{ member.designation }}</p>
+            <p class="truncate font-semibold text-ink">{{ member.name }}</p>
+            <p v-if="member.designation" class="truncate text-xs text-ink/60">{{ member.designation }}</p>
           </div>
         </div>
 
         <dl class="mt-4 space-y-1 text-sm">
           <div class="flex gap-2">
-            <dt class="w-14 shrink-0 text-slate-400">Email</dt>
-            <dd class="truncate text-slate-700">{{ member.email || '—' }}</dd>
+            <dt class="w-14 shrink-0 text-ink/40">Email</dt>
+            <dd class="truncate text-ink/75">{{ member.email || '—' }}</dd>
           </div>
           <div class="flex gap-2">
-            <dt class="w-14 shrink-0 text-slate-400">Phone</dt>
-            <dd class="truncate text-slate-700">{{ member.phone || '—' }}</dd>
+            <dt class="w-14 shrink-0 text-ink/40">Phone</dt>
+            <dd class="truncate text-ink/75">{{ member.phone || '—' }}</dd>
           </div>
           <div class="flex gap-2">
-            <dt class="w-14 shrink-0 text-slate-400">Hours</dt>
-            <dd class="truncate text-slate-700">{{ scheduleSummary(member) }}</dd>
+            <dt class="w-14 shrink-0 text-ink/40">Hours</dt>
+            <dd class="truncate text-ink/75">{{ scheduleSummary(member) }}</dd>
           </div>
         </dl>
 
@@ -425,33 +421,29 @@ onMounted(() => {
           <span
             v-for="svc in member.services || []"
             :key="svc.id"
-            class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
+            class="sh-badge bg-ink/5 text-ink/60"
           >
             {{ svc.name }}
           </span>
-          <span v-if="!(member.services && member.services.length)" class="text-xs text-slate-400">
+          <span v-if="!(member.services && member.services.length)" class="text-xs text-ink/40">
             No services assigned
           </span>
         </div>
 
-        <div v-if="canWrite" class="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <div v-if="canWrite" class="mt-5 flex justify-end gap-1 border-t border-ink/10 pt-4">
           <button
             type="button"
-            class="mr-auto rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+            class="sh-btn mr-auto px-2.5 py-1 text-xs"
             @click="openTimeOff(member)"
           >
             Time off
           </button>
-          <button
-            type="button"
-            class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-            @click="openEdit(member)"
-          >
+          <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(member)">
             Edit
           </button>
           <button
             type="button"
-            class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+            class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
             @click="confirmTarget = member"
           >
             Delete
@@ -476,120 +468,104 @@ onMounted(() => {
 
       <form id="staff-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="submitForm">
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Name <span class="text-rose-500">*</span></label>
-          <input
-            v-model="form.name"
-            type="text"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="Jane Doe"
-          />
-          <p v-if="formErrors.name" class="mt-1 text-sm text-rose-600">{{ formErrors.name[0] }}</p>
+          <label class="sh-label">Name <span class="text-rose-500">*</span></label>
+          <input v-model="form.name" type="text" required class="sh-input" placeholder="Jane Doe" />
+          <p v-if="formErrors.name" class="sh-error">{{ formErrors.name[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Email <span class="text-rose-500">*</span></label>
+          <label class="sh-label">Email <span class="text-rose-500">*</span></label>
           <input
             v-model="form.email"
             type="email"
             required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
             placeholder="jane@example.com"
           />
-          <p v-if="formErrors.email" class="mt-1 text-sm text-rose-600">{{ formErrors.email[0] }}</p>
+          <p v-if="formErrors.email" class="sh-error">{{ formErrors.email[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Phone</label>
-          <input v-model="form.phone" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.phone" class="mt-1 text-sm text-rose-600">{{ formErrors.phone[0] }}</p>
+          <label class="sh-label">Phone</label>
+          <input v-model="form.phone" type="text" class="sh-input" />
+          <p v-if="formErrors.phone" class="sh-error">{{ formErrors.phone[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Designation</label>
-          <input v-model="form.designation" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" placeholder="Stylist" />
-          <p v-if="formErrors.designation" class="mt-1 text-sm text-rose-600">{{ formErrors.designation[0] }}</p>
+          <label class="sh-label">Designation</label>
+          <input v-model="form.designation" type="text" class="sh-input" placeholder="Stylist" />
+          <p v-if="formErrors.designation" class="sh-error">{{ formErrors.designation[0] }}</p>
         </div>
 
-        <div v-if="isOwner" class="sm:col-span-2 border-t border-slate-200 pt-4">
-          <h3 class="text-sm font-semibold text-slate-900">Compensation</h3>
-          <p class="mt-1 text-xs text-slate-500">Used to work out this person's pay in a monthly payroll run.</p>
+        <div v-if="isOwner" class="sm:col-span-2 border-t border-ink/10 pt-4">
+          <h3 class="text-sm font-semibold text-ink">Compensation</h3>
+          <p class="mt-1 text-xs text-ink/60">Used to work out this person's pay in a monthly payroll run.</p>
 
           <div class="mt-3 space-y-2">
             <label
               v-for="type in PAY_TYPES"
               :key="type.value"
-              class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-3 py-2.5"
-              :class="form.pay_type === type.value ? 'border-indigo-500 bg-indigo-50' : ''"
+              class="flex cursor-pointer items-start gap-3 rounded-xl border border-ink/10 px-3 py-2.5"
+              :class="form.pay_type === type.value ? 'border-accent-300 bg-accent-50' : ''"
             >
               <input v-model="form.pay_type" type="radio" :value="type.value" class="mt-1" />
               <span>
-                <span class="block text-sm font-medium text-slate-900">{{ type.label }}</span>
-                <span class="block text-xs text-slate-500">{{ type.hint }}</span>
+                <span class="block text-sm font-medium text-ink">{{ type.label }}</span>
+                <span class="block text-xs text-ink/60">{{ type.hint }}</span>
               </span>
             </label>
           </div>
 
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
             <div v-if="showsSalary(form.pay_type)">
-              <label class="mb-1 block text-sm font-medium text-slate-700">Monthly salary</label>
-              <input
-                v-model="form.monthly_salary"
-                type="number"
-                min="0"
-                step="0.01"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              />
-              <p v-if="formErrors.monthly_salary" class="mt-1 text-sm text-rose-600">{{ formErrors.monthly_salary[0] }}</p>
+              <label class="sh-label">Monthly salary</label>
+              <input v-model="form.monthly_salary" type="number" min="0" step="0.01" class="sh-input" />
+              <p v-if="formErrors.monthly_salary" class="sh-error">{{ formErrors.monthly_salary[0] }}</p>
             </div>
             <div v-if="showsRate(form.pay_type)">
-              <label class="mb-1 block text-sm font-medium text-slate-700">Commission rate (%)</label>
+              <label class="sh-label">Commission rate (%)</label>
               <input
                 v-model="form.commission_rate"
                 type="number"
                 min="0"
                 max="100"
                 step="0.01"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                class="sh-input"
               />
-              <p v-if="formErrors.commission_rate" class="mt-1 text-sm text-rose-600">{{ formErrors.commission_rate[0] }}</p>
+              <p v-if="formErrors.commission_rate" class="sh-error">{{ formErrors.commission_rate[0] }}</p>
             </div>
           </div>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Password</label>
+          <label class="sh-label">Password</label>
           <input
             v-model="form.password"
             type="password"
             autocomplete="new-password"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
             placeholder="••••••••"
           />
-          <p class="mt-1 text-xs text-slate-400">Leave blank to auto-generate a password.</p>
-          <p v-if="formErrors.password" class="mt-1 text-sm text-rose-600">{{ formErrors.password[0] }}</p>
+          <p class="mt-1 text-xs text-ink/40">Leave blank to auto-generate a password.</p>
+          <p v-if="formErrors.password" class="sh-error">{{ formErrors.password[0] }}</p>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Bio</label>
-          <textarea
-            v-model="form.bio"
-            rows="2"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          ></textarea>
-          <p v-if="formErrors.bio" class="mt-1 text-sm text-rose-600">{{ formErrors.bio[0] }}</p>
+          <label class="sh-label">Bio</label>
+          <textarea v-model="form.bio" rows="2" class="sh-input"></textarea>
+          <p v-if="formErrors.bio" class="sh-error">{{ formErrors.bio[0] }}</p>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="mb-2 block text-sm font-medium text-slate-700">Working days</label>
+          <label class="sh-label">Working days</label>
           <div class="flex flex-wrap gap-2">
             <label
               v-for="day in WEEKDAYS"
               :key="day.value"
-              class="cursor-pointer select-none rounded-lg border px-3 py-1.5 text-sm font-medium transition"
+              class="cursor-pointer select-none rounded-full border px-3 py-1.5 text-sm font-medium transition"
               :class="form.working_days.includes(day.value)
-                ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'"
+                ? 'border-accent-300 bg-accent-50 text-accent-700'
+                : 'border-ink/15 bg-white text-ink/60 hover:bg-paper'"
             >
               <input
                 type="checkbox"
@@ -600,72 +576,53 @@ onMounted(() => {
               {{ day.label }}
             </label>
           </div>
-          <p class="mt-1 text-xs text-slate-400">Leave all unchecked to make this member available every day.</p>
-          <p v-if="formErrors['working_days_json'] || formErrors['working_days_json.0']" class="mt-1 text-sm text-rose-600">
+          <p class="mt-1 text-xs text-ink/40">Leave all unchecked to make this member available every day.</p>
+          <p v-if="formErrors['working_days_json'] || formErrors['working_days_json.0']" class="sh-error">
             {{ (formErrors['working_days_json'] || formErrors['working_days_json.0'])[0] }}
           </p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Starts at</label>
-          <input
-            v-model="form.working_hours_start"
-            type="time"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p v-if="formErrors['working_hours_json.start']" class="mt-1 text-sm text-rose-600">{{ formErrors['working_hours_json.start'][0] }}</p>
+          <label class="sh-label">Starts at</label>
+          <input v-model="form.working_hours_start" type="time" class="sh-input" />
+          <p v-if="formErrors['working_hours_json.start']" class="sh-error">{{ formErrors['working_hours_json.start'][0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Ends at</label>
-          <input
-            v-model="form.working_hours_end"
-            type="time"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p class="mt-1 text-xs text-slate-400">Leave blank for the default 09:00–18:00.</p>
-          <p v-if="formErrors['working_hours_json.end']" class="mt-1 text-sm text-rose-600">{{ formErrors['working_hours_json.end'][0] }}</p>
+          <label class="sh-label">Ends at</label>
+          <input v-model="form.working_hours_end" type="time" class="sh-input" />
+          <p class="mt-1 text-xs text-ink/40">Leave blank for the default 09:00–18:00.</p>
+          <p v-if="formErrors['working_hours_json.end']" class="sh-error">{{ formErrors['working_hours_json.end'][0] }}</p>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="mb-2 block text-sm font-medium text-slate-700">Services</label>
-          <p v-if="serviceOptions.length === 0" class="text-sm text-slate-400">
+          <label class="sh-label">Services</label>
+          <p v-if="serviceOptions.length === 0" class="text-sm text-ink/40">
             No services available yet.
           </p>
-          <div v-else class="grid max-h-44 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-slate-200 p-3 sm:grid-cols-2">
+          <div v-else class="grid max-h-44 grid-cols-1 gap-2 overflow-y-auto rounded-xl border border-ink/10 p-3 sm:grid-cols-2">
             <label
               v-for="svc in serviceOptions"
               :key="svc.id"
-              class="flex cursor-pointer items-center gap-2 text-sm text-slate-700"
+              class="flex cursor-pointer items-center gap-2 text-sm text-ink/75"
             >
               <input
                 type="checkbox"
                 :value="svc.id"
                 :checked="form.service_ids.includes(svc.id)"
-                class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300"
+                class="h-4 w-4 rounded border-ink/20 text-accent-600 focus:ring-accent-300"
                 @change="toggleService(svc.id)"
               />
               {{ svc.name }}
             </label>
           </div>
-          <p v-if="formErrors.service_ids" class="mt-1 text-sm text-rose-600">{{ formErrors.service_ids[0] }}</p>
+          <p v-if="formErrors.service_ids" class="sh-error">{{ formErrors.service_ids[0] }}</p>
         </div>
       </form>
 
       <template #footer>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          @click="closeForm"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          form="staff-form"
-          :disabled="saving"
-          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <button type="button" class="sh-btn" @click="closeForm">Cancel</button>
+        <button type="submit" form="staff-form" :disabled="saving" class="sh-btn sh-btn-primary">
           {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Create staff' }}
         </button>
       </template>
@@ -688,69 +645,55 @@ onMounted(() => {
       <!-- Add form -->
       <form class="grid grid-cols-1 gap-3 sm:grid-cols-2" @submit.prevent="submitTimeOff">
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Starts <span class="text-rose-500">*</span></label>
-          <input
-            v-model="timeOffForm.start_at"
-            type="datetime-local"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p v-if="timeOffFormErrors.start_at" class="mt-1 text-sm text-rose-600">{{ timeOffFormErrors.start_at[0] }}</p>
+          <label class="sh-label">Starts <span class="text-rose-500">*</span></label>
+          <input v-model="timeOffForm.start_at" type="datetime-local" required class="sh-input" />
+          <p v-if="timeOffFormErrors.start_at" class="sh-error">{{ timeOffFormErrors.start_at[0] }}</p>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Ends <span class="text-rose-500">*</span></label>
-          <input
-            v-model="timeOffForm.end_at"
-            type="datetime-local"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p v-if="timeOffFormErrors.end_at" class="mt-1 text-sm text-rose-600">{{ timeOffFormErrors.end_at[0] }}</p>
+          <label class="sh-label">Ends <span class="text-rose-500">*</span></label>
+          <input v-model="timeOffForm.end_at" type="datetime-local" required class="sh-input" />
+          <p v-if="timeOffFormErrors.end_at" class="sh-error">{{ timeOffFormErrors.end_at[0] }}</p>
         </div>
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Reason</label>
+          <label class="sh-label">Reason</label>
           <input
             v-model="timeOffForm.reason"
             type="text"
             maxlength="255"
             placeholder="Vacation, sick leave…"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
           />
-          <p v-if="timeOffFormErrors.reason" class="mt-1 text-sm text-rose-600">{{ timeOffFormErrors.reason[0] }}</p>
+          <p v-if="timeOffFormErrors.reason" class="sh-error">{{ timeOffFormErrors.reason[0] }}</p>
         </div>
         <div class="sm:col-span-2">
-          <button
-            type="submit"
-            :disabled="timeOffSaving"
-            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <button type="submit" :disabled="timeOffSaving" class="sh-btn sh-btn-primary">
             {{ timeOffSaving ? 'Adding…' : 'Add time off' }}
           </button>
         </div>
       </form>
 
       <!-- List -->
-      <div class="mt-6 border-t border-slate-100 pt-4">
-        <p v-if="timeOffLoading" class="text-sm text-slate-500">Loading…</p>
-        <p v-else-if="timeOffList.length === 0" class="text-sm text-slate-400">
+      <div class="mt-6 border-t border-ink/10 pt-4">
+        <p v-if="timeOffLoading" class="text-sm text-ink/60">Loading…</p>
+        <p v-else-if="timeOffList.length === 0" class="text-sm text-ink/40">
           No time off scheduled.
         </p>
         <ul v-else class="space-y-2">
           <li
             v-for="entry in timeOffList"
             :key="entry.id"
-            class="flex items-start justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5"
+            class="flex items-start justify-between gap-3 rounded-xl border border-ink/10 px-3 py-2.5"
           >
             <div class="min-w-0">
-              <p class="text-sm font-medium text-slate-900">
+              <p class="text-sm font-medium text-ink">
                 {{ formatDateTime(entry.start_at) }} → {{ formatDateTime(entry.end_at) }}
               </p>
-              <p v-if="entry.reason" class="truncate text-xs text-slate-500">{{ entry.reason }}</p>
+              <p v-if="entry.reason" class="truncate text-xs text-ink/60">{{ entry.reason }}</p>
             </div>
             <button
               type="button"
               :disabled="timeOffDeletingId === entry.id"
-              class="shrink-0 rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+              class="sh-btn shrink-0 px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
               @click="deleteTimeOff(entry.id)"
             >
               {{ timeOffDeletingId === entry.id ? 'Removing…' : 'Remove' }}
@@ -760,13 +703,7 @@ onMounted(() => {
       </div>
 
       <template #footer>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          @click="closeTimeOff"
-        >
-          Close
-        </button>
+        <button type="button" class="sh-btn" @click="closeTimeOff">Close</button>
       </template>
     </Modal>
 

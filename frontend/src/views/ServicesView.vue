@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 // The catalogue is maintained by owner/manager; staff read it only.
 const authStore = useAuthStore()
@@ -200,50 +201,51 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">Services</h1>
-      <p class="mt-1 text-sm text-slate-500">Organize your offerings into categories and services.</p>
-    </div>
+    <PageHeader title="Services" subtitle="What customers can book.">
+      <template #actions>
+        <button v-if="canWrite" type="button" class="sh-btn sh-btn-primary" @click="openCreate">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add service
+        </button>
+      </template>
+    </PageHeader>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <!-- Categories -->
       <section class="lg:col-span-1">
-        <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <h2 class="text-base font-semibold text-slate-900">Categories</h2>
+        <div class="sh-card p-5">
+          <h2 class="font-display text-lg text-ink">Categories</h2>
 
           <form v-if="canWrite" class="mt-4 flex gap-2" @submit.prevent="addCategory">
-            <input
-              v-model="newCategoryName"
-              type="text"
-              placeholder="New category"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            />
+            <input v-model="newCategoryName" type="text" placeholder="New category" class="sh-input" />
             <button
               type="submit"
               :disabled="addingCategory || !newCategoryName.trim()"
-              class="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              class="sh-btn sh-btn-primary shrink-0"
             >
               Add
             </button>
           </form>
-          <p v-if="categoryError" class="mt-2 text-sm text-rose-600">{{ categoryError }}</p>
+          <p v-if="categoryError" class="sh-error">{{ categoryError }}</p>
 
           <div class="mt-4">
-            <p v-if="categoriesLoading" class="py-4 text-center text-sm text-slate-500">Loading…</p>
+            <p v-if="categoriesLoading" class="py-4 text-center text-sm text-ink/60">Loading…</p>
             <p v-else-if="categoriesError" class="py-3 text-sm text-rose-600">{{ categoriesError }}</p>
-            <p v-else-if="categories.length === 0" class="py-4 text-center text-sm text-slate-500">
+            <p v-else-if="categories.length === 0" class="py-4 text-center text-sm text-ink/60">
               No categories yet.
             </p>
-            <ul v-else class="divide-y divide-slate-100">
+            <ul v-else class="divide-y divide-ink/10">
               <li v-for="cat in categories" :key="cat.id" class="flex items-center justify-between py-2.5">
                 <div>
-                  <p class="text-sm font-medium text-slate-800">{{ cat.name }}</p>
-                  <p class="text-xs text-slate-400">{{ cat.services_count ?? 0 }} service(s)</p>
+                  <p class="text-sm font-medium text-ink">{{ cat.name }}</p>
+                  <p class="text-xs text-ink/40">{{ cat.services_count ?? 0 }} service(s)</p>
                 </div>
                 <button
                   v-if="canWrite"
                   type="button"
-                  class="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                  class="rounded-full p-1.5 text-ink/40 transition hover:bg-rose-50 hover:text-rose-600"
                   aria-label="Delete category"
                   @click="categoryToDelete = cat"
                 >
@@ -259,20 +261,7 @@ onMounted(() => {
 
       <!-- Services -->
       <section class="lg:col-span-2">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-base font-semibold text-slate-900">All services</h2>
-          <button
-            v-if="canWrite"
-            type="button"
-            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-            @click="openCreate"
-          >
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Add service
-          </button>
-        </div>
+        <h2 class="mb-4 font-display text-lg text-ink">All services</h2>
 
         <div
           v-if="servicesError"
@@ -281,62 +270,54 @@ onMounted(() => {
           {{ servicesError }}
         </div>
 
-        <div v-if="servicesLoading" class="rounded-2xl bg-white p-10 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+        <div v-if="servicesLoading" class="sh-card p-10 text-center text-sm text-ink/60">
           Loading services…
         </div>
 
-        <div
-          v-else-if="services.length === 0"
-          class="rounded-2xl bg-white p-10 text-center ring-1 ring-slate-200"
-        >
-          <p class="text-sm font-medium text-slate-900">No services yet</p>
-          <p class="mt-1 text-sm text-slate-500">Add a service to display it here.</p>
+        <div v-else-if="services.length === 0" class="sh-empty">
+          <p class="font-medium text-ink">No services yet</p>
+          <p class="mt-1">Add a service to display it here.</p>
         </div>
 
-        <div v-else class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200">
-              <thead class="bg-slate-50">
+        <!-- List. Six columns do not fit a phone, so below md the table is
+             replaced by a stacked card list rather than left to scroll
+             sideways behind an overlay scrollbar that renders no affordance.
+             Every field and every control appears in both branches. -->
+        <template v-else>
+          <div class="sh-card hidden overflow-x-auto md:block">
+            <table class="sh-table">
+              <thead>
                 <tr>
-                  <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
-                  <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:table-cell">Category</th>
-                  <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Duration</th>
-                  <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Price</th>
-                  <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:table-cell">Status</th>
-                  <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Duration</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th class="text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr v-for="service in services" :key="service.id" class="hover:bg-slate-50">
-                  <td class="px-5 py-3.5">
-                    <p class="font-medium text-slate-900">{{ service.name }}</p>
-                    <p class="text-xs text-slate-500 sm:hidden">{{ service.category?.name || 'Uncategorized' }}</p>
-                  </td>
-                  <td class="hidden px-5 py-3.5 text-sm text-slate-600 sm:table-cell">
-                    {{ service.category?.name || '—' }}
-                  </td>
-                  <td class="px-5 py-3.5 text-sm text-slate-600">{{ service.duration ?? '—' }} min</td>
-                  <td class="px-5 py-3.5 text-sm text-slate-600">{{ formatPrice(service.price) }}</td>
-                  <td class="hidden px-5 py-3.5 sm:table-cell">
+              <tbody>
+                <tr v-for="service in services" :key="service.id">
+                  <td class="font-medium text-ink">{{ service.name }}</td>
+                  <td class="text-ink/75">{{ service.category?.name || '—' }}</td>
+                  <td class="whitespace-nowrap text-ink/75">{{ service.duration ?? '—' }} min</td>
+                  <td class="text-ink/75">{{ formatPrice(service.price) }}</td>
+                  <td>
                     <span
-                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
-                      :class="service.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                      class="sh-badge capitalize"
+                      :class="service.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-ink/10 text-ink/60'"
                     >
                       {{ service.status || 'inactive' }}
                     </span>
                   </td>
-                  <td class="px-5 py-3.5 text-right">
-                    <div v-if="canWrite" class="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-                        @click="openEdit(service)"
-                      >
+                  <td class="text-right whitespace-nowrap">
+                    <div v-if="canWrite" class="inline-flex items-center gap-1">
+                      <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(service)">
                         Edit
                       </button>
                       <button
                         type="button"
-                        class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                        class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
                         @click="serviceToDelete = service"
                       >
                         Delete
@@ -347,7 +328,51 @@ onMounted(() => {
               </tbody>
             </table>
           </div>
-        </div>
+
+          <!-- Same data, same handlers, stacked so nothing sits off the right
+               edge of a 390px viewport. -->
+          <div class="space-y-3 md:hidden">
+            <div v-for="service in services" :key="service.id" class="sh-card p-5">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-medium text-ink">{{ service.name }}</span>
+                <span
+                  class="sh-badge capitalize"
+                  :class="service.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-ink/10 text-ink/60'"
+                >
+                  {{ service.status || 'inactive' }}
+                </span>
+              </div>
+
+              <dl class="mt-2 grid grid-cols-1 gap-y-1 text-sm">
+                <div class="flex gap-2">
+                  <dt class="w-20 shrink-0 text-ink/40">Category</dt>
+                  <dd class="truncate text-ink/75">{{ service.category?.name || '—' }}</dd>
+                </div>
+                <div class="flex gap-2">
+                  <dt class="w-20 shrink-0 text-ink/40">Duration</dt>
+                  <dd class="truncate text-ink/75">{{ service.duration ?? '—' }} min</dd>
+                </div>
+                <div class="flex gap-2">
+                  <dt class="w-20 shrink-0 text-ink/40">Price</dt>
+                  <dd class="truncate text-ink/75">{{ formatPrice(service.price) }}</dd>
+                </div>
+              </dl>
+
+              <div v-if="canWrite" class="mt-4 flex justify-end gap-1 border-t border-ink/10 pt-4">
+                <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(service)">
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                  @click="serviceToDelete = service"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
       </section>
     </div>
 
@@ -367,94 +392,64 @@ onMounted(() => {
 
       <form id="service-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="submitForm">
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Name <span class="text-rose-500">*</span></label>
-          <input
-            v-model="form.name"
-            type="text"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="Haircut"
-          />
-          <p v-if="formErrors.name" class="mt-1 text-sm text-rose-600">{{ formErrors.name[0] }}</p>
+          <label class="sh-label">Name <span class="text-rose-500">*</span></label>
+          <input v-model="form.name" type="text" required class="sh-input" placeholder="Haircut" />
+          <p v-if="formErrors.name" class="sh-error">{{ formErrors.name[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
-          <select
-            v-model="form.category_id"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          >
+          <label class="sh-label">Category</label>
+          <select v-model="form.category_id" class="sh-input">
             <option value="">Uncategorized</option>
             <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
           </select>
-          <p v-if="formErrors.category_id" class="mt-1 text-sm text-rose-600">{{ formErrors.category_id[0] }}</p>
+          <p v-if="formErrors.category_id" class="sh-error">{{ formErrors.category_id[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Status</label>
-          <select
-            v-model="form.status"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          >
+          <label class="sh-label">Status</label>
+          <select v-model="form.status" class="sh-input">
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-          <p v-if="formErrors.status" class="mt-1 text-sm text-rose-600">{{ formErrors.status[0] }}</p>
+          <p v-if="formErrors.status" class="sh-error">{{ formErrors.status[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Duration (min) <span class="text-rose-500">*</span></label>
-          <input
-            v-model="form.duration"
-            type="number"
-            min="0"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="30"
-          />
-          <p v-if="formErrors.duration" class="mt-1 text-sm text-rose-600">{{ formErrors.duration[0] }}</p>
+          <label class="sh-label">Duration (min) <span class="text-rose-500">*</span></label>
+          <input v-model="form.duration" type="number" min="0" required class="sh-input" placeholder="30" />
+          <p v-if="formErrors.duration" class="sh-error">{{ formErrors.duration[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Price <span class="text-rose-500">*</span></label>
+          <label class="sh-label">Price <span class="text-rose-500">*</span></label>
           <input
             v-model="form.price"
             type="number"
             min="0"
             step="0.01"
             required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
             placeholder="25.00"
           />
-          <p v-if="formErrors.price" class="mt-1 text-sm text-rose-600">{{ formErrors.price[0] }}</p>
+          <p v-if="formErrors.price" class="sh-error">{{ formErrors.price[0] }}</p>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Description</label>
+          <label class="sh-label">Description</label>
           <textarea
             v-model="form.description"
             rows="3"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
             placeholder="Optional details"
           ></textarea>
-          <p v-if="formErrors.description" class="mt-1 text-sm text-rose-600">{{ formErrors.description[0] }}</p>
+          <p v-if="formErrors.description" class="sh-error">{{ formErrors.description[0] }}</p>
         </div>
       </form>
 
       <template #footer>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          @click="closeForm"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          form="service-form"
-          :disabled="saving"
-          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <button type="button" class="sh-btn" @click="closeForm">Cancel</button>
+        <button type="submit" form="service-form" :disabled="saving" class="sh-btn sh-btn-primary">
           {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Create service' }}
         </button>
       </template>

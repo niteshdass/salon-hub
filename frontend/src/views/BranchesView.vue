@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { isPlanLimit, parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const authStore = useAuthStore()
 
@@ -311,26 +312,24 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">Branches</h1>
-        <p class="mt-1 text-sm text-slate-500">Manage your salon locations.</p>
-      </div>
-      <button
-        v-if="canWrite && !branchLimitReached"
-        type="button"
-        class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-        @click="openCreate"
-      >
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        Add branch
-      </button>
-      <p v-else-if="canWrite" class="text-xs text-slate-500">
-        Your free plan allows only 1 branch.
-      </p>
-    </div>
+    <PageHeader title="Branches" subtitle="Where your salon operates.">
+      <template #actions>
+        <button
+          v-if="canWrite && !branchLimitReached"
+          type="button"
+          class="sh-btn sh-btn-primary"
+          @click="openCreate"
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add branch
+        </button>
+        <p v-else-if="canWrite" class="text-xs text-ink/60">
+          Your free plan allows only 1 branch.
+        </p>
+      </template>
+    </PageHeader>
 
     <div
       v-if="planLimitMessage"
@@ -350,60 +349,55 @@ onMounted(() => {
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="rounded-2xl bg-white p-10 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+    <div v-if="loading" class="sh-card p-10 text-center text-sm text-ink/60">
       Loading branches…
     </div>
 
     <!-- Empty -->
-    <div
-      v-else-if="branches.length === 0"
-      class="rounded-2xl bg-white p-10 text-center ring-1 ring-slate-200"
-    >
-      <p class="text-sm font-medium text-slate-900">No branches yet</p>
-      <p class="mt-1 text-sm text-slate-500">Add your first location to get started.</p>
+    <div v-else-if="branches.length === 0" class="sh-empty">
+      <p class="font-medium text-ink">No branches yet</p>
+      <p class="mt-1">Add your first location to get started.</p>
       <button
         v-if="canWrite && !branchLimitReached"
         type="button"
-        class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+        class="sh-btn sh-btn-primary mt-4"
         @click="openCreate"
       >
         Add branch
       </button>
     </div>
 
-    <!-- List -->
-    <div v-else class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      <table class="min-w-full divide-y divide-slate-200">
-        <thead class="bg-slate-50">
+    <!-- List. The secondary columns drop out one by one as the viewport
+         narrows, so the row never scrolls off a phone and the name cell
+         carries whichever detail is left. -->
+    <div v-else class="sh-card overflow-hidden">
+      <table class="sh-table">
+        <thead>
           <tr>
-            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Name</th>
-            <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:table-cell">Phone</th>
-            <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 md:table-cell">City</th>
-            <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 lg:table-cell">Email</th>
-            <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+            <th>Name</th>
+            <th class="hidden sm:table-cell">Phone</th>
+            <th class="hidden md:table-cell">City</th>
+            <th class="hidden lg:table-cell">Email</th>
+            <th class="text-right">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
-          <tr v-for="branch in branches" :key="branch.id" class="hover:bg-slate-50">
-            <td class="px-5 py-3.5">
-              <p class="font-medium text-slate-900">{{ branch.name }}</p>
-              <p class="text-xs text-slate-500 sm:hidden">{{ branch.city || branch.phone || '—' }}</p>
+        <tbody>
+          <tr v-for="branch in branches" :key="branch.id">
+            <td>
+              <p class="font-medium text-ink">{{ branch.name }}</p>
+              <p class="text-xs text-ink/50 sm:hidden">{{ branch.city || branch.phone || '—' }}</p>
             </td>
-            <td class="hidden px-5 py-3.5 text-sm text-slate-600 sm:table-cell">{{ branch.phone || '—' }}</td>
-            <td class="hidden px-5 py-3.5 text-sm text-slate-600 md:table-cell">{{ branch.city || '—' }}</td>
-            <td class="hidden px-5 py-3.5 text-sm text-slate-600 lg:table-cell">{{ branch.email || '—' }}</td>
-            <td class="px-5 py-3.5 text-right">
-              <div v-if="canWrite" class="flex justify-end gap-2">
-                <button
-                  type="button"
-                  class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-                  @click="openEdit(branch)"
-                >
+            <td class="hidden text-ink/75 sm:table-cell">{{ branch.phone || '—' }}</td>
+            <td class="hidden text-ink/75 md:table-cell">{{ branch.city || '—' }}</td>
+            <td class="hidden text-ink/75 lg:table-cell">{{ branch.email || '—' }}</td>
+            <td class="text-right whitespace-nowrap">
+              <div v-if="canWrite" class="inline-flex items-center gap-1">
+                <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(branch)">
                   Edit
                 </button>
                 <button
                   type="button"
-                  class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                  class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
                   @click="confirmTarget = branch"
                 >
                   Delete
@@ -419,13 +413,13 @@ onMounted(() => {
     <div class="mt-10">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-lg font-bold text-slate-900">Closures &amp; holidays</h2>
-          <p class="mt-1 text-sm text-slate-500">Block online booking for whole days, per branch or salon-wide.</p>
+          <h2 class="font-display text-2xl text-ink">Closures &amp; holidays</h2>
+          <p class="mt-1 text-sm text-ink/60">Block online booking for whole days, per branch or salon-wide.</p>
         </div>
         <button
           v-if="canWrite"
           type="button"
-          class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+          class="sh-btn sh-btn-primary"
           @click="openClosureForm"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -442,44 +436,41 @@ onMounted(() => {
         {{ closuresError }}
       </div>
 
-      <div v-if="closuresLoading" class="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+      <div v-if="closuresLoading" class="sh-card p-8 text-center text-sm text-ink/60">
         Loading closures…
       </div>
-      <div
-        v-else-if="closures.length === 0"
-        class="rounded-2xl bg-white p-8 text-center ring-1 ring-slate-200"
-      >
-        <p class="text-sm font-medium text-slate-900">No closures scheduled</p>
-        <p class="mt-1 text-sm text-slate-500">Add holidays or one-off closed days.</p>
+      <div v-else-if="closures.length === 0" class="sh-empty">
+        <p class="font-medium text-ink">No closures scheduled</p>
+        <p class="mt-1">Add holidays or one-off closed days.</p>
       </div>
-      <div v-else class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <table class="min-w-full divide-y divide-slate-200">
-          <thead class="bg-slate-50">
+      <div v-else class="sh-card overflow-hidden">
+        <table class="sh-table">
+          <thead>
             <tr>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Dates</th>
-              <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Branch</th>
-              <th class="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:table-cell">Reason</th>
-              <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+              <th>Dates</th>
+              <th>Branch</th>
+              <th class="hidden sm:table-cell">Reason</th>
+              <th class="text-right">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="entry in closures" :key="entry.id" class="hover:bg-slate-50">
-              <td class="px-5 py-3.5 text-sm font-medium text-slate-900">{{ closureRange(entry) }}</td>
-              <td class="px-5 py-3.5 text-sm text-slate-600">
+          <tbody>
+            <tr v-for="entry in closures" :key="entry.id">
+              <td class="font-medium text-ink">{{ closureRange(entry) }}</td>
+              <td class="text-ink/75">
                 <span
                   v-if="entry.branch_id == null"
-                  class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700"
+                  class="sh-badge bg-accent-50 text-accent-700"
                 >
                   All branches
                 </span>
                 <span v-else>{{ branchName(entry.branch_id) }}</span>
               </td>
-              <td class="hidden px-5 py-3.5 text-sm text-slate-600 sm:table-cell">{{ entry.reason || '—' }}</td>
-              <td class="px-5 py-3.5 text-right">
+              <td class="hidden text-ink/75 sm:table-cell">{{ entry.reason || '—' }}</td>
+              <td class="text-right whitespace-nowrap">
                 <button
                   v-if="canWrite"
                   type="button"
-                  class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                  class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
                   @click="closureConfirmTarget = entry"
                 >
                   Delete
@@ -500,63 +491,44 @@ onMounted(() => {
     >
       <form id="closure-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="submitClosure">
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Branch</label>
-          <select
-            v-model="closureForm.branch_id"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          >
+          <label class="sh-label">Branch</label>
+          <select v-model="closureForm.branch_id" class="sh-input">
             <option value="">All branches (salon-wide)</option>
             <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
           </select>
-          <p v-if="closureFormErrors.branch_id" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.branch_id[0] }}</p>
+          <p v-if="closureFormErrors.branch_id" class="sh-error">{{ closureFormErrors.branch_id[0] }}</p>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">From <span class="text-rose-500">*</span></label>
-          <input
-            v-model="closureForm.start_date"
-            type="date"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p v-if="closureFormErrors.start_date" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.start_date[0] }}</p>
+          <label class="sh-label">From <span class="text-rose-500">*</span></label>
+          <input v-model="closureForm.start_date" type="date" required class="sh-input" />
+          <p v-if="closureFormErrors.start_date" class="sh-error">{{ closureFormErrors.start_date[0] }}</p>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">To <span class="text-rose-500">*</span></label>
-          <input
-            v-model="closureForm.end_date"
-            type="date"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p class="mt-1 text-xs text-slate-400">Same day for a single-day closure.</p>
-          <p v-if="closureFormErrors.end_date" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.end_date[0] }}</p>
+          <label class="sh-label">To <span class="text-rose-500">*</span></label>
+          <input v-model="closureForm.end_date" type="date" required class="sh-input" />
+          <p class="mt-1 text-xs text-ink/40">Same day for a single-day closure.</p>
+          <p v-if="closureFormErrors.end_date" class="sh-error">{{ closureFormErrors.end_date[0] }}</p>
         </div>
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Reason</label>
+          <label class="sh-label">Reason</label>
           <input
             v-model="closureForm.reason"
             type="text"
             maxlength="255"
             placeholder="Public holiday, renovation…"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
           />
-          <p v-if="closureFormErrors.reason" class="mt-1 text-sm text-rose-600">{{ closureFormErrors.reason[0] }}</p>
+          <p v-if="closureFormErrors.reason" class="sh-error">{{ closureFormErrors.reason[0] }}</p>
         </div>
       </form>
 
       <template #footer>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          @click="closeClosureForm"
-        >
-          Cancel
-        </button>
+        <button type="button" class="sh-btn" @click="closeClosureForm">Cancel</button>
         <button
           type="submit"
           form="closure-form"
           :disabled="closureSaving"
-          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="sh-btn sh-btn-primary"
         >
           {{ closureSaving ? 'Saving…' : 'Add closure' }}
         </button>
@@ -589,65 +561,59 @@ onMounted(() => {
 
       <form id="branch-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="submitForm">
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Name <span class="text-rose-500">*</span></label>
-          <input
-            v-model="form.name"
-            type="text"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="Downtown branch"
-          />
-          <p v-if="formErrors.name" class="mt-1 text-sm text-rose-600">{{ formErrors.name[0] }}</p>
+          <label class="sh-label">Name <span class="text-rose-500">*</span></label>
+          <input v-model="form.name" type="text" required class="sh-input" placeholder="Downtown branch" />
+          <p v-if="formErrors.name" class="sh-error">{{ formErrors.name[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Phone</label>
-          <input v-model="form.phone" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.phone" class="mt-1 text-sm text-rose-600">{{ formErrors.phone[0] }}</p>
+          <label class="sh-label">Phone</label>
+          <input v-model="form.phone" type="text" class="sh-input" />
+          <p v-if="formErrors.phone" class="sh-error">{{ formErrors.phone[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
-          <input v-model="form.email" type="email" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.email" class="mt-1 text-sm text-rose-600">{{ formErrors.email[0] }}</p>
+          <label class="sh-label">Email</label>
+          <input v-model="form.email" type="email" class="sh-input" />
+          <p v-if="formErrors.email" class="sh-error">{{ formErrors.email[0] }}</p>
         </div>
 
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Address</label>
-          <input v-model="form.address" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.address" class="mt-1 text-sm text-rose-600">{{ formErrors.address[0] }}</p>
+          <label class="sh-label">Address</label>
+          <input v-model="form.address" type="text" class="sh-input" />
+          <p v-if="formErrors.address" class="sh-error">{{ formErrors.address[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">City</label>
-          <input v-model="form.city" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.city" class="mt-1 text-sm text-rose-600">{{ formErrors.city[0] }}</p>
+          <label class="sh-label">City</label>
+          <input v-model="form.city" type="text" class="sh-input" />
+          <p v-if="formErrors.city" class="sh-error">{{ formErrors.city[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Country</label>
-          <input v-model="form.country" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.country" class="mt-1 text-sm text-rose-600">{{ formErrors.country[0] }}</p>
+          <label class="sh-label">Country</label>
+          <input v-model="form.country" type="text" class="sh-input" />
+          <p v-if="formErrors.country" class="sh-error">{{ formErrors.country[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Latitude</label>
-          <input v-model="form.latitude" type="number" step="any" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.latitude" class="mt-1 text-sm text-rose-600">{{ formErrors.latitude[0] }}</p>
+          <label class="sh-label">Latitude</label>
+          <input v-model="form.latitude" type="number" step="any" class="sh-input" />
+          <p v-if="formErrors.latitude" class="sh-error">{{ formErrors.latitude[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Longitude</label>
-          <input v-model="form.longitude" type="number" step="any" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
-          <p v-if="formErrors.longitude" class="mt-1 text-sm text-rose-600">{{ formErrors.longitude[0] }}</p>
+          <label class="sh-label">Longitude</label>
+          <input v-model="form.longitude" type="number" step="any" class="sh-input" />
+          <p v-if="formErrors.longitude" class="sh-error">{{ formErrors.longitude[0] }}</p>
         </div>
 
-        <div class="sm:col-span-2 border-t border-slate-100 pt-4">
-          <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
-            <input v-model="form.useHours" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300" />
+        <div class="sm:col-span-2 border-t border-ink/10 pt-4">
+          <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-ink/75">
+            <input v-model="form.useHours" type="checkbox" class="h-4 w-4 rounded border-ink/20 text-accent-600 focus:ring-accent-300" />
             Set opening hours
           </label>
-          <p class="mt-1 text-xs text-slate-400">
+          <p class="mt-1 text-xs text-ink/40">
             When off, this branch is bookable whenever staff are available. When on, online slots are limited to the hours below.
           </p>
 
@@ -655,49 +621,34 @@ onMounted(() => {
             <div
               v-for="day in DAYS"
               :key="day.key"
-              class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 px-3 py-2"
+              class="flex flex-wrap items-center gap-3 rounded-xl border border-ink/10 px-3 py-2"
             >
-              <label class="flex w-32 shrink-0 cursor-pointer items-center gap-2 text-sm text-slate-700">
+              <label class="flex w-32 shrink-0 cursor-pointer items-center gap-2 text-sm text-ink/75">
                 <input
                   v-model="form.hours[day.key].enabled"
                   type="checkbox"
-                  class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-300"
+                  class="h-4 w-4 rounded border-ink/20 text-accent-600 focus:ring-accent-300"
                 />
                 {{ day.label }}
               </label>
               <template v-if="form.hours[day.key].enabled">
-                <input
-                  v-model="form.hours[day.key].open"
-                  type="time"
-                  class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                />
-                <span class="text-sm text-slate-400">to</span>
-                <input
-                  v-model="form.hours[day.key].close"
-                  type="time"
-                  class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                />
+                <div class="w-32">
+                  <input v-model="form.hours[day.key].open" type="time" class="sh-input" />
+                </div>
+                <span class="text-sm text-ink/40">to</span>
+                <div class="w-32">
+                  <input v-model="form.hours[day.key].close" type="time" class="sh-input" />
+                </div>
               </template>
-              <span v-else class="text-sm text-slate-400">Closed</span>
+              <span v-else class="text-sm text-ink/40">Closed</span>
             </div>
           </div>
         </div>
       </form>
 
       <template #footer>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          @click="closeForm"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          form="branch-form"
-          :disabled="saving"
-          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <button type="button" class="sh-btn" @click="closeForm">Cancel</button>
+        <button type="submit" form="branch-form" :disabled="saving" class="sh-btn sh-btn-primary">
           {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Create branch' }}
         </button>
       </template>
