@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Payment;
 
 use App\Enums\PaymentMethod;
+use App\Models\Appointment;
 use App\Models\Payment;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -35,8 +36,34 @@ class StorePaymentRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
-            if ((float) $this->input('amount', 0) <= 0 && (float) $this->input('tip_amount', 0) <= 0) {
+            // A required/numeric failure on amount already explains the
+            // problem; don't stack an unrelated message on the same key.
+            if ($validator->errors()->has('amount')) {
+                return;
+            }
+
+            $amount = (float) $this->input('amount', 0);
+            $tip = (float) $this->input('tip_amount', 0);
+
+            if ($amount <= 0 && $tip <= 0) {
                 $validator->errors()->add('amount', 'Enter an amount, a tip, or both.');
+
+                return;
+            }
+
+            // The amount settles the booking's own balance and must never
+            // overshoot it. The tip is never capped by anything.
+            $appointment = $this->route('appointment');
+            if ($appointment instanceof Appointment) {
+                $appointment->loadMissing('payments');
+                $balance = (float) $appointment->balanceDue();
+
+                if ($amount > $balance) {
+                    $validator->errors()->add(
+                        'amount',
+                        'Amount cannot exceed the remaining balance of '.number_format($balance, 2, '.', '').'.'
+                    );
+                }
             }
         });
     }

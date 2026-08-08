@@ -258,6 +258,66 @@ class PaymentControllerTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('method');
     }
 
+    /**
+     * Until this cap, nothing server-side stood between a typed Amount and
+     * a negative balance — only a client-side clamp in the same form that
+     * now also has to accept a tip on an already-settled booking.
+     */
+    public function test_overpaying_the_balance_is_rejected(): void
+    {
+        $ctx = $this->scaffold('overpay');
+        $url = "/api/appointments/{$ctx['appointment']->id}/payments";
+
+        $response = $this->withToken($ctx['staffToken'])->postJson($url, [
+            'amount' => 5000, 'tip_amount' => 10, 'method' => 'cash',
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('amount');
+        $this->assertDatabaseMissing('payments', ['appointment_id' => $ctx['appointment']->id]);
+    }
+
+    public function test_paying_exactly_the_balance_succeeds(): void
+    {
+        $ctx = $this->scaffold('exactpay');
+        $url = "/api/appointments/{$ctx['appointment']->id}/payments";
+
+        $response = $this->withToken($ctx['staffToken'])->postJson($url, [
+            'amount' => 40, 'method' => 'cash',
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame('0.00', $ctx['appointment']->fresh()->load('payments')->balanceDue());
+    }
+
+    /** A tip is never bounded by the balance, even on a settled booking. */
+    public function test_tip_only_payment_on_a_settled_booking_is_uncapped(): void
+    {
+        $ctx = $this->scaffold('tiponly');
+        $url = "/api/appointments/{$ctx['appointment']->id}/payments";
+
+        $this->withToken($ctx['staffToken'])->postJson($url, ['amount' => 40, 'method' => 'cash'])->assertCreated();
+
+        $response = $this->withToken($ctx['staffToken'])->postJson($url, [
+            'amount' => 0, 'tip_amount' => 500, 'method' => 'cash',
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame('500.00', $ctx['appointment']->fresh()->load('payments')->tipsCollected());
+    }
+
+    public function test_a_tip_larger_than_the_balance_is_still_accepted(): void
+    {
+        $ctx = $this->scaffold('bigtip');
+        $url = "/api/appointments/{$ctx['appointment']->id}/payments";
+
+        $response = $this->withToken($ctx['staffToken'])->postJson($url, [
+            'amount' => 5, 'tip_amount' => 100, 'method' => 'cash',
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame('100.00', $ctx['appointment']->fresh()->load('payments')->tipsCollected());
+    }
+
     public function test_owner_deletes_a_payment_but_staff_cannot(): void
     {
         $ctx = $this->scaffold('delpay');
