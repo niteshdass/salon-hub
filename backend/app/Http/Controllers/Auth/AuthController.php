@@ -35,7 +35,7 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user' => new UserResource($user),
-            'organization' => new OrganizationResource($organization->load('domains')),
+            'organization' => new OrganizationResource($organization->load(['domains', 'setting'])),
         ], 201);
     }
 
@@ -94,7 +94,7 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user' => new UserResource($user),
-            'organization' => new OrganizationResource($organization->load('domains')),
+            'organization' => new OrganizationResource($organization->load(['domains', 'setting'])),
         ]);
     }
 
@@ -119,7 +119,7 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => new UserResource($user),
-            'organization' => new OrganizationResource($organization->load('domains')),
+            'organization' => new OrganizationResource($organization->load(['domains', 'setting'])),
         ]);
     }
 

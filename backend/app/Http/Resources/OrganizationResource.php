@@ -23,6 +23,10 @@ class OrganizationResource extends JsonResource
             'country' => $this->country,
             'timezone' => $this->timezone,
             'currency' => $this->currency,
+            // The admin UI accents itself with this, and staff/managers are
+            // barred from the settings endpoints — so it travels with the
+            // session instead. Null until the owner saves a profile once.
+            'theme_color' => $this->themeColor(),
             // Stored as disk paths; clients need URLs.
             'logo_url' => $this->image($this->logo),
             'cover_image_url' => $this->image($this->cover_image),
@@ -50,5 +54,18 @@ class OrganizationResource extends JsonResource
         }
 
         return $this->domains()->where('is_primary', true)->value('domain');
+    }
+
+    /**
+     * Read the settings row's colour, preferring the loaded relation so a
+     * list of organizations does not fire one query per row.
+     */
+    protected function themeColor(): ?string
+    {
+        if ($this->relationLoaded('setting')) {
+            return $this->setting?->theme_color;
+        }
+
+        return $this->setting()->value('theme_color');
     }
 }
