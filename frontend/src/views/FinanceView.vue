@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import { monthOptions, payTypeLabel } from '@/lib/payroll'
 import Modal from '@/components/Modal.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const authStore = useAuthStore()
 const currency = computed(() => authStore.organization?.currency || 'USD')
@@ -279,38 +280,34 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6">
-    <div>
-      <h1 class="text-2xl font-semibold text-slate-900">Finance</h1>
-      <p class="mt-1 text-sm text-slate-500">Staff pay, costs, and what the salon actually keeps.</p>
-    </div>
+    <PageHeader
+      title="Finance"
+      :subtitle="`Staff pay, costs, and profit from ${profitRange.from} to ${profitRange.to}.`"
+    />
 
-    <div class="flex gap-1 border-b border-slate-200">
+    <div class="flex gap-1 border-b border-ink/10">
       <button
         v-for="item in TABS"
         :key="item.key"
         class="border-b-2 px-4 py-2 text-sm font-medium transition"
-        :class="tab === item.key ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'"
+        :class="tab === item.key ? 'border-accent-500 text-ink' : 'border-transparent text-ink/55 hover:text-ink'"
         @click="tab = item.key"
       >
         {{ item.label }}
       </button>
     </div>
 
-    <p v-if="error" class="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</p>
+    <p v-if="error" class="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">{{ error }}</p>
 
     <section v-if="tab === 'payroll'" class="space-y-4">
-      <div class="flex flex-wrap items-end gap-3">
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Month</label>
-          <select v-model="selectedMonth" class="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm">
+      <div class="sh-card flex flex-wrap items-end gap-3 p-4">
+        <div class="w-52">
+          <label class="sh-label">Month</label>
+          <select v-model="selectedMonth" class="sh-input">
             <option v-for="m in months" :key="m.value" :value="m.value">{{ m.label }}</option>
           </select>
         </div>
-        <button
-          :disabled="saving"
-          class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          @click="createRun"
-        >
+        <button :disabled="saving" class="sh-btn sh-btn-primary" @click="createRun">
           Open payroll
         </button>
       </div>
@@ -319,8 +316,10 @@ onMounted(async () => {
         <button
           v-for="run in runs"
           :key="run.id"
-          class="rounded-full border px-3 py-1 text-sm"
-          :class="activeRun?.id === run.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-300 text-slate-600'"
+          class="rounded-full border px-3 py-1 text-sm transition"
+          :class="activeRun?.id === run.id
+            ? 'border-accent-500 bg-accent-50 text-accent-700'
+            : 'border-ink/15 text-ink/60 hover:bg-paper'"
           @click="openRun(run.id)"
         >
           {{ run.period_label }}
@@ -328,33 +327,33 @@ onMounted(async () => {
         </button>
       </div>
 
-      <p v-if="loading" class="text-sm text-slate-500">Loading…</p>
-      <p v-else-if="!runs.length" class="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+      <p v-if="loading" class="text-sm text-ink/60">Loading…</p>
+      <p v-else-if="!runs.length" class="sh-empty">
         No payroll yet. Pick a month and open it.
       </p>
 
-      <div v-if="activeRun" class="overflow-hidden rounded-xl border border-slate-200">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+      <div v-if="activeRun" class="space-y-3">
+        <div class="sh-card flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
-            <p class="text-sm font-semibold text-slate-900">{{ activeRun.period_label }}</p>
-            <p class="text-xs text-slate-500">
+            <p class="font-display text-lg text-ink">{{ activeRun.period_label }}</p>
+            <p class="text-xs text-ink/50">
               <span v-if="activeRun.status === 'finalized'">Finalized {{ new Date(activeRun.finalized_at).toLocaleDateString() }}</span>
               <span v-else>Draft — amounts can still be edited</span>
             </p>
           </div>
-          <div class="flex items-center gap-3">
-            <span class="text-sm font-semibold text-slate-900">{{ money(activeRun.total_amount) }}</span>
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="font-display text-2xl text-ink">{{ money(activeRun.total_amount) }}</span>
             <button
               v-if="activeRun.status === 'draft'"
               :disabled="saving"
-              class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              class="sh-btn sh-btn-primary"
               @click="finalizeRun"
             >
               Finalize
             </button>
             <button
               :disabled="saving"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              class="sh-btn text-rose-600 hover:bg-rose-50"
               @click="deleteRun"
             >
               Delete
@@ -362,194 +361,322 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead class="bg-white text-left text-xs uppercase tracking-wide text-slate-500">
+        <!-- Eight columns and two editable amounts do not fit a phone, so below
+             md the table is replaced by a stacked card list rather than left to
+             scroll sideways behind an overlay scrollbar that renders no
+             affordance. Every field and every control appears in both branches. -->
+        <div class="sh-card hidden overflow-x-auto md:block">
+          <table class="sh-table">
+            <thead>
               <tr>
-                <th class="px-4 py-2">Staff</th>
-                <th class="px-4 py-2">Rule</th>
-                <th class="px-4 py-2 text-right">Bookings</th>
-                <th class="px-4 py-2 text-right">Earned</th>
-                <th class="px-4 py-2 text-right">Salary</th>
-                <th class="px-4 py-2 text-right">Commission</th>
-                <th class="px-4 py-2 text-right">Tips</th>
-                <th class="px-4 py-2 text-right">Total</th>
+                <th>Staff</th>
+                <th>Rule</th>
+                <th class="text-right">Bookings</th>
+                <th class="text-right">Earned</th>
+                <th class="text-right">Salary</th>
+                <th class="text-right">Commission</th>
+                <th class="text-right">Tips</th>
+                <th class="text-right">Total</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody>
               <tr v-for="line in activeRun.lines" :key="line.id">
-                <td class="px-4 py-2 font-medium text-slate-900">{{ line.staff_name }}</td>
-                <td class="px-4 py-2 text-slate-500">
+                <td class="font-medium text-ink">{{ line.staff_name }}</td>
+                <td class="text-ink/60">
                   {{ payTypeLabel(line.pay_type) }}
                   <span v-if="Number(line.commission_rate) > 0" class="text-xs">({{ line.commission_rate }}%)</span>
                 </td>
-                <td class="px-4 py-2 text-right">{{ line.bookings }}</td>
-                <td class="px-4 py-2 text-right">{{ money(line.earned_revenue) }}</td>
-                <td class="px-4 py-2 text-right">
+                <td class="text-right">{{ line.bookings }}</td>
+                <td class="text-right">{{ money(line.earned_revenue) }}</td>
+                <td class="text-right">
                   <input
                     v-if="activeRun.status === 'draft'"
                     :value="line.salary_amount"
                     type="number"
                     min="0"
                     step="0.01"
-                    class="w-24 rounded border border-slate-300 px-2 py-1 text-right"
+                    class="sh-input w-24 px-2 py-1 text-right"
                     @change="saveLine(line, 'salary_amount', $event.target.value)"
                   />
                   <span v-else>{{ money(line.salary_amount) }}</span>
                 </td>
-                <td class="px-4 py-2 text-right">
+                <td class="text-right">
                   <input
                     v-if="activeRun.status === 'draft'"
                     :value="line.commission_amount"
                     type="number"
                     min="0"
                     step="0.01"
-                    class="w-24 rounded border border-slate-300 px-2 py-1 text-right"
+                    class="sh-input w-24 px-2 py-1 text-right"
                     @change="saveLine(line, 'commission_amount', $event.target.value)"
                   />
                   <span v-else>{{ money(line.commission_amount) }}</span>
                 </td>
                 <!-- Recorded at the counter, not edited here: a tip is 100% the staff
                      member's and never enters the commission base. -->
-                <td class="px-4 py-2 text-right">{{ money(line.tips_amount) }}</td>
-                <td class="px-4 py-2 text-right font-semibold text-slate-900">{{ money(line.total_amount) }}</td>
+                <td class="text-right">{{ money(line.tips_amount) }}</td>
+                <td class="text-right font-semibold text-ink">{{ money(line.total_amount) }}</td>
               </tr>
               <tr v-if="!activeRun.lines.length">
-                <td colspan="8" class="px-4 py-6 text-center text-slate-500">
+                <td colspan="8" class="py-6 text-center text-ink/60">
                   No staff have a pay rule yet. Set one on the Staff page.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <!-- Same lines, same saveLine() calls, stacked so nothing sits off the
+             right edge of a 390px viewport. -->
+        <div class="space-y-3 md:hidden">
+          <div v-for="line in activeRun.lines" :key="line.id" class="sh-card p-5">
+            <p class="font-medium text-ink">{{ line.staff_name }}</p>
+            <p class="text-sm text-ink/60">
+              {{ payTypeLabel(line.pay_type) }}
+              <span v-if="Number(line.commission_rate) > 0" class="text-xs">({{ line.commission_rate }}%)</span>
+            </p>
+
+            <dl class="mt-3 space-y-2 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-ink/40">Bookings</dt>
+                <dd class="text-ink">{{ line.bookings }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-ink/40">Earned</dt>
+                <dd class="text-ink">{{ money(line.earned_revenue) }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-ink/40">Salary</dt>
+                <dd>
+                  <input
+                    v-if="activeRun.status === 'draft'"
+                    :value="line.salary_amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="sh-input w-28 px-2 py-1 text-right"
+                    @change="saveLine(line, 'salary_amount', $event.target.value)"
+                  />
+                  <span v-else class="text-ink">{{ money(line.salary_amount) }}</span>
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-ink/40">Commission</dt>
+                <dd>
+                  <input
+                    v-if="activeRun.status === 'draft'"
+                    :value="line.commission_amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="sh-input w-28 px-2 py-1 text-right"
+                    @change="saveLine(line, 'commission_amount', $event.target.value)"
+                  />
+                  <span v-else class="text-ink">{{ money(line.commission_amount) }}</span>
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-ink/40">Tips</dt>
+                <dd class="text-ink">{{ money(line.tips_amount) }}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3 border-t border-ink/10 pt-2">
+                <dt class="text-ink/40">Total</dt>
+                <dd class="font-semibold text-ink">{{ money(line.total_amount) }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <p v-if="!activeRun.lines.length" class="sh-empty">
+            No staff have a pay rule yet. Set one on the Staff page.
+          </p>
+        </div>
       </div>
     </section>
 
     <section v-if="tab === 'expenses'" class="space-y-4">
-      <div class="flex flex-wrap items-end gap-3">
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">From</label>
-          <input v-model="expenseFilters.from" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadExpenses" />
+      <div class="sh-card flex flex-wrap items-end gap-3 p-4">
+        <div class="w-44">
+          <label class="sh-label">From</label>
+          <input v-model="expenseFilters.from" type="date" class="sh-input" @change="loadExpenses" />
         </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">To</label>
-          <input v-model="expenseFilters.to" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadExpenses" />
+        <div class="w-44">
+          <label class="sh-label">To</label>
+          <input v-model="expenseFilters.to" type="date" class="sh-input" @change="loadExpenses" />
         </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
-          <select v-model="expenseFilters.category" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadExpenses">
+        <div class="w-44">
+          <label class="sh-label">Category</label>
+          <select v-model="expenseFilters.category" class="sh-input" @change="loadExpenses">
             <option value="">All</option>
             <option v-for="c in EXPENSE_CATEGORIES" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
-        <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700" @click="openExpenseModal()">
+        <button class="sh-btn sh-btn-primary" @click="openExpenseModal()">
           Add expense
         </button>
       </div>
 
-      <div class="overflow-hidden rounded-xl border border-slate-200">
-        <table class="min-w-full text-sm">
-          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th class="px-4 py-2">Date</th>
-              <th class="px-4 py-2">Category</th>
-              <th class="px-4 py-2">Note</th>
-              <th class="px-4 py-2 text-right">Amount</th>
-              <th class="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="expense in expenses" :key="expense.id">
-              <td class="px-4 py-2">{{ expense.expense_date }}</td>
-              <td class="px-4 py-2 capitalize">{{ expense.category }}</td>
-              <td class="px-4 py-2 text-slate-500">{{ expense.note || '—' }}</td>
-              <td class="px-4 py-2 text-right">{{ money(expense.amount) }}</td>
-              <td class="px-4 py-2 text-right">
+      <!-- Five columns and the row actions do not fit a phone, so below md the
+           table is replaced by a stacked card list rather than left to scroll
+           sideways behind an overlay scrollbar that renders no affordance.
+           Every field and every control appears in both branches. -->
+      <template v-if="expenses.length">
+        <div class="sh-card hidden overflow-x-auto md:block">
+          <table class="sh-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Note</th>
+                <th class="text-right">Amount</th>
+                <th class="text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="expense in expenses" :key="expense.id">
+                <td class="whitespace-nowrap">{{ expense.expense_date }}</td>
+                <td class="capitalize">{{ expense.category }}</td>
+                <td class="text-ink/60">{{ expense.note || '—' }}</td>
+                <td class="text-right">{{ money(expense.amount) }}</td>
+                <td class="text-right whitespace-nowrap">
+                  <button
+                    v-if="expense.is_locked"
+                    class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs"
+                    title="Open the payroll run that booked this expense"
+                    @click="openRunFromExpense(expense)"
+                  >
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path
+                        fill-rule="evenodd"
+                        d="M10 1a4 4 0 0 0-4 4v3H5.5A1.5 1.5 0 0 0 4 9.5v7A1.5 1.5 0 0 0 5.5 18h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 14.5 8H14V5a4 4 0 0 0-4-4Zm2.5 7V5a2.5 2.5 0 0 0-5 0v3h5Z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                    From payroll
+                  </button>
+                  <span v-else class="inline-flex items-center gap-1">
+                    <button class="sh-btn px-2.5 py-1 text-xs" @click="openExpenseModal(expense)">Edit</button>
+                    <button
+                      class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                      @click="deleteExpense(expense)"
+                    >
+                      Delete
+                    </button>
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3" class="px-4 py-3 text-right text-sm font-medium text-ink/60">Total</td>
+                <td class="px-4 py-3 text-right text-sm font-semibold text-ink">{{ money(expenseTotal) }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Same rows, same handlers, stacked for a 390px viewport. -->
+        <div class="space-y-3 md:hidden">
+          <div v-for="expense in expenses" :key="expense.id" class="sh-card p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="font-medium capitalize text-ink">{{ expense.category }}</p>
+                <p class="text-xs text-ink/50">{{ expense.expense_date }}</p>
+              </div>
+              <p class="font-display text-2xl text-ink">{{ money(expense.amount) }}</p>
+            </div>
+
+            <p class="mt-2 text-sm text-ink/60">{{ expense.note || '—' }}</p>
+
+            <div class="mt-4 flex flex-wrap items-center justify-end gap-1 border-t border-ink/10 pt-4">
+              <button
+                v-if="expense.is_locked"
+                class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs"
+                title="Open the payroll run that booked this expense"
+                @click="openRunFromExpense(expense)"
+              >
+                <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 1a4 4 0 0 0-4 4v3H5.5A1.5 1.5 0 0 0 4 9.5v7A1.5 1.5 0 0 0 5.5 18h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 14.5 8H14V5a4 4 0 0 0-4-4Zm2.5 7V5a2.5 2.5 0 0 0-5 0v3h5Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+                From payroll
+              </button>
+              <template v-else>
+                <button class="sh-btn px-2.5 py-1 text-xs" @click="openExpenseModal(expense)">Edit</button>
                 <button
-                  v-if="expense.is_locked"
-                  class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-700 hover:underline"
-                  title="Open the payroll run that booked this expense"
-                  @click="openRunFromExpense(expense)"
+                  class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                  @click="deleteExpense(expense)"
                 >
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path
-                      fill-rule="evenodd"
-                      d="M10 1a4 4 0 0 0-4 4v3H5.5A1.5 1.5 0 0 0 4 9.5v7A1.5 1.5 0 0 0 5.5 18h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 14.5 8H14V5a4 4 0 0 0-4-4Zm2.5 7V5a2.5 2.5 0 0 0-5 0v3h5Z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                  From payroll
+                  Delete
                 </button>
-                <template v-else>
-                  <button class="text-sm text-indigo-600 hover:underline" @click="openExpenseModal(expense)">Edit</button>
-                  <button class="ml-3 text-sm text-rose-600 hover:underline" @click="deleteExpense(expense)">Delete</button>
-                </template>
-              </td>
-            </tr>
-            <tr v-if="!expenses.length">
-              <td colspan="5" class="px-4 py-6 text-center text-slate-500">No expenses in this range.</td>
-            </tr>
-          </tbody>
-          <tfoot v-if="expenses.length" class="bg-slate-50">
-            <tr>
-              <td colspan="3" class="px-4 py-2 text-right text-sm font-medium text-slate-600">Total</td>
-              <td class="px-4 py-2 text-right text-sm font-semibold text-slate-900">{{ money(expenseTotal) }}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="sh-card flex items-center justify-between gap-3 p-5">
+            <p class="text-sm font-medium text-ink/60">Total</p>
+            <p class="font-display text-2xl text-ink">{{ money(expenseTotal) }}</p>
+          </div>
+        </div>
+      </template>
+
+      <p v-else class="sh-empty">No expenses in this range.</p>
     </section>
 
     <section v-if="tab === 'profit'" class="space-y-4">
-      <div class="flex flex-wrap items-end gap-3">
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">From</label>
-          <input v-model="profitRange.from" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadProfit" />
+      <div class="sh-card flex flex-wrap items-end gap-3 p-4">
+        <div class="w-44">
+          <label class="sh-label">From</label>
+          <input v-model="profitRange.from" type="date" class="sh-input" @change="loadProfit" />
         </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">To</label>
-          <input v-model="profitRange.to" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadProfit" />
+        <div class="w-44">
+          <label class="sh-label">To</label>
+          <input v-model="profitRange.to" type="date" class="sh-input" @change="loadProfit" />
         </div>
       </div>
 
       <div v-if="profit" class="grid gap-4 sm:grid-cols-3">
-        <div class="rounded-xl border border-slate-200 p-4">
-          <p class="text-xs uppercase tracking-wide text-slate-500">Earned</p>
-          <p class="mt-1 text-2xl font-semibold text-slate-900">{{ money(profit.earned) }}</p>
+        <div class="sh-card p-5">
+          <p class="text-xs uppercase tracking-wider text-ink/50">Earned</p>
+          <p class="mt-1 font-display text-2xl text-ink">{{ money(profit.earned) }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 p-4">
-          <p class="text-xs uppercase tracking-wide text-slate-500">Expenses</p>
-          <p class="mt-1 text-2xl font-semibold text-slate-900">{{ money(profit.expenses_total) }}</p>
+        <div class="sh-card p-5">
+          <p class="text-xs uppercase tracking-wider text-ink/50">Expenses</p>
+          <p class="mt-1 font-display text-2xl text-ink">{{ money(profit.expenses_total) }}</p>
         </div>
-        <div class="rounded-xl border border-slate-200 p-4">
-          <p class="text-xs uppercase tracking-wide text-slate-500">Net profit</p>
-          <p class="mt-1 text-2xl font-semibold" :class="profit.net_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'">
+        <div class="sh-card p-5">
+          <p class="text-xs uppercase tracking-wider text-ink/50">Net profit</p>
+          <p class="mt-1 font-display text-2xl" :class="profit.net_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'">
             {{ money(profit.net_profit) }}
           </p>
         </div>
       </div>
 
-      <div v-if="profit?.expenses_by_category.length" class="overflow-hidden rounded-xl border border-slate-200">
-        <table class="min-w-full text-sm">
-          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <!-- Three read-only columns fit a 390px card, so this breakdown keeps a
+           single table branch and scrolls inside its own box. -->
+      <div v-if="profit?.expenses_by_category.length" class="sh-card overflow-x-auto">
+        <table class="sh-table">
+          <thead>
             <tr>
-              <th class="px-4 py-2">Category</th>
-              <th class="px-4 py-2 text-right">Amount</th>
-              <th class="px-4 py-2 text-right">Share</th>
+              <th>Category</th>
+              <th class="text-right">Amount</th>
+              <th class="text-right">Share</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100">
+          <tbody>
             <tr v-for="row in profit.expenses_by_category" :key="row.category">
-              <td class="px-4 py-2 capitalize">{{ row.category }}</td>
-              <td class="px-4 py-2 text-right">{{ money(row.amount) }}</td>
-              <td class="px-4 py-2 text-right text-slate-500">{{ row.share_pct }}%</td>
+              <td class="capitalize">{{ row.category }}</td>
+              <td class="text-right">{{ money(row.amount) }}</td>
+              <td class="text-right text-ink/60">{{ row.share_pct }}%</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <p v-else-if="profit" class="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+      <p v-else-if="profit" class="sh-empty">
         No expenses in this range — net profit is everything earned.
       </p>
     </section>
@@ -561,31 +688,31 @@ onMounted(async () => {
     >
       <div class="space-y-4">
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
-          <select v-model="expenseForm.category" class="w-full rounded-lg border border-slate-300 px-3 py-2.5">
+          <label class="sh-label">Category</label>
+          <select v-model="expenseForm.category" class="sh-input">
             <option v-for="c in modalCategories" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Date</label>
-          <input v-model="expenseForm.expense_date" type="date" class="w-full rounded-lg border border-slate-300 px-3 py-2.5" />
-          <p v-if="expenseErrors.expense_date" class="mt-1 text-sm text-rose-600">{{ expenseErrors.expense_date[0] }}</p>
+          <label class="sh-label">Date</label>
+          <input v-model="expenseForm.expense_date" type="date" class="sh-input" />
+          <p v-if="expenseErrors.expense_date" class="sh-error">{{ expenseErrors.expense_date[0] }}</p>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Amount</label>
-          <input v-model="expenseForm.amount" type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-300 px-3 py-2.5" />
-          <p v-if="expenseErrors.amount" class="mt-1 text-sm text-rose-600">{{ expenseErrors.amount[0] }}</p>
+          <label class="sh-label">Amount</label>
+          <input v-model="expenseForm.amount" type="number" min="0" step="0.01" class="sh-input" />
+          <p v-if="expenseErrors.amount" class="sh-error">{{ expenseErrors.amount[0] }}</p>
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Note</label>
-          <input v-model="expenseForm.note" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+          <label class="sh-label">Note</label>
+          <input v-model="expenseForm.note" type="text" class="sh-input" />
         </div>
       </div>
       <template #footer>
-        <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm" @click="expenseModalOpen = false">Cancel</button>
+        <button class="sh-btn" @click="expenseModalOpen = false">Cancel</button>
         <button
           :disabled="savingExpense"
-          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="sh-btn sh-btn-primary"
           @click="saveExpense"
         >
           Save
