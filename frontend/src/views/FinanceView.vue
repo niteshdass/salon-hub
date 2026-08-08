@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
@@ -186,6 +186,25 @@ async function deleteExpense(expense) {
 const expenseTotal = computed(() =>
   expenses.value.reduce((sum, row) => sum + Number(row.amount || 0), 0)
 )
+
+const profit = ref(null)
+const profitRange = reactive({ from: startOfMonth(), to: today() })
+
+async function loadProfit() {
+  error.value = ''
+  try {
+    const { data } = await api.get('/reports', { params: { from: profitRange.from, to: profitRange.to } })
+    profit.value = data.data.profit
+  } catch (e) {
+    error.value = parseApiError(e, 'Could not load profit.').message
+  }
+}
+
+// Load it when the tab is first opened rather than on mount — the reports
+// endpoint is the heaviest call on this screen.
+watch(tab, (value) => {
+  if (value === 'profit' && !profit.value) loadProfit()
+})
 
 onMounted(async () => {
   await loadRuns()
@@ -388,6 +407,59 @@ onMounted(async () => {
           </tfoot>
         </table>
       </div>
+    </section>
+
+    <section v-if="tab === 'profit'" class="space-y-4">
+      <div class="flex flex-wrap items-end gap-3">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">From</label>
+          <input v-model="profitRange.from" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadProfit" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">To</label>
+          <input v-model="profitRange.to" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadProfit" />
+        </div>
+      </div>
+
+      <div v-if="profit" class="grid gap-4 sm:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 p-4">
+          <p class="text-xs uppercase tracking-wide text-slate-500">Earned</p>
+          <p class="mt-1 text-2xl font-semibold text-slate-900">{{ money(profit.earned) }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 p-4">
+          <p class="text-xs uppercase tracking-wide text-slate-500">Expenses</p>
+          <p class="mt-1 text-2xl font-semibold text-slate-900">{{ money(profit.expenses_total) }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 p-4">
+          <p class="text-xs uppercase tracking-wide text-slate-500">Net profit</p>
+          <p class="mt-1 text-2xl font-semibold" :class="profit.net_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'">
+            {{ money(profit.net_profit) }}
+          </p>
+        </div>
+      </div>
+
+      <div v-if="profit?.expenses_by_category.length" class="overflow-hidden rounded-xl border border-slate-200">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="px-4 py-2">Category</th>
+              <th class="px-4 py-2 text-right">Amount</th>
+              <th class="px-4 py-2 text-right">Share</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="row in profit.expenses_by_category" :key="row.category">
+              <td class="px-4 py-2 capitalize">{{ row.category }}</td>
+              <td class="px-4 py-2 text-right">{{ money(row.amount) }}</td>
+              <td class="px-4 py-2 text-right text-slate-500">{{ row.share_pct }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p v-else-if="profit" class="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+        No expenses in this range — net profit is everything earned.
+      </p>
     </section>
 
     <Modal
