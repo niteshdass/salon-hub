@@ -13,13 +13,14 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * appointments.{branch_id,customer_id,staff_id,service_id} are all
- * `cascadeOnDelete` (2026_07_22_100010_create_appointments_table.php:16-20)
- * and payments cascade from appointments
- * (2026_07_24_185701_create_payments_table.php:18). No model in this app uses
- * SoftDeletes, so before these guards the most ordinary admin action there is
- * — tidying up an old service, or removing a stylist who left — silently
- * destroyed completed bookings and the revenue history the Reports page reads.
+ * appointments.{branch_id,customer_id,staff_id} are all `cascadeOnDelete`
+ * (2026_07_22_100010_create_appointments_table.php:16-20), as is
+ * appointment_services.appointment_id, and payments cascade from
+ * appointments (2026_07_24_185701_create_payments_table.php:18). No model in
+ * this app uses SoftDeletes, so before these guards the most ordinary admin
+ * action there is — tidying up an old service, or removing a stylist who
+ * left — silently destroyed completed bookings and the revenue history the
+ * Reports page reads.
  *
  * These tests pin both halves of each guard: the refusal when dependents
  * exist, and that an ordinary delete with no dependents still works.
@@ -94,18 +95,29 @@ class DeleteDependencyGuardTest extends TestCase
         User $staff,
         Service $service,
     ): Appointment {
-        return Appointment::create([
+        $appointment = Appointment::create([
             'organization_id' => $org->id,
             'branch_id' => $branch->id,
             'customer_id' => $customer->id,
             'staff_id' => $staff->id,
-            'service_id' => $service->id,
             'booking_date' => '2026-09-14',
             'start_time' => '10:00:00',
             'end_time' => '10:30:00',
             'price' => 20,
             'status' => 'completed',
         ]);
+
+        // The service-delete guard now hangs off appointment_services, not a
+        // column on appointments, so it needs a line row to have anything to find.
+        $appointment->lines()->create([
+            'service_id' => $service->id,
+            'name' => $service->name,
+            'price' => $service->price,
+            'duration' => $service->duration,
+            'sort_order' => 0,
+        ]);
+
+        return $appointment;
     }
 
     // ---------------------------------------------------------------- service

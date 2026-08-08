@@ -56,7 +56,6 @@ class PublicReviewSubmissionTest extends TestCase
             'branch_id' => $branch->id,
             'customer_id' => $customer->id,
             'staff_id' => $staff->id,
-            'service_id' => $service->id,
             'booking_date' => '2026-08-03',
             'start_time' => '12:00:00',
             'end_time' => '12:30:00',

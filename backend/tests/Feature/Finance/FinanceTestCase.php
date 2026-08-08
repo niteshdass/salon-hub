@@ -120,7 +120,6 @@ abstract class FinanceTestCase extends TestCase
             'branch_id' => $branch->id,
             'customer_id' => $customer->id,
             'staff_id' => $staff->id,
-            'service_id' => $service->id,
             'booking_date' => $overrides['date'] ?? '2026-07-15',
             'start_time' => '10:00:00',
             'end_time' => '10:30:00',

@@ -7,10 +7,10 @@ use App\Models\Appointment;
 use Illuminate\Http\JsonResponse;
 
 /**
- * The invoice for a single booking: the service line snapshotted at booking
- * time, every payment taken, and the resulting balance. Nothing is stored —
- * it is computed on read from the appointment and its payments, so it always
- * reflects the current payment state.
+ * The invoice for a single booking: every service line snapshotted at
+ * booking time, every payment taken, and the resulting balance. Nothing is
+ * stored — it is computed on read from the appointment and its payments, so
+ * it always reflects the current payment state.
  */
 class InvoiceController extends Controller
 {
@@ -18,7 +18,7 @@ class InvoiceController extends Controller
     {
         $this->authorize('view', $appointment);
 
-        $appointment->load(['customer', 'service', 'organization', 'payments.recorder']);
+        $appointment->load(['customer', 'lines', 'organization', 'payments.recorder']);
 
         return response()->json(['data' => [
             'number' => 'INV-'.str_pad((string) $appointment->id, 6, '0', STR_PAD_LEFT),
@@ -36,10 +36,18 @@ class InvoiceController extends Controller
                 'email' => $appointment->customer?->email,
             ],
 
-            'line_items' => [[
-                'description' => $appointment->service?->name ?? 'Service',
-                'amount' => $appointment->price,
-            ]],
+            // One row per booked service; a visit with no lines (shouldn't
+            // happen for a real booking) still shows a single fallback row
+            // against the appointment's own quoted total.
+            'line_items' => $appointment->lines->isNotEmpty()
+                ? $appointment->lines->map(fn ($line) => [
+                    'description' => $line->name,
+                    'amount' => $line->price,
+                ])->all()
+                : [[
+                    'description' => 'Service',
+                    'amount' => $appointment->price,
+                ]],
             'subtotal' => $appointment->price,
             'amount_paid' => $appointment->amountPaid(),
             'amount_pending' => $appointment->amountPending(),

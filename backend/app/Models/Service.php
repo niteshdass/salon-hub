@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Service extends Model
 {
@@ -48,8 +47,12 @@ class Service extends Model
         return $this->belongsToMany(User::class, 'staff_services', 'service_id', 'staff_id');
     }
 
-    public function appointments(): HasMany
+    /**
+     * Visits that booked this service. Reached through the line table now
+     * that a visit can carry several services.
+     */
+    public function appointments(): BelongsToMany
     {
-        return $this->hasMany(Appointment::class);
+        return $this->belongsToMany(Appointment::class, 'appointment_services');
     }
 }

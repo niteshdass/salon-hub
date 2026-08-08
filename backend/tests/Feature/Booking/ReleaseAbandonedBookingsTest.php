@@ -72,7 +72,6 @@ class ReleaseAbandonedBookingsTest extends TestCase
             'branch_id' => $this->branch->id,
             'customer_id' => $this->customer->id,
             'staff_id' => $this->staff->id,
-            'service_id' => $this->service->id,
             'booking_date' => Carbon::parse('+3 days')->format('Y-m-d'),
             'start_time' => '11:00:00', 'end_time' => '11:30:00',
             'price' => 50, 'status' => AppointmentStatus::PENDING->value,

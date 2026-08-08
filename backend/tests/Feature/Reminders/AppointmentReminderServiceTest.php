@@ -77,7 +77,6 @@ class AppointmentReminderServiceTest extends TestCase
             'branch_id' => $branch->id,
             'customer_id' => $customer->id,
             'staff_id' => $staff->id,
-            'service_id' => $service->id,
             'booking_date' => $startsAt->toDateString(),
             'start_time' => $startsAt->format('H:i:s'),
             'end_time' => $startsAt->copy()->addMinutes(30)->format('H:i:s'),

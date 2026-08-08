@@ -11,7 +11,6 @@ use App\Models\Customer;
 use App\Models\Organization;
 use App\Models\Payment;
 use App\Models\PaymentSetting;
-use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -49,17 +48,12 @@ class PaymentControllerTest extends TestCase
             'role' => 'staff', 'status' => 'active',
         ]);
         $branch = Branch::create(['organization_id' => $org->id, 'name' => 'Main']);
-        $service = Service::create([
-            'organization_id' => $org->id, 'name' => 'Haircut',
-            'duration' => 30, 'price' => 40, 'status' => 'active',
-        ]);
         $customer = Customer::create([
             'organization_id' => $org->id, 'name' => 'Casey', 'phone' => '+15550100',
         ]);
         $appointment = Appointment::create([
             'organization_id' => $org->id, 'branch_id' => $branch->id,
             'customer_id' => $customer->id, 'staff_id' => $staff->id,
-            'service_id' => $service->id,
             'booking_date' => Carbon::tomorrow()->toDateString(),
             'start_time' => '10:00:00', 'end_time' => '10:30:00',
             'price' => 40, 'status' => 'completed',
@@ -297,7 +291,6 @@ class PaymentControllerTest extends TestCase
             'branch_id' => $ctx['appointment']->branch_id,
             'customer_id' => $ctx['appointment']->customer_id,
             'staff_id' => $ctx['staff']->id,
-            'service_id' => $ctx['appointment']->service_id,
             'booking_date' => Carbon::tomorrow()->toDateString(),
             'start_time' => '11:00:00', 'end_time' => '11:30:00',
             'price' => 40, 'status' => 'completed',

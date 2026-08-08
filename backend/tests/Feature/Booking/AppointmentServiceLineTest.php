@@ -40,8 +40,6 @@ class AppointmentServiceLineTest extends TestCase
         $appointment = Appointment::create([
             'organization_id' => $org->id, 'branch_id' => $branch->id,
             'customer_id' => $customer->id, 'staff_id' => $staff->id,
-            // Still required and still cascading until Task 8 drops it.
-            'service_id' => $service->id,
             'booking_date' => '2026-09-01', 'start_time' => '10:00:00',
             'end_time' => '10:30:00', 'price' => 40, 'status' => 'pending',
         ]);
@@ -71,9 +69,9 @@ class AppointmentServiceLineTest extends TestCase
     {
         ['org' => $org, 'appointment' => $appointment] = $this->scaffold();
 
-        // A service the appointment's own legacy service_id does not point at,
-        // so this deletion exercises the line's nullOnDelete rather than the
-        // cascade still hanging off appointments.service_id until Task 8.
+        // A service the scaffolded appointment has no line for, so this
+        // deletion exercises the line's own nullOnDelete rather than any
+        // cascade from the appointment itself.
         $extra = Service::create([
             'organization_id' => $org->id, 'name' => 'Blow Dry',
             'duration' => 20, 'price' => 15, 'status' => 'active',

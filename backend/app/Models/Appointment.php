@@ -23,7 +23,6 @@ class Appointment extends Model
         'branch_id',
         'customer_id',
         'staff_id',
-        'service_id',
         'booking_date',
         'start_time',
         'end_time',
@@ -73,11 +72,6 @@ class Appointment extends Model
     public function staff(): BelongsTo
     {
         return $this->belongsTo(User::class, 'staff_id');
-    }
-
-    public function service(): BelongsTo
-    {
-        return $this->belongsTo(Service::class);
     }
 
     /** The services on this visit, in the order the customer picked them. */

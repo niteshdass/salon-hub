@@ -36,6 +36,13 @@ class AppointmentServiceBackfillTest extends TestCase
             'duration' => 30, 'price' => 40, 'status' => 'active',
         ]);
 
+        // RefreshDatabase has already run the full migration chain, so
+        // appointments.service_id is gone by the time this test body runs.
+        // Rebuild the pre-drop schema before writing to a column the
+        // application no longer has, so the backfill migration has the
+        // input it was written to expect.
+        $this->restorePreDropSchema();
+
         // Written straight to the table: by the time this test runs the model
         // may already have dropped service_id from $fillable.
         $appointmentId = DB::table('appointments')->insertGetId([
@@ -82,5 +89,17 @@ class AppointmentServiceBackfillTest extends TestCase
     {
         $migration = require database_path('migrations/2026_08_09_100100_backfill_appointment_services.php');
         $migration->up();
+    }
+
+    /**
+     * The column this test needs to write to no longer exists in the app's
+     * schema — 2026_08_09_100200 drops it. Reuse that migration's own down()
+     * to bring it back, rather than duplicating the column definition here,
+     * so there is one definition of what the pre-drop schema looked like.
+     */
+    private function restorePreDropSchema(): void
+    {
+        $migration = require database_path('migrations/2026_08_09_100200_drop_service_id_from_appointments_table.php');
+        $migration->down();
     }
 }

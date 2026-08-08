@@ -494,7 +494,6 @@ class DiscoveryTest extends TestCase
     private function booking(Organization $org): Appointment
     {
         $branch = Branch::withoutGlobalScopes()->where('organization_id', $org->id)->firstOrFail();
-        $service = Service::withoutGlobalScopes()->where('organization_id', $org->id)->firstOrFail();
 
         $staff = User::create([
             'organization_id' => $org->id,
@@ -517,7 +516,6 @@ class DiscoveryTest extends TestCase
             'branch_id' => $branch->id,
             'customer_id' => $customer->id,
             'staff_id' => $staff->id,
-            'service_id' => $service->id,
             'booking_date' => now()->addDay()->toDateString(),
             'start_time' => '10:00',
             'end_time' => '10:30',

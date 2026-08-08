@@ -45,7 +45,7 @@ class PaymentVerificationTest extends TestCase
         $customer = Customer::create(['organization_id' => $org->id, 'name' => 'Casey', 'phone' => '+15550100']);
         $appointment = Appointment::create([
             'organization_id' => $org->id, 'branch_id' => $branch->id,
-            'customer_id' => $customer->id, 'staff_id' => $staff->id, 'service_id' => $service->id,
+            'customer_id' => $customer->id, 'staff_id' => $staff->id,
             'booking_date' => Carbon::tomorrow()->toDateString(),
             'start_time' => '10:00:00', 'end_time' => '11:00:00',
             'price' => 40, 'status' => 'confirmed',

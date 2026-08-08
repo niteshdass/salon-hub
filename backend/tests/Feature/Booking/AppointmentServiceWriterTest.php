@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\Service;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -54,8 +55,6 @@ class AppointmentServiceWriterTest extends TestCase
         $this->appointment = Appointment::create([
             'organization_id' => $org->id, 'branch_id' => $branch->id,
             'customer_id' => $customer->id, 'staff_id' => $staff->id,
-            // Still required until Task 8 drops it; the writer ignores it.
-            'service_id' => $this->services['cut']->id,
             'booking_date' => '2026-09-01', 'start_time' => '10:00:00',
             'end_time' => '10:00:00', 'price' => 0, 'status' => 'pending',
         ]);
@@ -104,7 +103,7 @@ class AppointmentServiceWriterTest extends TestCase
 
     public function test_totals_for_rejects_a_service_outside_the_tenant(): void
     {
-        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->expectException(ModelNotFoundException::class);
 
         // Create a second organization with its own service
         $otherOrg = Organization::create([

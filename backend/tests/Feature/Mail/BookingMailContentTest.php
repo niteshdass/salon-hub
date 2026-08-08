@@ -45,8 +45,6 @@ class BookingMailContentTest extends TestCase
         $appointment = Appointment::create([
             'organization_id' => $org->id, 'public_token' => (string) Str::uuid(),
             'branch_id' => $branch->id, 'customer_id' => $customer->id, 'staff_id' => $staff->id,
-            // Still required and still cascading until Task 8 drops it.
-            'service_id' => $haircut->id,
             'booking_date' => '2026-09-01', 'start_time' => '10:00:00', 'end_time' => '10:50:00',
             'price' => 55, 'status' => 'confirmed',
         ]);

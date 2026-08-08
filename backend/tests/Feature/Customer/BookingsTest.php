@@ -56,7 +56,7 @@ class BookingsTest extends TestCase
 
         $appointment = Appointment::create([
             'organization_id' => $org->id, 'public_token' => (string) Str::uuid(),
-            'branch_id' => $branch->id, 'customer_id' => $customer->id, 'staff_id' => $staff->id, 'service_id' => $service->id,
+            'branch_id' => $branch->id, 'customer_id' => $customer->id, 'staff_id' => $staff->id,
             'booking_date' => $o['date'] ?? '2026-08-10', 'start_time' => $o['start_time'] ?? '10:00:00', 'end_time' => '10:30:00',
             'price' => $o['price'] ?? 40, 'status' => $o['status'] ?? 'confirmed',
         ]);

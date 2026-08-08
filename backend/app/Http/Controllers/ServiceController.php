@@ -90,14 +90,11 @@ class ServiceController extends Controller
     }
 
     /**
-     * appointments.service_id is `cascadeOnDelete`, so deleting a service
-     * that has ever been booked destroys those appointments — and, through
-     * payments.appointment_id, the payment records against them. There is no
-     * SoftDeletes anywhere in this app and no undo, so an owner tidying up
-     * last season's menu would silently erase completed bookings and the
-     * revenue history the Reports page is built on. Refuse instead; the
-     * intended action is almost always `status: inactive`, which hides the
-     * service from the booking site and keeps the history.
+     * A service with visits behind it cannot be deleted. Its line items snapshot
+     * the name and price, so history would in fact survive — but the owner would
+     * lose the ability to report on that service by id, and the intended action
+     * is almost always `status: inactive`, which hides it from the booking site
+     * and keeps everything. Refuse and say so.
      */
     public function destroy(Service $service): Response|JsonResponse
     {

@@ -235,7 +235,6 @@ class AppointmentCrudTest extends TestCase
             'branch_id' => $ctx['branch']->id,
             'customer_id' => $ctx['customer']->id,
             'staff_id' => $ctx['staff']->id,
-            'service_id' => $ctx['service']->id,
             'booking_date' => $this->tomorrow(),
             'start_time' => '10:00:00',
             'end_time' => '10:30:00',

@@ -50,10 +50,16 @@ class InvoiceTest extends TestCase
         $appointment = Appointment::create([
             'organization_id' => $org->id, 'branch_id' => $branch->id,
             'customer_id' => $customer->id, 'staff_id' => $owner->id,
-            'service_id' => $service->id,
             'booking_date' => Carbon::parse('2026-08-01')->toDateString(),
             'start_time' => '10:00:00', 'end_time' => '11:00:00',
             'price' => 40, 'status' => 'completed',
+        ]);
+
+        // The invoice's line items now come from appointment_services, not a
+        // column on appointments, so the booking needs a real line to show one.
+        $appointment->lines()->create([
+            'service_id' => $service->id, 'name' => $service->name,
+            'price' => $service->price, 'duration' => $service->duration, 'sort_order' => 0,
         ]);
 
         return [

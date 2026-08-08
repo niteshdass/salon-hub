@@ -115,7 +115,6 @@ class RolePermissionTest extends TestCase
             'branch_id' => $s['branch']->id,
             'customer_id' => $s['customer']->id,
             'staff_id' => $staff->id,
-            'service_id' => $s['service']->id,
             'booking_date' => Carbon::tomorrow()->format('Y-m-d'),
             'start_time' => '10:00:00',
             'end_time' => '10:30:00',
