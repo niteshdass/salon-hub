@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
+import PageHeader from '@/components/PageHeader.vue'
 import SubdomainBanner from '@/components/SubdomainBanner.vue'
 import SetupChecklistCard from '@/components/SetupChecklistCard.vue'
 
@@ -19,11 +20,11 @@ const data = ref(null)
 
 // Mirrors the API's zero-filled breakdown, so the chip row never shifts.
 const STATUS_CHIPS = [
-  { key: 'pending', label: 'Pending', classes: 'bg-amber-50 text-amber-700 ring-amber-200' },
-  { key: 'confirmed', label: 'Confirmed', classes: 'bg-blue-50 text-blue-700 ring-blue-200' },
-  { key: 'completed', label: 'Completed', classes: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-  { key: 'cancelled', label: 'Cancelled', classes: 'bg-slate-100 text-slate-600 ring-slate-200' },
-  { key: 'no_show', label: 'No-show', classes: 'bg-rose-50 text-rose-700 ring-rose-200' },
+  { key: 'pending', label: 'Pending', classes: 'sh-badge-pending' },
+  { key: 'confirmed', label: 'Confirmed', classes: 'sh-badge-confirmed' },
+  { key: 'completed', label: 'Completed', classes: 'sh-badge-completed' },
+  { key: 'cancelled', label: 'Cancelled', classes: 'sh-badge-cancelled' },
+  { key: 'no_show', label: 'No-show', classes: 'sh-badge-no-show' },
 ]
 
 const today = computed(() => data.value?.today ?? null)
@@ -45,6 +46,15 @@ function money(amount) {
   }
 }
 
+// The one line the page header carries, built from the payload the tiles
+// already render — nothing extra is fetched for it.
+const todaySummary = computed(() => {
+  const name = user.value?.name || 'there'
+  if (!today.value) return `Welcome back, ${name}.`
+  const count = today.value.bookings
+  return `Welcome back, ${name} — ${count} booking${count === 1 ? '' : 's'} on today's sheet.`
+})
+
 /** The headline tiles. Revenue is owner/manager-only and the API simply
  *  omits it for staff, so the tile follows the payload. */
 const tiles = computed(() => {
@@ -56,7 +66,7 @@ const tiles = computed(() => {
       label: "Today's bookings",
       value: today.value.bookings,
       hint: isStaff.value ? 'On your schedule' : 'Across the salon',
-      accent: 'bg-indigo-50 text-indigo-600',
+      accent: 'bg-accent-50 text-accent-600',
     },
   ]
 
@@ -141,36 +151,22 @@ onMounted(async () => {
       <button type="button" class="font-medium underline" @click="load">Retry</button>
     </div>
 
-    <section class="mb-8">
-      <h1 class="text-2xl font-bold text-slate-900">Welcome, {{ user?.name || 'there' }}</h1>
-      <div class="mt-2 flex flex-wrap items-center gap-3">
-        <p v-if="organization" class="text-slate-500">{{ organization.name }}</p>
-        <span
-          v-if="organization?.primary_domain"
-          class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
-        >
-          {{ organization.primary_domain }}
-        </span>
-        <span
-          v-if="organization?.subscription_plan"
-          class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide text-indigo-700"
-        >
-          {{ organization.subscription_plan }}
-        </span>
+    <PageHeader title="Dashboard" :subtitle="todaySummary">
+      <template #actions>
         <a
           v-if="organization?.slug"
           :href="`/book/${organization.slug}`"
           target="_blank"
           rel="noopener"
-          class="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 transition hover:text-indigo-800"
+          class="sh-btn"
         >
           View booking page
           <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
           </svg>
         </a>
-      </div>
-    </section>
+      </template>
+    </PageHeader>
 
     <!-- Tiles -->
     <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -178,17 +174,13 @@ onMounted(async () => {
         <div
           v-for="n in 4"
           :key="n"
-          class="h-32 animate-pulse rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"
+          class="sh-card h-32 animate-pulse"
         ></div>
       </template>
       <template v-else>
-        <div
-          v-for="tile in tiles"
-          :key="tile.key"
-          class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
-        >
+        <div v-for="tile in tiles" :key="tile.key" class="sh-card p-5">
           <div class="flex items-center justify-between">
-            <p class="text-sm font-medium text-slate-500">{{ tile.label }}</p>
+            <p class="text-sm font-medium text-ink/60">{{ tile.label }}</p>
             <span
               class="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-semibold"
               :class="tile.accent"
@@ -196,19 +188,19 @@ onMounted(async () => {
               {{ tile.label.charAt(0) }}
             </span>
           </div>
-          <p class="mt-3 truncate text-3xl font-bold text-slate-900">{{ tile.value }}</p>
-          <p class="mt-1 text-xs text-slate-400">{{ tile.hint }}</p>
+          <p class="mt-3 truncate font-display text-3xl text-ink">{{ tile.value }}</p>
+          <p class="mt-1 text-xs text-ink/40">{{ tile.hint }}</p>
         </div>
       </template>
     </section>
 
     <!-- Today's status breakdown -->
-    <section v-if="today" class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <section v-if="today" class="sh-card mt-6 p-5">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="text-sm font-semibold text-slate-900">Today at a glance</h2>
+        <h2 class="font-display text-xl text-ink">Today at a glance</h2>
         <RouterLink
           :to="{ path: '/appointments', query: { date: today.date } }"
-          class="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+          class="sh-btn sh-btn-ghost"
         >
           Open today
         </RouterLink>
@@ -217,7 +209,7 @@ onMounted(async () => {
         <span
           v-for="chip in STATUS_CHIPS"
           :key="chip.key"
-          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ring-1"
+          class="sh-badge"
           :class="[chip.classes, today.by_status[chip.key] ? '' : 'opacity-50']"
         >
           {{ chip.label }}
@@ -227,44 +219,45 @@ onMounted(async () => {
     </section>
 
     <!-- Upcoming -->
-    <section class="mt-6 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-        <h2 class="text-sm font-semibold text-slate-900">Next up</h2>
-        <RouterLink to="/calendar" class="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-          View calendar
-        </RouterLink>
+    <section class="sh-card mt-6">
+      <div class="flex items-center justify-between border-b border-ink/10 px-5 py-4">
+        <h2 class="font-display text-xl text-ink">Next up</h2>
+        <RouterLink to="/calendar" class="sh-btn sh-btn-ghost">View calendar</RouterLink>
       </div>
 
       <div v-if="loading" class="space-y-3 p-5">
-        <div v-for="n in 3" :key="n" class="h-12 animate-pulse rounded-lg bg-slate-100"></div>
+        <div v-for="n in 3" :key="n" class="h-12 animate-pulse rounded-lg bg-ink/5"></div>
       </div>
 
-      <p v-else-if="!upcoming.length" class="px-5 py-10 text-center text-sm text-slate-500">
+      <p v-else-if="!upcoming.length" class="px-5 py-10 text-center text-sm text-ink/55">
         Nothing booked from here on.
       </p>
 
-      <ul v-else class="divide-y divide-slate-100">
-        <li
-          v-for="appt in upcoming"
-          :key="appt.id"
-          class="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
-        >
-          <div class="min-w-0">
-            <p class="truncate text-sm font-medium text-slate-900">
-              {{ appt.customer?.name || 'Walk-in' }}
-            </p>
-            <p class="truncate text-xs text-slate-500">
-              {{ (appt.services || []).map((s) => s.name).join(', ') }}
-              <span v-if="!isStaff && appt.staff?.name"> · {{ appt.staff.name }}</span>
-              <span v-if="appt.branch?.name"> · {{ appt.branch.name }}</span>
-            </p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm font-semibold text-slate-900">{{ appt.start_time }}</p>
-            <p class="text-xs text-slate-500">{{ dayLabel(appt.booking_date) }}</p>
-          </div>
-        </li>
-      </ul>
+      <div v-else class="overflow-x-auto px-1 pb-1">
+        <table class="sh-table">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Booking</th>
+              <th class="text-right">When</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="appt in upcoming" :key="appt.id">
+              <td class="font-medium text-ink">{{ appt.customer?.name || 'Walk-in' }}</td>
+              <td class="text-ink/60">
+                {{ (appt.services || []).map((s) => s.name).join(', ') }}
+                <span v-if="!isStaff && appt.staff?.name"> · {{ appt.staff.name }}</span>
+                <span v-if="appt.branch?.name"> · {{ appt.branch.name }}</span>
+              </td>
+              <td class="text-right whitespace-nowrap">
+                <span class="font-semibold text-ink">{{ appt.start_time }}</span>
+                <span class="block text-xs text-ink/50">{{ dayLabel(appt.booking_date) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>
 </template>

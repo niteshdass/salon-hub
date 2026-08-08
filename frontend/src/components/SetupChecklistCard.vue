@@ -67,15 +67,15 @@ async function dismiss() {
 </script>
 
 <template>
-  <section v-if="show" class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-indigo-200">
+  <section v-if="show" class="sh-card border-accent-200 p-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
-        <h2 class="font-semibold text-slate-900">Finish setting up your salon</h2>
-        <p class="text-sm text-slate-500">{{ doneCount }} of {{ items.length }} done</p>
+        <h2 class="font-display text-xl text-ink">Finish setting up your salon</h2>
+        <p class="text-sm text-ink/60">{{ doneCount }} of {{ items.length }} done</p>
       </div>
       <button
         type="button"
-        class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+        class="sh-btn sh-btn-primary"
         @click="router.push('/onboarding')"
       >
         Continue setup
@@ -86,20 +86,20 @@ async function dismiss() {
       <li v-for="item in items" :key="item.key" class="flex items-center gap-2 text-sm">
         <span
           class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs"
-          :class="item.done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'"
+          :class="item.done ? 'bg-emerald-100 text-emerald-700' : 'bg-ink/5 text-ink/40'"
         >
           {{ item.done ? '✓' : '' }}
         </span>
-        <span :class="item.done ? 'text-slate-400 line-through' : 'text-slate-700'">{{ item.label }}</span>
+        <span :class="item.done ? 'text-ink/40 line-through' : 'text-ink'">{{ item.label }}</span>
       </li>
     </ul>
 
-    <p v-if="dismissError" class="mt-3 text-sm text-rose-600">{{ dismissError }}</p>
+    <p v-if="dismissError" class="sh-error mt-3">{{ dismissError }}</p>
 
     <button
       type="button"
       :disabled="dismissing"
-      class="mt-4 text-sm text-slate-400 transition hover:text-slate-700"
+      class="mt-4 text-sm text-ink/40 transition hover:text-ink"
       @click="dismiss"
     >
       {{ dismissing ? 'One moment…' : "Don't show this again" }}

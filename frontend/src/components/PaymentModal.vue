@@ -286,28 +286,28 @@ onMounted(load)
       {{ loadError }}
     </p>
 
-    <p v-if="loading && !invoice" class="py-6 text-center text-sm text-slate-500">Loading…</p>
+    <p v-if="loading && !invoice" class="py-6 text-center text-sm text-ink/60">Loading…</p>
 
     <div v-else-if="invoice" class="space-y-6">
       <!-- Header: who + when -->
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p class="text-sm font-semibold text-slate-900">{{ invoice.customer.name }}</p>
-          <p v-if="invoice.customer.phone" class="text-xs text-slate-500">{{ invoice.customer.phone }}</p>
+          <p class="text-sm font-semibold text-ink">{{ invoice.customer.name }}</p>
+          <p v-if="invoice.customer.phone" class="text-xs text-ink/60">{{ invoice.customer.phone }}</p>
         </div>
-        <div class="text-right text-xs text-slate-500">
+        <div class="text-right text-xs text-ink/60">
           <p>{{ invoice.salon.name }}</p>
           <p v-if="invoice.issued_on">{{ invoice.issued_on }}</p>
         </div>
       </div>
 
       <!-- Line items -->
-      <div class="overflow-hidden rounded-xl border border-slate-200">
-        <table class="w-full text-sm">
+      <div class="overflow-hidden rounded-xl border border-ink/10">
+        <table class="sh-table">
           <tbody>
-            <tr v-for="(item, i) in invoice.line_items" :key="i" class="border-b border-slate-100 last:border-0">
-              <td class="px-4 py-2.5 text-slate-700">{{ item.description }}</td>
-              <td class="px-4 py-2.5 text-right font-medium text-slate-900">{{ money(item.amount) }}</td>
+            <tr v-for="(item, i) in invoice.line_items" :key="i">
+              <td>{{ item.description }}</td>
+              <td class="text-right font-medium text-ink">{{ money(item.amount) }}</td>
             </tr>
           </tbody>
         </table>
@@ -315,11 +315,11 @@ onMounted(load)
 
       <!-- Totals -->
       <dl class="space-y-1.5 text-sm">
-        <div class="flex justify-between text-slate-600">
+        <div class="flex justify-between text-ink/60">
           <dt>Subtotal</dt>
           <dd>{{ money(invoice.subtotal) }}</dd>
         </div>
-        <div class="flex justify-between text-slate-600">
+        <div class="flex justify-between text-ink/60">
           <dt>Paid</dt>
           <dd>{{ money(invoice.amount_paid) }}</dd>
         </div>
@@ -331,19 +331,19 @@ onMounted(load)
           <dd>{{ money(invoice.amount_pending) }}</dd>
         </div>
         <div
-          class="flex justify-between border-t border-slate-200 pt-1.5 text-base font-semibold"
-          :class="invoice.paid_in_full ? 'text-emerald-600' : 'text-slate-900'"
+          class="flex justify-between border-t border-ink/10 pt-1.5 text-base font-semibold"
+          :class="invoice.paid_in_full ? 'text-emerald-600' : 'text-ink'"
         >
           <dt>{{ invoice.paid_in_full ? 'Paid in full' : 'Balance due' }}</dt>
           <dd>{{ money(invoice.balance_due) }}</dd>
         </div>
         <!-- Tips are the staff member's, not the salon's balance, so they are
              shown next to it rather than folded in. -->
-        <div v-if="Number(invoice.tips) > 0" class="flex justify-between text-slate-600">
+        <div v-if="Number(invoice.tips) > 0" class="flex justify-between text-ink/60">
           <dt>Tips</dt>
           <dd>{{ money(invoice.tips) }}</dd>
         </div>
-        <div class="flex justify-between text-slate-600">
+        <div class="flex justify-between text-ink/60">
           <dt>Total collected</dt>
           <dd>{{ money(invoice.total_collected) }}</dd>
         </div>
@@ -351,18 +351,18 @@ onMounted(load)
 
       <!-- Payment history -->
       <div v-if="invoice.payments.length">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Payments</p>
+        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/40">Payments</p>
         <ul class="space-y-1.5">
           <li
             v-for="p in invoice.payments"
             :key="p.id"
-            class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"
+            class="flex items-center justify-between rounded-lg bg-paper px-3 py-2 text-sm"
           >
-            <span class="text-slate-700">
+            <span class="text-ink">
               {{ money(p.amount) }}
-              <span class="text-slate-400">· {{ methodLabel(p.method) }}</span>
-              <span v-if="p.reference" class="text-slate-400">· {{ p.reference }}</span>
-              <span v-if="p.transaction_id" class="text-slate-400">· {{ p.transaction_id }}</span>
+              <span class="text-ink/40">· {{ methodLabel(p.method) }}</span>
+              <span v-if="p.reference" class="text-ink/40">· {{ p.reference }}</span>
+              <span v-if="p.transaction_id" class="text-ink/40">· {{ p.transaction_id }}</span>
               <span
                 v-if="p.source === 'gateway'"
                 class="ml-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700"
@@ -377,13 +377,13 @@ onMounted(load)
               </span>
               <span
                 v-if="p.status === 'refunded'"
-                class="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                class="ml-1 rounded-full bg-ink/10 px-2 py-0.5 text-[11px] font-medium text-ink/60"
               >
                 Refunded
               </span>
             </span>
             <span class="flex items-center gap-3">
-              <span v-if="p.recorded_by" class="text-xs text-slate-400">{{ p.recorded_by }}</span>
+              <span v-if="p.recorded_by" class="text-xs text-ink/40">{{ p.recorded_by }}</span>
               <button
                 v-if="canVerify && p.status === 'pending'"
                 type="button"
@@ -419,15 +419,15 @@ onMounted(load)
       <!-- Record a payment. Stays open even once the balance is settled — a
            tip is entered here and only here, and a fully-paid visit can still
            take a tip-only payment (amount 0, tip > 0). -->
-      <form class="rounded-xl border border-slate-200 p-4" @submit.prevent="record">
-        <p class="mb-3 text-sm font-semibold text-slate-700">
+      <form class="rounded-xl border border-ink/10 p-4" @submit.prevent="record">
+        <p class="mb-3 text-sm font-semibold text-ink">
           {{ invoice.paid_in_full ? 'Add a tip' : 'Record a payment' }}
         </p>
         <p v-if="formMessage" class="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{{ formMessage }}</p>
 
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600" for="amount">Amount</label>
+            <label class="sh-label" for="amount">Amount</label>
             <div class="flex gap-1.5">
               <input
                 id="amount"
@@ -436,45 +436,45 @@ onMounted(load)
                 step="0.01"
                 min="0"
                 :disabled="invoice.paid_in_full"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                class="sh-input disabled:text-ink/40"
               />
               <button
                 v-if="!invoice.paid_in_full"
                 type="button"
-                class="whitespace-nowrap rounded-lg border border-slate-300 px-2 text-xs text-slate-600 hover:bg-slate-50"
+                class="sh-btn px-3 text-xs"
                 @click="fillBalance"
               >
                 Full
               </button>
             </div>
-            <p v-if="invoice.paid_in_full" class="mt-1 text-xs text-slate-400">Balance settled — only a tip can be recorded.</p>
-            <p v-if="fieldError('amount')" class="mt-1 text-xs text-rose-600">{{ fieldError('amount') }}</p>
+            <p v-if="invoice.paid_in_full" class="mt-1 text-xs text-ink/40">Balance settled — only a tip can be recorded.</p>
+            <p v-if="fieldError('amount')" class="sh-error text-xs">{{ fieldError('amount') }}</p>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600" for="tip">Tip</label>
+            <label class="sh-label" for="tip">Tip</label>
             <input
               id="tip"
               v-model="form.tip_amount"
               type="number"
               step="0.01"
               min="0"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              class="sh-input"
             />
-            <p v-if="fieldError('tip_amount')" class="mt-1 text-xs text-rose-600">{{ fieldError('tip_amount') }}</p>
+            <p v-if="fieldError('tip_amount')" class="sh-error text-xs">{{ fieldError('tip_amount') }}</p>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">Method</label>
-            <select v-model="form.method" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+            <label class="sh-label">Method</label>
+            <select v-model="form.method" class="sh-input">
               <option v-for="m in METHODS" :key="m.value" :value="m.value">{{ m.label }}</option>
             </select>
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">Reference</label>
+            <label class="sh-label">Reference</label>
             <input
               v-model="form.reference"
               type="text"
               placeholder="Optional"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              class="sh-input"
             />
           </div>
         </div>
@@ -483,7 +483,7 @@ onMounted(load)
           <button
             type="submit"
             :disabled="saving"
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+            class="sh-btn sh-btn-primary"
           >
             {{ saving ? 'Saving…' : 'Record payment' }}
           </button>
@@ -495,7 +495,7 @@ onMounted(load)
       <button
         v-if="invoice"
         type="button"
-        class="mr-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+        class="sh-btn mr-auto"
         @click="printInvoice"
       >
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
@@ -505,7 +505,7 @@ onMounted(load)
       </button>
       <button
         type="button"
-        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+        class="sh-btn"
         @click="emit('close')"
       >
         Close

@@ -19,6 +19,7 @@ import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import PaymentModal from '@/components/PaymentModal.vue'
 
 // Local (not UTC) YYYY-MM-DD for the current day.
@@ -30,13 +31,14 @@ function todayStr() {
   return `${y}-${m}-${day}`
 }
 
-// Status -> label + badge classes (amber / blue / green / slate / red).
+// Status -> label + the sh-badge modifier that paints it. Statuses keep their
+// fixed semantic hues rather than following the tenant accent.
 const STATUS_META = {
-  pending: { label: 'Pending', badge: 'bg-amber-50 text-amber-700' },
-  confirmed: { label: 'Confirmed', badge: 'bg-blue-50 text-blue-700' },
-  completed: { label: 'Completed', badge: 'bg-emerald-50 text-emerald-700' },
-  cancelled: { label: 'Cancelled', badge: 'bg-slate-100 text-slate-600' },
-  no_show: { label: 'No-show', badge: 'bg-rose-50 text-rose-700' },
+  pending: { label: 'Pending', badge: 'sh-badge-pending' },
+  confirmed: { label: 'Confirmed', badge: 'sh-badge-confirmed' },
+  completed: { label: 'Completed', badge: 'sh-badge-completed' },
+  cancelled: { label: 'Cancelled', badge: 'sh-badge-cancelled' },
+  no_show: { label: 'No-show', badge: 'sh-badge-no-show' },
 }
 const STATUS_KEYS = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show']
 // The one-tap actions offered per row (excludes "pending").
@@ -46,7 +48,7 @@ function statusLabel(status) {
   return STATUS_META[status]?.label || status || '—'
 }
 function statusBadge(status) {
-  return STATUS_META[status]?.badge || 'bg-slate-100 text-slate-600'
+  return STATUS_META[status]?.badge || 'sh-badge-no-show'
 }
 
 /* ------------------------------ Day list ------------------------------ */
@@ -317,40 +319,29 @@ onMounted(loadAppointments)
 
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">Appointments</h1>
-        <p class="mt-1 text-sm text-slate-500">Book and manage your day's schedule.</p>
-      </div>
-      <button
-        v-if="canWrite"
-        type="button"
-        class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-        @click="openCreate"
-      >
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        New appointment
-      </button>
-    </div>
+    <PageHeader
+      title="Appointments"
+      :subtitle="`${appointments.length} appointment${appointments.length === 1 ? '' : 's'} on this day`"
+    >
+      <template #actions>
+        <button v-if="canWrite" type="button" class="sh-btn sh-btn-primary" @click="openCreate">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New appointment
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Top bar: date + status filter -->
-    <div class="mb-5 flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-      <div>
-        <label class="mb-1 block text-xs font-medium text-slate-500">Date</label>
-        <input
-          v-model="selectedDate"
-          type="date"
-          class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-        />
+    <div class="sh-card mb-5 flex flex-wrap items-end gap-3 p-4">
+      <div class="w-44">
+        <label class="sh-label">Date</label>
+        <input v-model="selectedDate" type="date" class="sh-input" />
       </div>
-      <div>
-        <label class="mb-1 block text-xs font-medium text-slate-500">Status</label>
-        <select
-          v-model="statusFilter"
-          class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-        >
+      <div class="w-44">
+        <label class="sh-label">Status</label>
+        <select v-model="statusFilter" class="sh-input">
           <option value="">All statuses</option>
           <option v-for="key in STATUS_KEYS" :key="key" :value="key">{{ statusLabel(key) }}</option>
         </select>
@@ -365,120 +356,91 @@ onMounted(loadAppointments)
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="rounded-2xl bg-white p-10 text-center ring-1 ring-slate-200">
-      <svg class="mx-auto h-6 w-6 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+    <div v-if="loading" class="sh-card p-10 text-center">
+      <svg class="mx-auto h-6 w-6 animate-spin text-accent-500" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
       </svg>
-      <p class="mt-3 text-sm text-slate-500">Loading appointments…</p>
+      <p class="mt-3 text-sm text-ink/60">Loading appointments…</p>
     </div>
 
     <!-- Empty -->
-    <div
-      v-else-if="sortedAppointments.length === 0"
-      class="rounded-2xl bg-white p-10 text-center ring-1 ring-slate-200"
-    >
-      <p class="text-sm font-medium text-slate-900">No appointments for this day</p>
-      <p class="mt-1 text-sm text-slate-500">Pick another date or create a new booking.</p>
-      <button
-        v-if="canWrite"
-        type="button"
-        class="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-        @click="openCreate"
-      >
+    <div v-else-if="sortedAppointments.length === 0" class="sh-empty">
+      <p class="font-medium text-ink">No appointments for this day</p>
+      <p class="mt-1">Pick another date or create a new booking.</p>
+      <button v-if="canWrite" type="button" class="sh-btn sh-btn-primary mt-4" @click="openCreate">
         New appointment
       </button>
     </div>
 
     <!-- List -->
-    <div v-else class="space-y-3">
-      <div
-        v-for="appt in sortedAppointments"
-        :key="appt.id"
-        class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
-      >
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-base font-semibold text-slate-900">
-                {{ appt.start_time }}<span v-if="appt.end_time">–{{ appt.end_time }}</span>
+    <div v-else class="sh-card overflow-x-auto">
+      <table class="sh-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Customer</th>
+            <th>Booking</th>
+            <th>Staff</th>
+            <th>Status</th>
+            <th class="text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="appt in sortedAppointments" :key="appt.id">
+            <td class="whitespace-nowrap">
+              <span class="font-semibold text-ink">{{ appt.start_time }}</span>
+              <span v-if="appt.end_time" class="block text-xs text-ink/50">to {{ appt.end_time }}</span>
+            </td>
+            <td>
+              <span class="font-medium text-ink">{{ appt.customer?.name || 'Customer' }}</span>
+              <span v-if="appt.customer?.phone" class="block text-xs text-ink/50">{{ appt.customer.phone }}</span>
+              <span v-if="appt.notes" class="mt-0.5 block text-xs text-ink/50">{{ appt.notes }}</span>
+            </td>
+            <td>
+              <span class="text-ink">{{ (appt.services || []).map((s) => s.name).join(', ') || '—' }}</span>
+              <span class="block text-xs text-ink/50">
+                {{ appt.branch?.name || '—' }}
+                <template v-if="appt.price != null"> · {{ money(appt.price) }}</template>
               </span>
-              <span
-                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                :class="statusBadge(appt.status)"
-              >
-                {{ statusLabel(appt.status) }}
+            </td>
+            <td class="text-ink/75">{{ appt.staff?.name || '—' }}</td>
+            <td>
+              <span class="sh-badge" :class="statusBadge(appt.status)">{{ statusLabel(appt.status) }}</span>
+              <span class="mt-1.5 flex flex-wrap gap-1">
+                <button
+                  v-for="action in QUICK_ACTIONS"
+                  v-show="appt.status !== action"
+                  :key="action"
+                  type="button"
+                  :disabled="statusUpdatingId === appt.id"
+                  class="sh-btn px-2 py-0.5 text-[11px] font-medium text-ink/70"
+                  @click="setStatus(appt, action)"
+                >
+                  {{ statusLabel(action) }}
+                </button>
               </span>
-            </div>
-            <p class="mt-1 font-medium text-slate-900">
-              {{ appt.customer?.name || 'Customer' }}
-              <span v-if="appt.customer?.phone" class="text-sm font-normal text-slate-500">
-                · {{ appt.customer.phone }}
-              </span>
-            </p>
-            <dl class="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-              <div class="flex gap-2">
-                <dt class="text-slate-400">Services</dt>
-                <dd class="truncate text-slate-700">{{ (appt.services || []).map((s) => s.name).join(', ') || '—' }}</dd>
-              </div>
-              <div class="flex gap-2">
-                <dt class="text-slate-400">Staff</dt>
-                <dd class="truncate text-slate-700">{{ appt.staff?.name || '—' }}</dd>
-              </div>
-              <div class="flex gap-2">
-                <dt class="text-slate-400">Branch</dt>
-                <dd class="truncate text-slate-700">{{ appt.branch?.name || '—' }}</dd>
-              </div>
-              <div v-if="appt.price != null" class="flex gap-2">
-                <dt class="text-slate-400">Price</dt>
-                <dd class="truncate font-medium text-slate-900">{{ money(appt.price) }}</dd>
-              </div>
-            </dl>
-            <p v-if="appt.notes" class="mt-2 text-sm text-slate-500">{{ appt.notes }}</p>
-          </div>
-        </div>
-
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-          <div class="flex flex-wrap gap-1.5">
-            <button
-              v-for="action in QUICK_ACTIONS"
-              v-show="appt.status !== action"
-              :key="action"
-              type="button"
-              :disabled="statusUpdatingId === appt.id"
-              class="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              @click="setStatus(appt, action)"
-            >
-              {{ statusLabel(action) }}
-            </button>
-          </div>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-              @click="paymentTarget = appt"
-            >
-              Invoice
-            </button>
-            <template v-if="canWrite">
-            <button
-              type="button"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-              @click="openEdit(appt)"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
-              @click="confirmTarget = appt"
-            >
-              Delete
-            </button>
-            </template>
-          </div>
-        </div>
-      </div>
+            </td>
+            <td class="text-right whitespace-nowrap">
+              <button type="button" class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs" @click="paymentTarget = appt">
+                Invoice
+              </button>
+              <template v-if="canWrite">
+                <button type="button" class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs" @click="openEdit(appt)">
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                  @click="confirmTarget = appt"
+                >
+                  Delete
+                </button>
+              </template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Create / edit form -->
@@ -495,72 +457,64 @@ onMounted(loadAppointments)
         {{ formMessage }}
       </div>
 
-      <p v-if="optionsLoading" class="mb-4 text-sm text-slate-500">Loading options…</p>
+      <p v-if="optionsLoading" class="mb-4 text-sm text-ink/60">Loading options…</p>
 
       <form id="appointment-form" class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="submitForm">
         <!-- Branch -->
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Branch <span class="text-rose-500">*</span></label>
-          <select
-            v-model="form.branch_id"
-            required
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          >
+          <label class="sh-label">Branch <span class="text-rose-500">*</span></label>
+          <select v-model="form.branch_id" required class="sh-input">
             <option value="" disabled>Select a branch</option>
             <option v-for="branch in branchList" :key="branch.id" :value="branch.id">{{ branch.name }}</option>
           </select>
-          <p v-if="formErrors.branch_id" class="mt-1 text-sm text-rose-600">{{ formErrors.branch_id[0] }}</p>
+          <p v-if="formErrors.branch_id" class="sh-error">{{ formErrors.branch_id[0] }}</p>
         </div>
 
         <!-- Services -->
         <div>
           <fieldset>
-            <legend class="mb-1 block text-sm font-medium text-slate-700">Services <span class="text-rose-500">*</span></legend>
-            <label v-for="svc in serviceList" :key="svc.id" class="flex items-center gap-2 py-1 text-sm text-slate-700">
+            <legend class="sh-label">Services <span class="text-rose-500">*</span></legend>
+            <label v-for="svc in serviceList" :key="svc.id" class="flex items-center gap-2 py-1 text-sm text-ink">
               <input type="checkbox" :value="svc.id" v-model="form.service_ids" />
               <span>{{ serviceLabel(svc) }}</span>
             </label>
-            <p v-if="form.service_ids.length" class="mt-2 text-sm text-slate-500">
+            <p v-if="form.service_ids.length" class="mt-2 text-sm text-ink/60">
               {{ form.service_ids.length }} selected · {{ formDuration }} min · {{ formTotal.toFixed(2) }}
             </p>
-            <p v-if="serviceIdsErrors" class="mt-1 text-sm text-rose-600">{{ serviceIdsErrors[0] }}</p>
+            <p v-if="serviceIdsErrors" class="sh-error">{{ serviceIdsErrors[0] }}</p>
           </fieldset>
         </div>
 
         <!-- Staff -->
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Staff <span class="text-rose-500">*</span></label>
-          <select
-            v-model="form.staff_id"
-            required
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          >
+          <label class="sh-label">Staff <span class="text-rose-500">*</span></label>
+          <select v-model="form.staff_id" required class="sh-input">
             <option value="" disabled>Select a staff member</option>
             <option v-for="member in filteredStaff" :key="member.id" :value="member.id">{{ member.name }}</option>
           </select>
-          <p v-if="noStaffMatch" class="mt-1 text-xs text-slate-400">
+          <p v-if="noStaffMatch" class="mt-1 text-xs text-ink/40">
             No staff can perform every selected service — showing everyone.
           </p>
-          <p v-if="formErrors.staff_id" class="mt-1 text-sm text-rose-600">{{ formErrors.staff_id[0] }}</p>
+          <p v-if="formErrors.staff_id" class="sh-error">{{ formErrors.staff_id[0] }}</p>
         </div>
 
         <!-- Customer -->
         <div class="sm:col-span-2">
           <div class="mb-1 flex items-center justify-between">
-            <label class="block text-sm font-medium text-slate-700">Customer <span class="text-rose-500">*</span></label>
-            <div v-if="!editing" class="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs">
+            <label class="sh-label mb-0">Customer <span class="text-rose-500">*</span></label>
+            <div v-if="!editing" class="inline-flex rounded-full border border-ink/10 p-0.5 text-xs">
               <button
                 type="button"
-                class="rounded-md px-2.5 py-1 font-medium transition"
-                :class="form.customerMode === 'existing' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                class="rounded-full px-2.5 py-1 font-medium transition"
+                :class="form.customerMode === 'existing' ? 'bg-accent-500 text-accent-fg' : 'text-ink/60 hover:bg-ink/5'"
                 @click="form.customerMode = 'existing'"
               >
                 Existing
               </button>
               <button
                 type="button"
-                class="rounded-md px-2.5 py-1 font-medium transition"
-                :class="form.customerMode === 'new' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                class="rounded-full px-2.5 py-1 font-medium transition"
+                :class="form.customerMode === 'new' ? 'bg-accent-500 text-accent-fg' : 'text-ink/60 hover:bg-ink/5'"
                 @click="form.customerMode = 'new'"
               >
                 New
@@ -569,110 +523,68 @@ onMounted(loadAppointments)
           </div>
 
           <div v-if="editing || form.customerMode === 'existing'">
-            <select
-              v-model="form.customer_id"
-              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            >
+            <select v-model="form.customer_id" class="sh-input">
               <option value="" disabled>Select a customer</option>
               <option v-for="c in customerList" :key="c.id" :value="c.id">
                 {{ c.name }}<template v-if="c.phone"> · {{ c.phone }}</template>
               </option>
             </select>
-            <p v-if="formErrors.customer_id" class="mt-1 text-sm text-rose-600">{{ formErrors.customer_id[0] }}</p>
+            <p v-if="formErrors.customer_id" class="sh-error">{{ formErrors.customer_id[0] }}</p>
           </div>
 
           <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <input
-                v-model="form.new_customer.name"
-                type="text"
-                placeholder="Name *"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              />
-              <p v-if="formErrors['new_customer.name']" class="mt-1 text-sm text-rose-600">{{ formErrors['new_customer.name'][0] }}</p>
+              <input v-model="form.new_customer.name" type="text" placeholder="Name *" class="sh-input" />
+              <p v-if="formErrors['new_customer.name']" class="sh-error">{{ formErrors['new_customer.name'][0] }}</p>
             </div>
             <div>
-              <input
-                v-model="form.new_customer.phone"
-                type="text"
-                placeholder="Phone"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              />
-              <p v-if="formErrors['new_customer.phone']" class="mt-1 text-sm text-rose-600">{{ formErrors['new_customer.phone'][0] }}</p>
+              <input v-model="form.new_customer.phone" type="text" placeholder="Phone" class="sh-input" />
+              <p v-if="formErrors['new_customer.phone']" class="sh-error">{{ formErrors['new_customer.phone'][0] }}</p>
             </div>
             <div>
-              <input
-                v-model="form.new_customer.email"
-                type="email"
-                placeholder="Email"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-              />
-              <p v-if="formErrors['new_customer.email']" class="mt-1 text-sm text-rose-600">{{ formErrors['new_customer.email'][0] }}</p>
+              <input v-model="form.new_customer.email" type="email" placeholder="Email" class="sh-input" />
+              <p v-if="formErrors['new_customer.email']" class="sh-error">{{ formErrors['new_customer.email'][0] }}</p>
             </div>
           </div>
         </div>
 
         <!-- Date + time -->
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Date <span class="text-rose-500">*</span></label>
-          <input
-            v-model="form.booking_date"
-            type="date"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p v-if="formErrors.booking_date" class="mt-1 text-sm text-rose-600">{{ formErrors.booking_date[0] }}</p>
+          <label class="sh-label">Date <span class="text-rose-500">*</span></label>
+          <input v-model="form.booking_date" type="date" required class="sh-input" />
+          <p v-if="formErrors.booking_date" class="sh-error">{{ formErrors.booking_date[0] }}</p>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Start time <span class="text-rose-500">*</span></label>
-          <input
-            v-model="form.start_time"
-            type="time"
-            required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          />
-          <p v-if="formErrors.start_time" class="mt-1 text-sm text-rose-600">{{ formErrors.start_time[0] }}</p>
+          <label class="sh-label">Start time <span class="text-rose-500">*</span></label>
+          <input v-model="form.start_time" type="time" required class="sh-input" />
+          <p v-if="formErrors.start_time" class="sh-error">{{ formErrors.start_time[0] }}</p>
         </div>
 
         <!-- Status -->
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Status</label>
-          <select
-            v-model="form.status"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          >
+          <label class="sh-label">Status</label>
+          <select v-model="form.status" class="sh-input">
             <option v-for="key in STATUS_KEYS" :key="key" :value="key">{{ statusLabel(key) }}</option>
           </select>
-          <p v-if="formErrors.status" class="mt-1 text-sm text-rose-600">{{ formErrors.status[0] }}</p>
+          <p v-if="formErrors.status" class="sh-error">{{ formErrors.status[0] }}</p>
         </div>
 
         <!-- Notes -->
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
-          <textarea
-            v-model="form.notes"
-            rows="2"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="Optional details"
-          ></textarea>
-          <p v-if="formErrors.notes" class="mt-1 text-sm text-rose-600">{{ formErrors.notes[0] }}</p>
+          <label class="sh-label">Notes</label>
+          <textarea v-model="form.notes" rows="2" class="sh-input" placeholder="Optional details"></textarea>
+          <p v-if="formErrors.notes" class="sh-error">{{ formErrors.notes[0] }}</p>
         </div>
       </form>
 
       <template #footer>
-        <button
-          type="button"
-          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-          @click="closeForm"
-        >
-          Cancel
-        </button>
+        <button type="button" class="sh-btn" @click="closeForm">Cancel</button>
         <button
           type="submit"
           form="appointment-form"
           :disabled="saving"
-          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="sh-btn sh-btn-primary"
         >
           {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Create appointment' }}
         </button>

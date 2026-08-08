@@ -5,6 +5,7 @@ import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import Modal from '@/components/Modal.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -46,15 +47,19 @@ const MODES = [
 ]
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+// `badge` is the sh-badge modifier (fixed semantic hues — a status must not
+// read differently per salon). `chip` is the grid event, which follows the
+// tenant accent so the calendar reads as one surface; cancelled and no-show
+// still break away, because "this booking is off" has to survive a glance.
 const STATUS_META = {
-  pending: { label: 'Pending', badge: 'bg-amber-50 text-amber-700', dot: 'bg-amber-400', chip: 'border-amber-200 bg-amber-50 text-amber-900' },
-  confirmed: { label: 'Confirmed', badge: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500', chip: 'border-blue-200 bg-blue-50 text-blue-900' },
-  completed: { label: 'Completed', badge: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', chip: 'border-emerald-200 bg-emerald-50 text-emerald-900' },
-  cancelled: { label: 'Cancelled', badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-300', chip: 'border-slate-200 bg-slate-50 text-slate-500 line-through' },
-  no_show: { label: 'No-show', badge: 'bg-rose-50 text-rose-700', dot: 'bg-rose-500', chip: 'border-rose-200 bg-rose-50 text-rose-900' },
+  pending: { label: 'Pending', badge: 'sh-badge-pending', dot: 'bg-amber-400', chip: 'border-l-2 border-accent-300 bg-accent-50 text-ink' },
+  confirmed: { label: 'Confirmed', badge: 'sh-badge-confirmed', dot: 'bg-sky-500', chip: 'border-l-2 border-accent-500 bg-accent-50 text-ink' },
+  completed: { label: 'Completed', badge: 'sh-badge-completed', dot: 'bg-emerald-500', chip: 'border-l-2 border-accent-500 bg-accent-50 text-ink/60' },
+  cancelled: { label: 'Cancelled', badge: 'sh-badge-cancelled', dot: 'bg-ink/20', chip: 'border-l-2 border-ink/20 bg-ink/5 text-ink/50 line-through' },
+  no_show: { label: 'No-show', badge: 'sh-badge-no-show', dot: 'bg-rose-500', chip: 'border-l-2 border-rose-400 bg-rose-50 text-ink' },
 }
 function statusMeta(status) {
-  return STATUS_META[status] || { label: status || '—', badge: 'bg-slate-100 text-slate-600', dot: 'bg-slate-300', chip: 'border-slate-200 bg-slate-50 text-slate-700' }
+  return STATUS_META[status] || { label: status || '—', badge: 'sh-badge-no-show', dot: 'bg-ink/20', chip: 'border-l-2 border-ink/20 bg-ink/5 text-ink' }
 }
 
 /* -------------------------------- State --------------------------------- */
@@ -223,35 +228,33 @@ onMounted(async () => {
 <template>
   <div>
     <!-- Header -->
-    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">Calendar</h1>
-        <p class="mt-1 text-sm text-slate-500">
-          {{ periodCount }} appointment{{ periodCount === 1 ? '' : 's' }} in this view.
-        </p>
-      </div>
-
-      <!-- Mode switch -->
-      <div class="inline-flex rounded-lg bg-slate-100 p-1">
-        <button
-          v-for="m in MODES"
-          :key="m.key"
-          type="button"
-          class="rounded-md px-3 py-1.5 text-sm font-medium transition"
-          :class="mode === m.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
-          @click="setMode(m.key)"
-        >
-          {{ m.label }}
-        </button>
-      </div>
-    </div>
+    <PageHeader
+      title="Calendar"
+      :subtitle="`${periodCount} appointment${periodCount === 1 ? '' : 's'} in this view.`"
+    >
+      <template #actions>
+        <!-- Mode switch -->
+        <div class="sh-card inline-flex rounded-full bg-paper p-1 shadow-none">
+          <button
+            v-for="m in MODES"
+            :key="m.key"
+            type="button"
+            class="rounded-full px-3 py-1.5 text-sm font-medium transition"
+            :class="mode === m.key ? 'bg-white text-ink shadow-sm' : 'text-ink/55 hover:text-ink'"
+            @click="setMode(m.key)"
+          >
+            {{ m.label }}
+          </button>
+        </div>
+      </template>
+    </PageHeader>
 
     <!-- Toolbar: period nav + filters -->
-    <div class="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+    <div class="sh-card mb-5 flex flex-wrap items-center gap-3 p-4">
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
+          class="sh-btn p-2"
           aria-label="Previous period"
           @click="step(-1)"
         >
@@ -261,14 +264,14 @@ onMounted(async () => {
         </button>
         <button
           type="button"
-          class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          class="sh-btn"
           @click="goToday"
         >
           Today
         </button>
         <button
           type="button"
-          class="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-50"
+          class="sh-btn p-2"
           aria-label="Next period"
           @click="step(1)"
         >
@@ -278,21 +281,14 @@ onMounted(async () => {
         </button>
       </div>
 
-      <p class="text-base font-semibold text-slate-900">{{ periodLabel }}</p>
+      <p class="font-display text-lg text-ink">{{ periodLabel }}</p>
 
       <div class="ml-auto flex flex-wrap items-center gap-2">
-        <select
-          v-if="canFilterByStaff"
-          v-model="staffFilter"
-          class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-        >
+        <select v-if="canFilterByStaff" v-model="staffFilter" class="sh-input w-auto">
           <option value="">All staff</option>
           <option v-for="member in staffOptions" :key="member.id" :value="member.id">{{ member.name }}</option>
         </select>
-        <select
-          v-model="branchFilter"
-          class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-        >
+        <select v-model="branchFilter" class="sh-input w-auto">
           <option value="">All branches</option>
           <option v-for="branch in branchOptions" :key="branch.id" :value="branch.id">{{ branch.name }}</option>
         </select>
@@ -304,27 +300,27 @@ onMounted(async () => {
     </p>
 
     <!-- Month -->
-    <div v-if="mode === 'month'" class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      <div class="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-        <div v-for="day in WEEKDAYS" :key="day" class="px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div v-if="mode === 'month'" class="sh-card overflow-hidden">
+      <div class="grid grid-cols-7 border-b border-ink/10 bg-paper">
+        <div v-for="day in WEEKDAYS" :key="day" class="px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-ink/50">
           {{ day }}
         </div>
       </div>
-      <div v-for="(week, i) in monthGrid" :key="i" class="grid grid-cols-7 border-b border-slate-100 last:border-b-0">
+      <div v-for="(week, i) in monthGrid" :key="i" class="grid grid-cols-7 border-b border-ink/10 last:border-b-0">
         <div
           v-for="cell in week"
           :key="cell.key"
-          class="min-h-[7rem] border-r border-slate-100 p-1.5 last:border-r-0 transition hover:bg-slate-50/70"
-          :class="cell.inMonth ? 'bg-white' : 'bg-slate-50/60'"
+          class="min-h-[7rem] border-r border-ink/10 p-1.5 last:border-r-0 transition hover:bg-paper/70"
+          :class="cell.inMonth ? 'bg-white' : 'bg-paper/60'"
         >
           <button
             type="button"
             class="mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition"
             :class="cell.isToday
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-accent-500 text-accent-fg'
               : cell.inMonth
-                ? 'text-slate-700 hover:bg-slate-200'
-                : 'text-slate-400 hover:bg-slate-200'"
+                ? 'text-ink/75 hover:bg-ink/10'
+                : 'text-ink/40 hover:bg-ink/10'"
             @click="openDay(cell.key)"
           >
             {{ cell.dayNumber }}
@@ -334,7 +330,7 @@ onMounted(async () => {
             <li v-for="appt in dayAppointments(cell.key).slice(0, 3)" :key="appt.id">
               <button
                 type="button"
-                class="w-full truncate rounded-md border px-1.5 py-1 text-left text-[11px] leading-tight transition hover:brightness-95"
+                class="w-full truncate rounded-r-md px-1.5 py-1 text-left text-[11px] leading-tight transition hover:brightness-95"
                 :class="statusMeta(appt.status).chip"
                 @click="selected = appt"
               >
@@ -345,7 +341,7 @@ onMounted(async () => {
             <li v-if="dayAppointments(cell.key).length > 3">
               <button
                 type="button"
-                class="w-full rounded-md px-1.5 py-0.5 text-left text-[11px] font-medium text-indigo-600 hover:text-indigo-800"
+                class="w-full rounded-md px-1.5 py-0.5 text-left text-[11px] font-medium text-accent-600 hover:text-accent-700"
                 @click="openDay(cell.key)"
               >
                 +{{ dayAppointments(cell.key).length - 3 }} more
@@ -361,25 +357,25 @@ onMounted(async () => {
       <div
         v-for="day in weekDays"
         :key="day.key"
-        class="rounded-2xl bg-white p-3 shadow-sm ring-1 transition"
-        :class="day.isToday ? 'ring-2 ring-indigo-400' : 'ring-slate-200'"
+        class="sh-card p-3 transition"
+        :class="day.isToday ? 'ring-2 ring-accent-400' : ''"
       >
         <button type="button" class="mb-2 flex w-full items-baseline justify-between" @click="openDay(day.key)">
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ day.label }}</span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-ink/50">{{ day.label }}</span>
           <span
             class="text-sm font-bold"
-            :class="day.isToday ? 'text-indigo-600' : 'text-slate-900'"
+            :class="day.isToday ? 'text-accent-600' : 'text-ink'"
           >
             {{ day.date.getDate() }}
           </span>
         </button>
 
-        <p v-if="dayAppointments(day.key).length === 0" class="py-3 text-center text-xs text-slate-400">—</p>
+        <p v-if="dayAppointments(day.key).length === 0" class="py-3 text-center text-xs text-ink/40">—</p>
         <ul v-else class="space-y-1.5">
           <li v-for="appt in dayAppointments(day.key)" :key="appt.id">
             <button
               type="button"
-              class="w-full rounded-lg border px-2 py-1.5 text-left text-xs transition hover:brightness-95"
+              class="w-full rounded-r-lg px-2 py-1.5 text-left text-xs transition hover:brightness-95"
               :class="statusMeta(appt.status).chip"
               @click="selected = appt"
             >
@@ -393,95 +389,88 @@ onMounted(async () => {
     </div>
 
     <!-- Day -->
-    <div v-else class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <p v-if="loading" class="py-10 text-center text-sm text-slate-500">Loading…</p>
-      <div v-else-if="dayAppointments(dayKey).length === 0" class="py-12 text-center">
-        <p class="text-sm font-medium text-slate-900">Nothing booked</p>
-        <p class="mt-1 text-sm text-slate-500">This day is completely free.</p>
-        <button
-          type="button"
-          class="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-          @click="bookOn(dayKey)"
-        >
+    <template v-else>
+      <p v-if="loading" class="sh-card p-5 py-10 text-center text-sm text-ink/60">Loading…</p>
+      <div v-else-if="dayAppointments(dayKey).length === 0" class="sh-empty">
+        <p class="font-medium text-ink">Nothing booked</p>
+        <p class="mt-1">This day is completely free.</p>
+        <button type="button" class="sh-btn sh-btn-primary mt-4" @click="bookOn(dayKey)">
           Open in appointments
         </button>
       </div>
-      <ol v-else class="space-y-2">
+      <ol v-else class="sh-card space-y-2 p-5">
         <li
           v-for="appt in dayAppointments(dayKey)"
           :key="appt.id"
-          class="flex items-center gap-4 rounded-xl border border-slate-200 p-3 transition hover:bg-slate-50"
+          class="flex items-center gap-4 rounded-xl border border-ink/10 p-3 transition hover:bg-paper"
         >
           <div class="w-20 shrink-0 text-right">
-            <p class="text-sm font-semibold text-slate-900">{{ appt.start_time }}</p>
-            <p class="text-xs text-slate-400">{{ appt.end_time }}</p>
+            <p class="text-sm font-semibold text-ink">{{ appt.start_time }}</p>
+            <p class="text-xs text-ink/40">{{ appt.end_time }}</p>
           </div>
           <span class="h-10 w-1 shrink-0 rounded-full" :class="statusMeta(appt.status).dot"></span>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-slate-900">{{ appt.customer?.name || 'Walk-in' }}</p>
-            <p class="truncate text-xs text-slate-500">
+            <p class="truncate text-sm font-medium text-ink">{{ appt.customer?.name || 'Walk-in' }}</p>
+            <p class="truncate text-xs text-ink/60">
               {{ (appt.services || []).map((s) => s.name).join(', ') }} · {{ appt.staff?.name }}
               <span v-if="appt.branch"> · {{ appt.branch.name }}</span>
             </p>
           </div>
-          <span
-            class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
-            :class="statusMeta(appt.status).badge"
-          >
+          <span class="sh-badge shrink-0" :class="statusMeta(appt.status).badge">
             {{ statusMeta(appt.status).label }}
           </span>
           <button
             type="button"
-            class="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+            class="sh-btn shrink-0 px-3 py-1.5 text-xs"
             @click="selected = appt"
           >
             Details
           </button>
         </li>
       </ol>
-    </div>
+    </template>
 
-    <p v-if="loading && mode !== 'day'" class="mt-3 text-center text-sm text-slate-500">Loading…</p>
+    <p v-if="loading && mode !== 'day'" class="mt-3 text-center text-sm text-ink/60">Loading…</p>
 
     <!-- Detail -->
     <Modal v-if="selected" title="Appointment" @close="selected = null">
       <div class="space-y-3 text-sm">
         <div class="flex items-center justify-between">
-          <span class="font-semibold text-slate-900">
+          <span class="font-semibold text-ink">
             {{ selected.booking_date }} · {{ selected.start_time }}–{{ selected.end_time }}
           </span>
-          <span class="rounded-full px-2.5 py-0.5 text-xs font-medium" :class="statusMeta(selected.status).badge">
+          <span class="sh-badge" :class="statusMeta(selected.status).badge">
             {{ statusMeta(selected.status).label }}
           </span>
         </div>
-        <dl class="divide-y divide-slate-100">
+        <dl class="divide-y divide-ink/10">
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-slate-500">Customer</dt>
-            <dd class="text-right text-slate-900">
+            <dt class="text-ink/60">Customer</dt>
+            <dd class="text-right text-ink">
               {{ selected.customer?.name || 'Walk-in' }}
-              <span v-if="selected.customer?.phone" class="block text-xs text-slate-500">{{ selected.customer.phone }}</span>
+              <span v-if="selected.customer?.phone" class="block text-xs text-ink/60">{{ selected.customer.phone }}</span>
             </dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-slate-500">Service</dt>
-            <dd class="text-right text-slate-900">{{ (selected.services || []).map((s) => s.name).join(', ') || '—' }}</dd>
+            <dt class="text-ink/60">Service</dt>
+            <dd class="text-right text-ink">{{ (selected.services || []).map((s) => s.name).join(', ') || '—' }}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-slate-500">Staff</dt>
-            <dd class="text-right text-slate-900">{{ selected.staff?.name || '—' }}</dd>
+            <dt class="text-ink/60">Staff</dt>
+            <dd class="text-right text-ink">{{ selected.staff?.name || '—' }}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-slate-500">Branch</dt>
-            <dd class="text-right text-slate-900">{{ selected.branch?.name || '—' }}</dd>
+            <dt class="text-ink/60">Branch</dt>
+            <dd class="text-right text-ink">{{ selected.branch?.name || '—' }}</dd>
           </div>
           <div v-if="selected.notes" class="py-2">
-            <dt class="text-slate-500">Notes</dt>
-            <dd class="mt-1 text-slate-900">{{ selected.notes }}</dd>
+            <dt class="text-ink/60">Notes</dt>
+            <dd class="mt-1 text-ink">{{ selected.notes }}</dd>
           </div>
         </dl>
         <button
           type="button"
-          class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
+          class="sh-btn sh-btn-primary w-full"
           @click="bookOn(selected.booking_date)"
         >
           Manage in appointments
