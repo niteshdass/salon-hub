@@ -2511,6 +2511,7 @@ git commit -m "feat: multi-service dashboard bookings and a tip at checkout"
 
 **Files:**
 - Modify: `frontend/src/views/ManageBookingView.vue:200`, `:207`, `:365`
+- Modify: `frontend/src/views/CustomerDashboardView.vue:179`, `:214`, `:256`, `:295`
 - Modify: `frontend/src/views/ReportsView.vue:209`
 - Modify: the payroll view under `frontend/src/views/` (find it with `grep -rln "commission_amount" frontend/src`)
 
@@ -2523,25 +2524,37 @@ git commit -m "feat: multi-service dashboard bookings and a tip at checkout"
 - `:207` slot params: `service_ids: booking.value.services.map((s) => s.id)`. If the reschedule endpoint derives the duration from the stored window (Task 4), drop the service params from that call entirely and keep only date/staff.
 - `:365` becomes a list: `<dd>{{ booking.services.map((s) => s.name).join(', ') }}</dd>`.
 
-- [ ] **Step 2: Update `ReportsView`**
+- [ ] **Step 2: Update `CustomerDashboardView`**
+
+`Customer/BookingController::present()` now emits `services` — an array of the
+line names, in `sort_order` — where it used to emit a single `service` string.
+All four readers here interpolate the old key, which Vue renders as an empty
+string rather than failing, so nothing surfaces the break but a customer looking
+at a blank line where their booking used to be described.
+
+- `:179` and `:214` become `{{ b.services.join(', ') }}`.
+- `:256` becomes `{{ rescheduling.services.join(', ') }}`.
+- `:295` becomes `{{ reviewing.services.join(', ') }}`.
+
+- [ ] **Step 3: Update `ReportsView`**
 
 The Top services table header at `:209` changes from `Bookings` to `Services booked` — the column now counts service lines, not visits, and an unchanged header would quietly misreport. Leave the second `Bookings` header at `:231` (staff performance) alone; that one still counts visits.
 
-- [ ] **Step 3: Add the payroll Tips column**
+- [ ] **Step 4: Add the payroll Tips column**
 
 In the payroll view, add a `Tips` header and cell between Commission and Total, reading `line.tips_amount`.
 
-- [ ] **Step 4: Run the frontend suite and build**
+- [ ] **Step 5: Run the frontend suite and build**
 
 Run: `cd frontend && npm run test:unit && npm run build`
 Expected: PASS, and a clean build.
 
-- [ ] **Step 5: Run the whole backend suite once more**
+- [ ] **Step 6: Run the whole backend suite once more**
 
 Run: `cd backend && php artisan test`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add frontend/src
