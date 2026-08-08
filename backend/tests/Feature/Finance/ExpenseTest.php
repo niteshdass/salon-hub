@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\Organization;
 use App\Models\PayrollRun;
@@ -40,6 +41,78 @@ class ExpenseTest extends FinanceTestCase
         $res->assertOk();
         $res->assertJsonCount(2, 'data');
         $res->assertJsonPath('data.0.amount', '200.00');
+    }
+
+    public function test_an_unparseable_date_filter_is_a_validation_error_not_a_crash(): void
+    {
+        $org = $this->makeOrg();
+        $token = $this->token($this->makeUser($org, 'owner'));
+
+        $this->withToken($token)->getJson('/api/expenses?to=notadate')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('to');
+
+        $this->withToken($token)->getJson('/api/expenses?from=2026-13-45')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('from');
+    }
+
+    public function test_an_unknown_category_filter_is_rejected(): void
+    {
+        $org = $this->makeOrg();
+        $token = $this->token($this->makeUser($org, 'owner'));
+
+        $this->withToken($token)->getJson('/api/expenses?category=yacht')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('category');
+    }
+
+    public function test_the_category_filter_narrows_the_list(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $this->expense($org, ['category' => 'rent', 'expense_date' => '2026-07-02', 'amount' => 100]);
+        $this->expense($org, ['category' => 'supplies', 'expense_date' => '2026-07-03', 'amount' => 200]);
+
+        $res = $this->withToken($this->token($owner))
+            ->getJson('/api/expenses?from=2026-07-01&to=2026-07-31&category=rent');
+
+        $res->assertOk();
+        $res->assertJsonCount(1, 'data');
+        $res->assertJsonPath('data.0.category', 'rent');
+        $res->assertJsonPath('data.0.amount', '100.00');
+    }
+
+    public function test_the_branch_filter_narrows_the_list(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $main = Branch::create(['organization_id' => $org->id, 'name' => 'Main']);
+        $second = Branch::create(['organization_id' => $org->id, 'name' => 'Second']);
+        $this->expense($org, ['branch_id' => $main->id, 'expense_date' => '2026-07-02', 'amount' => 100]);
+        $this->expense($org, ['branch_id' => $second->id, 'expense_date' => '2026-07-03', 'amount' => 200]);
+        $this->expense($org, ['expense_date' => '2026-07-04', 'amount' => 300]);
+
+        $res = $this->withToken($this->token($owner))
+            ->getJson("/api/expenses?from=2026-07-01&to=2026-07-31&branch_id={$main->id}");
+
+        $res->assertOk();
+        $res->assertJsonCount(1, 'data');
+        $res->assertJsonPath('data.0.branch_id', $main->id);
+        $res->assertJsonPath('data.0.amount', '100.00');
+    }
+
+    public function test_another_tenants_branch_cannot_be_used_as_a_filter(): void
+    {
+        $org = $this->makeOrg();
+        $other = $this->makeOrg('other');
+        $owner = $this->makeUser($org, 'owner');
+        $theirBranch = Branch::create(['organization_id' => $other->id, 'name' => 'Theirs']);
+
+        $this->withToken($this->token($owner))
+            ->getJson("/api/expenses?branch_id={$theirBranch->id}")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('branch_id');
     }
 
     public function test_a_zero_amount_is_rejected(): void
@@ -152,6 +225,7 @@ class ExpenseTest extends FinanceTestCase
     {
         return Expense::create([
             'organization_id' => $org->id,
+            'branch_id' => $overrides['branch_id'] ?? null,
             'category' => $overrides['category'] ?? 'supplies',
             'expense_date' => $overrides['expense_date'] ?? '2026-07-10',
             'amount' => $overrides['amount'] ?? 50,

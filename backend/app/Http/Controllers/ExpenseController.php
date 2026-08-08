@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Expense\IndexExpenseRequest;
 use App\Http\Requests\Expense\StoreExpenseRequest;
 use App\Http\Requests\Expense\UpdateExpenseRequest;
 use App\Http\Resources\ExpenseResource;
 use App\Models\Expense;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -21,10 +21,8 @@ use Illuminate\Support\Carbon;
  */
 class ExpenseController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(IndexExpenseRequest $request): AnonymousResourceCollection
     {
-        $this->authorize('viewAny', Expense::class);
-
         // Default window is the current month — the log is a month view, and
         // an unbounded list grows without limit.
         $to = $request->date('to') ?? Carbon::now(config('app.timezone'))->startOfDay();
