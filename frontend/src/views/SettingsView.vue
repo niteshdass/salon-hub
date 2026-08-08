@@ -11,10 +11,10 @@ const authStore = useAuthStore()
 // Payments configure what money the salon collects and hold gateway secrets —
 // owner-only, matching the API policy.
 const tabs = computed(() => [
-  { key: 'profile', label: 'Salon profile', blurb: 'Branding, contact details and the story on your public page.' },
-  { key: 'reminders', label: 'Reminders', blurb: 'Appointment reminders and channel connection.' },
+  { key: 'profile', label: 'Salon profile' },
+  { key: 'reminders', label: 'Reminders' },
   ...(authStore.isOwner
-    ? [{ key: 'payments', label: 'Payments', blurb: 'Booking deposits and how customers pay them.' }]
+    ? [{ key: 'payments', label: 'Payments' }]
     : []),
 ])
 

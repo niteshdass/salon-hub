@@ -33,8 +33,11 @@ const filtered = computed(() => {
 })
 
 // The header used to carry a separate star summary card; the same two numbers
-// now read as a sentence under the title.
+// now read as a sentence under the title. With nothing to summarise — a new
+// salon, or the first paint before the list arrives — a bare "0 reviews" says
+// nothing about the page, so the description takes over instead.
 const subtitle = computed(() => {
+  if (!meta.value.count) return 'What customers say after their visit.'
   const count = `${meta.value.count} review${meta.value.count === 1 ? '' : 's'}`
   return meta.value.average !== null ? `${meta.value.average} average from ${count}` : count
 })
@@ -104,14 +107,14 @@ onMounted(loadReviews)
       {{ listError }}
     </div>
 
-    <!-- Filter tabs -->
-    <div class="mb-5 inline-flex rounded-lg bg-ink/5 p-1 text-sm">
+    <!-- Filter tabs, the same segmented control the calendar and reports use. -->
+    <div class="sh-card mb-5 inline-flex rounded-full bg-paper p-1 shadow-none">
       <button
         v-for="tab in ['all', 'published', 'hidden']"
         :key="tab"
         type="button"
-        class="rounded-md px-3 py-1.5 font-medium capitalize transition"
-        :class="filter === tab ? 'bg-white text-ink shadow-sm' : 'text-ink/60 hover:text-ink'"
+        class="rounded-full px-3 py-1.5 text-sm font-medium capitalize transition"
+        :class="filter === tab ? 'bg-white text-ink shadow-sm' : 'text-ink/55 hover:text-ink'"
         @click="filter = tab"
       >
         {{ tab }}

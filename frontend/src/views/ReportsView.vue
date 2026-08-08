@@ -233,33 +233,69 @@ onMounted(() => applyPreset('30d'))
           <p v-else class="mt-3 text-sm text-ink/60">No completed bookings in this range.</p>
         </div>
 
-        <!-- Staff performance. Four read-only columns, no row controls — same
-             judgement as above. -->
-        <div class="sh-card p-5">
+        <!-- Staff performance. Unlike the three above, four single-word headers
+             plus the cell padding put this table's *min-content* width past a
+             390px viewport — it overflows at any data, short names included —
+             so below md the table is replaced by a stacked card list rather
+             than left to scroll sideways behind an overlay scrollbar that
+             renders no affordance. Every field appears in both branches. The
+             heading sits outside the card so the table wrapper can be the card
+             itself, the same shape the finance tables use. -->
+        <div>
           <h2 class="font-display text-lg text-ink">Staff performance</h2>
-          <div v-if="report.staff.length" class="mt-3 overflow-x-auto">
-            <table class="sh-table">
-              <thead>
-                <tr>
-                  <th>Staff</th>
-                  <th class="text-right">Bookings</th>
-                  <th class="text-right">Earned</th>
-                  <th class="text-right">Rating</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in report.staff" :key="row.staff_id">
-                  <td>{{ row.name }}</td>
-                  <td class="text-right text-ink/60">{{ row.bookings }}</td>
-                  <td class="text-right font-medium text-ink">{{ money(row.earned) }}</td>
-                  <td class="text-right text-ink/60">
-                    <span v-if="row.rating.average !== null">★ {{ row.rating.average }} <span class="text-xs text-ink/40">({{ row.rating.count }})</span></span>
-                    <span v-else class="text-ink/30">—</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+
+          <template v-if="report.staff.length">
+            <div class="sh-card mt-3 hidden overflow-x-auto md:block">
+              <table class="sh-table">
+                <thead>
+                  <tr>
+                    <th>Staff</th>
+                    <th class="text-right">Bookings</th>
+                    <th class="text-right">Earned</th>
+                    <th class="text-right">Rating</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in report.staff" :key="row.staff_id">
+                    <td>{{ row.name }}</td>
+                    <td class="text-right text-ink/60">{{ row.bookings }}</td>
+                    <td class="text-right font-medium text-ink">{{ money(row.earned) }}</td>
+                    <td class="text-right text-ink/60">
+                      <span v-if="row.rating.average !== null">★ {{ row.rating.average }} <span class="text-xs text-ink/40">({{ row.rating.count }})</span></span>
+                      <span v-else class="text-ink/30">—</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Same rows, same fields, stacked so nothing sits off the right
+                 edge of a 390px viewport. -->
+            <div class="mt-3 space-y-3 md:hidden">
+              <div v-for="row in report.staff" :key="row.staff_id" class="sh-card p-5">
+                <p class="font-medium text-ink">{{ row.name }}</p>
+
+                <dl class="mt-2 space-y-1 text-sm">
+                  <div class="flex items-center justify-between gap-3">
+                    <dt class="text-ink/40">Bookings</dt>
+                    <dd class="text-ink/60">{{ row.bookings }}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <dt class="text-ink/40">Earned</dt>
+                    <dd class="font-medium text-ink">{{ money(row.earned) }}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <dt class="text-ink/40">Rating</dt>
+                    <dd class="text-ink/60">
+                      <span v-if="row.rating.average !== null">★ {{ row.rating.average }} <span class="text-xs text-ink/40">({{ row.rating.count }})</span></span>
+                      <span v-else class="text-ink/30">—</span>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </template>
+
           <p v-else class="mt-3 text-sm text-ink/60">No completed bookings in this range.</p>
         </div>
       </div>
@@ -272,7 +308,7 @@ onMounted(() => applyPreset('30d'))
             v-for="(count, key) in report.bookings.by_status"
             :key="key"
             class="sh-badge"
-            :class="STATUS_META[key]?.class || 'sh-badge-no-show'"
+            :class="STATUS_META[key]?.class || 'bg-ink/10 text-ink/60'"
           >
             {{ STATUS_META[key]?.label || key }}: {{ count }}
           </span>

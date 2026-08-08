@@ -272,6 +272,24 @@ watch(tab, (value) => {
   if (value === 'profit' && !profit.value) loadProfit()
 })
 
+// Each tab covers a different window — the profit range, the expense filters,
+// or a month picked from a select — so one sentence cannot describe all three.
+// The header follows the tab rather than naming a period the figures below it
+// do not cover.
+const subtitle = computed(() => {
+  if (tab.value === 'expenses') {
+    // The same fallbacks loadExpenses() sends, so the sentence can never
+    // disagree with the request it describes.
+    return `Costs logged from ${expenseFilters.from || startOfMonth()} to ${expenseFilters.to || today()}.`
+  }
+  if (tab.value === 'profit') {
+    return `Staff pay, costs, and profit from ${profitRange.from} to ${profitRange.to}.`
+  }
+  // Payroll's window is the month selected below, and it is named there — a
+  // date range in the header would only ever be a second, staler answer.
+  return 'Staff pay for the month you select below.'
+})
+
 onMounted(async () => {
   await loadRuns()
   await loadExpenses()
@@ -280,10 +298,7 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6">
-    <PageHeader
-      title="Finance"
-      :subtitle="`Staff pay, costs, and profit from ${profitRange.from} to ${profitRange.to}.`"
-    />
+    <PageHeader title="Finance" :subtitle="subtitle" />
 
     <div class="flex gap-1 border-b border-ink/10">
       <button
