@@ -123,6 +123,16 @@ class Appointment extends Model
         return number_format((float) $this->price - (float) $this->amountPaid(), 2, '.', '');
     }
 
+    /** Tips handed over at the counter. Never part of the booking balance. */
+    public function tipsCollected(): string
+    {
+        $sum = $this->payments
+            ->where('status', PaymentStatus::VERIFIED)
+            ->sum('tip_amount');
+
+        return number_format((float) $sum, 2, '.', '');
+    }
+
     /** Still customer-editable (pending or confirmed). */
     public function isChangeable(): bool
     {

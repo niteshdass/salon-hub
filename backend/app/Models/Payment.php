@@ -19,6 +19,7 @@ class Payment extends Model
         'appointment_id',
         'recorded_by',
         'amount',
+        'tip_amount',
         'method',
         'status',
         'source',
@@ -34,6 +35,7 @@ class Payment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'tip_amount' => 'decimal:2',
             'method' => PaymentMethod::class,
             'status' => PaymentStatus::class,
             'source' => PaymentSource::class,

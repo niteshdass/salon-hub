@@ -15,6 +15,7 @@ class PaymentResource extends JsonResource
         return [
             'id' => $this->id,
             'amount' => $this->amount,
+            'tip_amount' => $this->tip_amount,
             'method' => $this->method instanceof \BackedEnum ? $this->method->value : $this->method,
             'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
             'source' => $this->source instanceof \BackedEnum ? $this->source->value : $this->source,
