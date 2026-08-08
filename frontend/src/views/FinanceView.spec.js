@@ -205,7 +205,7 @@ describe('FinanceView — Payroll tab', () => {
     expect(wrapper.text()).toContain('No payroll yet')
   })
 
-  it('renders the parsed error message, not "[object Object]", when loading fails', async () => {
+  it('renders exactly parseApiError(...).message in the banner, when loading fails', async () => {
     loginAsOwner()
     vi.mocked(api.get).mockReset().mockRejectedValue({
       response: { status: 500, data: { message: 'Server exploded' } },
@@ -213,7 +213,13 @@ describe('FinanceView — Payroll tab', () => {
     const wrapper = mountFinanceView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Server exploded')
-    expect(wrapper.text()).not.toContain('[object Object]')
+    // An exact match on the banner's own text, not a substring check against
+    // the whole page: if the catch block assigned the parsed error *object*
+    // instead of its .message, Vue's toDisplayString would JSON.stringify it
+    // to something that still contains the substring "Server exploded" (and
+    // never the literal "[object Object]"), so a substring/exclusion
+    // assertion here would pass on that regression too. Pinning the exact
+    // string rules that out.
+    expect(wrapper.find('.text-rose-700').text()).toBe('Server exploded')
   })
 })
