@@ -73,29 +73,42 @@ class PayrollRunController extends Controller
     {
         $this->authorize('update', $run);
 
-        if (! $run->isDraft()) {
-            return response()->json(['message' => 'This payroll run is already finalized.'], 422);
-        }
+        // The draft check has to happen against a locked row inside the
+        // transaction, not against the instance route-model binding handed us:
+        // two clicks on Finalize can both read a draft, and if both proceed
+        // the run is booked as a cost twice. A unique index on
+        // expenses.payroll_run_id backs this up at the database.
+        $finalized = DB::transaction(function () use ($request, $run) {
+            $locked = PayrollRun::query()->whereKey($run->id)->lockForUpdate()->first();
 
-        DB::transaction(function () use ($request, $run) {
-            $run->syncTotals();
-            $run->refresh();
+            if ($locked === null || ! $locked->isDraft()) {
+                return false;
+            }
 
-            $run->update([
+            $locked->syncTotals();
+            $locked->refresh();
+
+            $locked->update([
                 'status' => PayrollRunStatus::FINALIZED,
                 'finalized_at' => now(),
                 'finalized_by' => $request->user()->id,
             ]);
 
-            $run->expense()->create([
-                'organization_id' => $run->organization_id,
+            $locked->expense()->create([
+                'organization_id' => $locked->organization_id,
                 'category' => ExpenseCategory::SALARY,
-                'expense_date' => $run->period_month->copy()->endOfMonth()->toDateString(),
-                'amount' => $run->total_amount,
-                'note' => 'Payroll — '.$run->period_month->format('F Y'),
+                'expense_date' => $locked->period_month->copy()->endOfMonth()->toDateString(),
+                'amount' => $locked->total_amount,
+                'note' => 'Payroll — '.$locked->period_month->format('F Y'),
                 'recorded_by' => $request->user()->id,
             ]);
+
+            return true;
         });
+
+        if (! $finalized) {
+            return response()->json(['message' => 'This payroll run is already finalized.'], 422);
+        }
 
         return (new PayrollRunResource($run->fresh()->load('lines')))->response();
     }

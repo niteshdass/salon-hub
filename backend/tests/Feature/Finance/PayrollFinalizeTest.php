@@ -2,14 +2,30 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Enums\ExpenseCategory;
+use App\Enums\PayrollRunStatus;
 use App\Models\Expense;
 use App\Models\Organization;
 use App\Models\PayrollLine;
 use App\Models\PayrollRun;
 use App\Models\User;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 
 class PayrollFinalizeTest extends FinanceTestCase
 {
+    /** A hand-logged expense: no payroll run behind it. */
+    private function expense(Organization $org): Expense
+    {
+        return Expense::create([
+            'organization_id' => $org->id,
+            'category' => ExpenseCategory::SUPPLIES->value,
+            'expense_date' => '2026-07-10',
+            'amount' => 40,
+        ]);
+    }
+
     /** @return array{0: User, 1: PayrollRun} */
     private function draftRun(Organization $org, string $month = '2026-07-01'): array
     {
@@ -56,6 +72,83 @@ class PayrollFinalizeTest extends FinanceTestCase
         $this->assertSame('2026-07-31', $expense->expense_date->toDateString());
         $this->assertSame($run->id, $expense->payroll_run_id);
         $this->assertSame($owner->id, $run->fresh()->finalized_by);
+    }
+
+    /**
+     * The double-click case. Two finalize requests can both read the run as a
+     * draft before either commits; without a re-read under a row lock the
+     * second one runs the whole body again and books a second salary expense,
+     * which the P&L then counts on top of the first.
+     *
+     * Simulated deterministically: the listener fires on the first PayrollRun
+     * read of the request — route-model binding — and does what the winning
+     * request would have done. The controller's own instance is stale from
+     * that moment on, so only a fresh locked read can catch it.
+     */
+    public function test_a_finalize_that_loses_the_race_does_not_book_a_second_salary_expense(): void
+    {
+        $org = $this->makeOrg();
+        [$owner, $run] = $this->draftRun($org);
+
+        $raced = false;
+        Event::listen('eloquent.retrieved: '.PayrollRun::class, function () use (&$raced, $org, $owner, $run) {
+            if ($raced) {
+                return;
+            }
+            $raced = true;
+
+            // Raw queries: the winning request's work, with no Eloquent reads
+            // of its own that would re-enter this listener.
+            DB::table('payroll_runs')->where('id', $run->id)->update([
+                'status' => PayrollRunStatus::FINALIZED->value,
+                'finalized_at' => now(),
+                'finalized_by' => $owner->id,
+            ]);
+            DB::table('expenses')->insert([
+                'organization_id' => $org->id,
+                'payroll_run_id' => $run->id,
+                'category' => ExpenseCategory::SALARY->value,
+                'expense_date' => '2026-07-31',
+                'amount' => 1000,
+                'recorded_by' => $owner->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $this->withToken($this->token($owner))
+            ->postJson("/api/payroll/runs/{$run->id}/finalize")
+            ->assertStatus(422);
+
+        $this->assertSame(1, Expense::count());
+    }
+
+    /**
+     * The database backstop under the row lock: one payroll run can own at
+     * most one expense, whatever the application layer does.
+     */
+    public function test_the_database_refuses_a_second_expense_for_one_payroll_run(): void
+    {
+        $org = $this->makeOrg();
+        [$owner, $run] = $this->draftRun($org);
+        $this->withToken($this->token($owner))
+            ->postJson("/api/payroll/runs/{$run->id}/finalize")->assertOk();
+
+        // The index is on a nullable column, so hand-logged expenses — which
+        // carry no run — are still unlimited.
+        $this->expense($org);
+        $this->expense($org);
+        $this->assertSame(3, Expense::count());
+
+        $this->expectException(QueryException::class);
+
+        Expense::create([
+            'organization_id' => $org->id,
+            'payroll_run_id' => $run->id,
+            'category' => ExpenseCategory::SALARY->value,
+            'expense_date' => '2026-07-31',
+            'amount' => 1000,
+        ]);
     }
 
     public function test_a_finalized_run_cannot_be_edited_or_finalized_again(): void
