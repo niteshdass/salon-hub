@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PayType;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Http\Requests\Staff\StoreStaffRequest;
@@ -64,6 +65,9 @@ class StaffController extends Controller
                 'profile_image' => $data['profile_image'] ?? null,
                 'working_days_json' => $data['working_days_json'] ?? null,
                 'working_hours_json' => $data['working_hours_json'] ?? null,
+                'pay_type' => $data['pay_type'] ?? PayType::NONE->value,
+                'monthly_salary' => $data['monthly_salary'] ?? 0,
+                'commission_rate' => $data['commission_rate'] ?? 0,
             ]);
 
             if (! empty($data['service_ids'])) {
@@ -107,7 +111,7 @@ class StaffController extends Controller
             }
 
             $profileData = [];
-            foreach (['phone', 'designation', 'bio', 'profile_image', 'working_days_json', 'working_hours_json'] as $field) {
+            foreach (['phone', 'designation', 'bio', 'profile_image', 'working_days_json', 'working_hours_json', 'pay_type', 'monthly_salary', 'commission_rate'] as $field) {
                 if (array_key_exists($field, $data)) {
                     $profileData[$field] = $data[$field];
                 }
