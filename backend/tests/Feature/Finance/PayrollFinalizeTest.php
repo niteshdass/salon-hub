@@ -62,6 +62,49 @@ class PayrollFinalizeTest extends FinanceTestCase
     }
 
     /**
+     * A tip rides on the line's total but is never itself editable.
+     * Editing the commission must re-run totalFor() (salary + commission +
+     * tips), not silently drop the tip the staff member already earned.
+     */
+    public function test_editing_a_lines_commission_keeps_its_tip_in_the_total(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $staff = $this->makeStaff($org, ['pay_type' => 'commission', 'commission_rate' => 50]);
+        $appointment = $this->makeAppointment($org, [
+            'staff' => $staff,
+            'date' => '2026-07-14',
+            'price' => 100,
+        ]);
+        $appointment->payments()->create([
+            'organization_id' => $org->id,
+            'amount' => 100, 'tip_amount' => 20,
+            'method' => 'cash', 'status' => 'verified', 'source' => 'staff',
+        ]);
+
+        $token = $this->token($owner);
+        $res = $this->withToken($token)->postJson('/api/payroll/runs', ['period_month' => '2026-07-01']);
+        $run = PayrollRun::findOrFail($res->json('data.id'));
+        $line = $run->lines()->first();
+
+        $this->assertSame('50.00', $line->commission_amount);
+        $this->assertSame('20.00', $line->tips_amount);
+        $this->assertSame('70.00', $line->total_amount);
+
+        $res = $this->withToken($token)
+            ->patchJson("/api/payroll/runs/{$run->id}/lines/{$line->id}", [
+                'commission_amount' => 80,
+            ]);
+
+        $res->assertOk();
+        $res->assertJsonPath('data.commission_amount', '80.00');
+        $res->assertJsonPath('data.tips_amount', '20.00');
+        $res->assertJsonPath('data.total_amount', '100.00');
+        $this->assertSame('20.00', $line->fresh()->tips_amount);
+        $this->assertSame('100.00', $line->fresh()->total_amount);
+    }
+
+    /**
      * The whole reason the line carries its own pay_type / rate / salary
      * columns instead of reading them off the staff profile: a later raise
      * must not silently rewrite what a past month says it paid.
