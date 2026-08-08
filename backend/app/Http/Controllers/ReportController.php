@@ -12,6 +12,14 @@ class ReportController extends Controller
     {
         ['from' => $from, 'to' => $to] = $request->range();
 
-        return response()->json(['data' => $reports->build($from, $to)]);
+        $data = $reports->build($from, $to);
+
+        // Costs and profit are owner-only. Managers keep the rest of the
+        // report rather than losing a page they legitimately use.
+        if (! $request->user()->isOwner()) {
+            unset($data['profit']);
+        }
+
+        return response()->json(['data' => $data]);
     }
 }

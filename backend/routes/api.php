@@ -11,6 +11,7 @@ use App\Http\Controllers\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Customer\BookingController as CustomerBookingController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\InvoiceController;
@@ -18,6 +19,8 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
+use App\Http\Controllers\PayrollLineController;
+use App\Http\Controllers\PayrollRunController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\DiscoveryController;
 use App\Http\Controllers\Public\PaymentCallbackController;
@@ -138,6 +141,15 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
 
     Route::get('reports', ReportController::class);
+
+    Route::apiResource('expenses', ExpenseController::class)->except('show');
+
+    Route::get('payroll/runs', [PayrollRunController::class, 'index']);
+    Route::post('payroll/runs', [PayrollRunController::class, 'store']);
+    Route::get('payroll/runs/{run}', [PayrollRunController::class, 'show']);
+    Route::delete('payroll/runs/{run}', [PayrollRunController::class, 'destroy']);
+    Route::post('payroll/runs/{run}/finalize', [PayrollRunController::class, 'finalize']);
+    Route::patch('payroll/runs/{run}/lines/{line}', [PayrollLineController::class, 'update']);
 
     Route::get('settings/organization', [OrganizationSettingController::class, 'show']);
     Route::put('settings/organization', [OrganizationSettingController::class, 'update']);

@@ -203,6 +203,12 @@ const router = createRouter({
           meta: { requiresAuth: true, roles: ['owner', 'manager'] },
         },
         {
+          path: 'finance',
+          name: 'finance',
+          component: () => import('@/views/FinanceView.vue'),
+          meta: { requiresAuth: true, roles: ['owner'] },
+        },
+        {
           path: 'reviews',
           name: 'reviews',
           component: () => import('@/views/ReviewsView.vue'),

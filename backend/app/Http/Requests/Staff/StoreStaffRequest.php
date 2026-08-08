@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Staff;
 
+use App\Enums\PayType;
+use App\Http\Requests\Concerns\StripsOwnerOnlyFields;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,9 +11,19 @@ use Illuminate\Validation\Rule;
 
 class StoreStaffRequest extends FormRequest
 {
+    use StripsOwnerOnlyFields;
+
     public function authorize(): bool
     {
         return $this->user()->can('create', User::class);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function ownerOnlyFields(): array
+    {
+        return ['pay_type', 'monthly_salary', 'commission_rate'];
     }
 
     /**
@@ -42,6 +54,9 @@ class StoreStaffRequest extends FormRequest
             'service_ids.*' => [
                 Rule::exists('services', 'id')->where('organization_id', $tenantId),
             ],
+            'pay_type' => ['nullable', Rule::enum(PayType::class)],
+            'monthly_salary' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Staff;
 
+use App\Enums\PayType;
+use App\Http\Requests\Concerns\StripsOwnerOnlyFields;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,6 +11,8 @@ use Illuminate\Validation\Rule;
 
 class UpdateStaffRequest extends FormRequest
 {
+    use StripsOwnerOnlyFields;
+
     /**
      * Class-level check: the staff row is resolved manually inside the
      * controller (User has no tenant global scope), and the rule depends
@@ -17,6 +21,14 @@ class UpdateStaffRequest extends FormRequest
     public function authorize(): bool
     {
         return $this->user()->can('update', User::class);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function ownerOnlyFields(): array
+    {
+        return ['pay_type', 'monthly_salary', 'commission_rate'];
     }
 
     /**
@@ -46,6 +58,9 @@ class UpdateStaffRequest extends FormRequest
             'service_ids.*' => [
                 Rule::exists('services', 'id')->where('organization_id', $tenantId),
             ],
+            'pay_type' => ['nullable', Rule::enum(PayType::class)],
+            'monthly_salary' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }
 }
