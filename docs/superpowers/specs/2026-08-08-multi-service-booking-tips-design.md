@@ -42,9 +42,13 @@ different project.
 **Line items snapshot name, price, and duration.** Same reasoning the existing
 `appointments.price` column already documents: the invoice must show what was
 quoted, not a menu price that has since changed. The snapshot also means
-`service_id` can be `nullOnDelete` — deleting a service from the menu leaves
-past visits intact. This is a deliberate fix: today `appointments.service_id` is
-`cascadeOnDelete`, so deleting a service deletes the bookings that used it.
+a line's `service_id` can be `nullOnDelete` rather than the `cascadeOnDelete`
+that `appointments.service_id` carries today. `ServiceController::destroy` keeps
+its existing refusal — a service with bookings against it still cannot be
+deleted, and the owner is still told to set it inactive — so `nullOnDelete` is
+defense in depth, not a new workflow: it guarantees that no future path (a
+direct database delete, a relaxed guard) can erase visit history. The guard's
+"has appointments" check moves from `appointments.service_id` to the line table.
 
 **`appointments.price` stays the total.** It is denormalized as the sum of the
 lines rather than replaced by a join. Every existing consumer — `balanceDue()`,
@@ -260,8 +264,9 @@ service lines, subtotal, payments, tips, and balance due.
   re-check returns the existing 422; the longer duration makes this more likely,
   which is exactly why the re-check already exists.
 - `amount: 0` with `tip_amount: 0` → 422.
-- Deleting a service that past bookings used → succeeds; lines keep their
-  snapshot and null their `service_id`.
+- Deleting a service that past bookings used → still refused with the existing
+  422 and message; the guard now checks the line table. A service deleted by
+  some other path leaves its lines intact with `service_id` null.
 
 ## Testing
 
@@ -273,7 +278,9 @@ Feature tests, written first:
   just the first service's window.
 - The staff endpoint returns only staff who can perform every selected service,
   and still falls back to all active staff when the salon has no assignments.
-- Deleting a service keeps its appointment lines and nulls `service_id`.
+- Deleting a service that has lines against it is still refused with 422; a
+  service force-deleted at the database level leaves its lines with a null
+  `service_id` and an intact name/price snapshot.
 - The backfill migration converts each existing `service_id` into exactly one
   line with matching name, price, and duration, and leaves `price` unchanged.
 - A tip-only payment (`amount: 0`, `tip_amount: 5`) is accepted; `amount: 0` with
