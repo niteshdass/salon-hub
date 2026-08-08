@@ -47,25 +47,112 @@ body {
 }
 
 /*
- * Auth form primitives. The login/register/password pages share one look, so
- * the field and button styling lives here instead of being copy-pasted across
- * five views. Used inside AuthLayout.vue.
+ * Admin surface primitives. Every view used to hand-roll its own slate/indigo
+ * utility strings, so card radii and table headers drifted page to page. The
+ * auth-* names are kept as aliases of the sh-* ones — five auth views point at
+ * them and convert in their own commit.
  */
 @layer components {
+  .sh-card {
+    @apply rounded-2xl border border-ink/10 bg-white shadow-sm;
+  }
+
+  .sh-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-ink/15 bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-paper focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .sh-btn-primary {
+    @apply border-transparent bg-accent-500 text-accent-fg shadow-sm hover:bg-accent-600;
+  }
+
+  .sh-btn-ghost {
+    @apply border-transparent bg-transparent text-accent-600 shadow-none hover:bg-accent-50;
+  }
+
+  .sh-btn-danger {
+    @apply border-transparent bg-rose-600 text-white hover:bg-rose-700;
+  }
+
+  .sh-label {
+    @apply mb-1.5 block text-sm font-medium text-ink/75;
+  }
+
+  .sh-input {
+    @apply w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm text-ink transition-colors outline-none placeholder:text-ink/35 focus:border-accent-300 focus:ring-2 focus:ring-accent-200 disabled:cursor-not-allowed disabled:bg-paper;
+  }
+
+  .sh-error {
+    @apply mt-1.5 text-sm text-rose-600;
+  }
+
+  .sh-table {
+    @apply w-full text-left text-sm text-ink;
+  }
+
+  .sh-table thead th {
+    @apply border-b border-ink/10 px-4 py-3 text-xs font-semibold tracking-wider text-ink/50 uppercase;
+  }
+
+  .sh-table tbody td {
+    @apply border-b border-ink/[0.06] px-4 py-3 align-middle;
+  }
+
+  .sh-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /*
+   * Statuses stay on fixed semantic hues rather than the accent — a salon
+   * that picks rose must not end up with a cancelled badge that reads as
+   * confirmed.
+   */
+  .sh-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .sh-badge-pending {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .sh-badge-confirmed {
+    @apply bg-sky-100 text-sky-800;
+  }
+
+  .sh-badge-completed {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .sh-badge-cancelled {
+    @apply bg-rose-100 text-rose-700;
+  }
+
+  .sh-badge-no-show {
+    @apply bg-ink/10 text-ink/60;
+  }
+
+  .sh-empty {
+    @apply rounded-2xl border border-dashed border-ink/15 bg-white/60 px-6 py-12 text-center text-sm text-ink/55;
+  }
+
+  /*
+   * Aliases for the five auth views, which convert to sh-* in their own
+   * commit. Tailwind v4 cannot @apply a class defined in this layer, so each
+   * body repeats its sh-* counterpart's utilities rather than nesting it.
+   */
   .auth-label {
     @apply mb-1.5 block text-sm font-medium text-ink/75;
   }
 
   .auth-input {
-    @apply w-full rounded-xl border border-brand-100 bg-paper/50 px-3.5 py-2.5 text-ink shadow-sm transition-colors outline-none placeholder:text-ink/35 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-200;
+    @apply w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm transition-colors outline-none placeholder:text-ink/35 focus:border-accent-300 focus:ring-2 focus:ring-accent-200 disabled:cursor-not-allowed disabled:bg-paper;
   }
 
   .auth-button {
-    @apply w-full rounded-full bg-brand-500 px-5 py-3 text-base font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35 focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white focus-visible:outline-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none;
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-accent-500 px-5 py-3 text-base font-semibold text-accent-fg shadow-lg shadow-accent-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-600 focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2 focus-visible:outline-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none;
   }
 
   .auth-link {
-    @apply font-semibold text-brand-600 transition-colors hover:text-brand-700;
+    @apply font-semibold text-accent-600 transition-colors hover:text-accent-700;
   }
 
   .auth-error {
