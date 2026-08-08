@@ -1,3 +1,18 @@
+<script>
+// The two dollar fields a counter payment sends. Split out so the empty-tip
+// coercion (a blank field must send 0, never '' or NaN) has a test that
+// doesn't need to mount the component. A tip is always its own key — never
+// folded into `amount`, since it sits outside the balance it settles.
+export function buildPaymentPayload(form) {
+  return {
+    amount: form.amount === '' ? 0 : Number(form.amount),
+    tip_amount: form.tip_amount === '' ? 0 : Number(form.tip_amount),
+    method: form.method,
+    reference: form.reference || null,
+  }
+}
+</script>
+
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
@@ -58,7 +73,7 @@ async function load() {
 }
 
 /* ------------------------------ Record ------------------------------ */
-const form = reactive({ amount: '', method: 'cash', reference: '' })
+const form = reactive({ amount: '', tip_amount: '', method: 'cash', reference: '' })
 const saving = ref(false)
 const formMessage = ref('')
 const formErrors = ref({})
@@ -77,12 +92,9 @@ async function record() {
   formMessage.value = ''
   formErrors.value = {}
   try {
-    await api.post(`${base.value}/payments`, {
-      amount: Number(form.amount),
-      method: form.method,
-      reference: form.reference || null,
-    })
+    await api.post(`${base.value}/payments`, buildPaymentPayload(form))
     form.amount = ''
+    form.tip_amount = ''
     form.reference = ''
     await load()
     emit('changed')
@@ -305,6 +317,16 @@ onMounted(load)
           <dt>{{ invoice.paid_in_full ? 'Paid in full' : 'Balance due' }}</dt>
           <dd>{{ money(invoice.balance_due) }}</dd>
         </div>
+        <!-- Tips are the staff member's, not the salon's balance, so they are
+             shown next to it rather than folded in. -->
+        <div v-if="Number(invoice.tips) > 0" class="flex justify-between text-slate-600">
+          <dt>Tips</dt>
+          <dd>{{ money(invoice.tips) }}</dd>
+        </div>
+        <div class="flex justify-between text-slate-600">
+          <dt>Total collected</dt>
+          <dd>{{ money(invoice.total_collected) }}</dd>
+        </div>
       </dl>
 
       <!-- Payment history -->
@@ -374,20 +396,25 @@ onMounted(load)
         </ul>
       </div>
 
-      <!-- Record a payment -->
-      <form v-if="!invoice.paid_in_full" class="rounded-xl border border-slate-200 p-4" @submit.prevent="record">
-        <p class="mb-3 text-sm font-semibold text-slate-700">Record a payment</p>
+      <!-- Record a payment. Stays open even once the balance is settled — a
+           tip is entered here and only here, and a fully-paid visit can still
+           take a tip-only payment (amount 0, tip > 0). -->
+      <form class="rounded-xl border border-slate-200 p-4" @submit.prevent="record">
+        <p class="mb-3 text-sm font-semibold text-slate-700">
+          {{ invoice.paid_in_full ? 'Add a tip' : 'Record a payment' }}
+        </p>
         <p v-if="formMessage" class="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{{ formMessage }}</p>
 
-        <div class="grid gap-3 sm:grid-cols-3">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">Amount</label>
+            <label class="mb-1 block text-xs font-medium text-slate-600" for="amount">Amount</label>
             <div class="flex gap-1.5">
               <input
+                id="amount"
                 v-model="form.amount"
                 type="number"
                 step="0.01"
-                min="0.01"
+                min="0"
                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
               <button
@@ -399,6 +426,18 @@ onMounted(load)
               </button>
             </div>
             <p v-if="fieldError('amount')" class="mt-1 text-xs text-rose-600">{{ fieldError('amount') }}</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600" for="tip">Tip</label>
+            <input
+              id="tip"
+              v-model="form.tip_amount"
+              type="number"
+              step="0.01"
+              min="0"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <p v-if="fieldError('tip_amount')" class="mt-1 text-xs text-rose-600">{{ fieldError('tip_amount') }}</p>
           </div>
           <div>
             <label class="mb-1 block text-xs font-medium text-slate-600">Method</label>

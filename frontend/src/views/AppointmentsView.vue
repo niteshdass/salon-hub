@@ -1,3 +1,16 @@
+<script>
+// Whom to offer for a multi-service visit: one staff member performs the
+// whole thing back-to-back, so they must cover every selected service — an
+// intersection, not a union. Exported so the rule has a test independent of
+// the DOM; the backend enforces the same intersection, this just mirrors it.
+export function staffWhoCanDoAll(staff, serviceIds) {
+  if (!serviceIds.length) return staff
+  return staff.filter((member) =>
+    serviceIds.every((id) => (member.services || []).some((sv) => sv.id === Number(id))),
+  )
+}
+</script>
+
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -124,7 +137,7 @@ const formErrors = ref({})
 
 const form = reactive({
   branch_id: '',
-  service_id: '',
+  service_ids: [],
   staff_id: '',
   customerMode: 'existing', // existing | new
   customer_id: '',
@@ -135,31 +148,47 @@ const form = reactive({
   notes: '',
 })
 
-// When a service is picked, prefer staff who offer it; if none do, show all.
+// When services are picked, prefer staff who can do every one of them; if
+// none can, show all (mirrors the single-service fallback this replaces).
 const filteredStaff = computed(() => {
-  if (!form.service_id) return staffList.value
-  const sid = Number(form.service_id)
-  const matched = staffList.value.filter((s) =>
-    (s.services || []).some((sv) => sv.id === sid),
-  )
+  const matched = staffWhoCanDoAll(staffList.value, form.service_ids)
   return matched.length ? matched : staffList.value
 })
 const noStaffMatch = computed(() => {
-  if (!form.service_id) return false
-  const sid = Number(form.service_id)
-  return !staffList.value.some((s) =>
-    (s.services || []).some((sv) => sv.id === sid),
-  )
+  if (!form.service_ids.length) return false
+  return staffWhoCanDoAll(staffList.value, form.service_ids).length === 0
 })
 
 function serviceLabel(svc) {
   return svc.duration != null ? `${svc.name} (${svc.duration} min)` : svc.name
 }
 
+// Running total for the checkbox list, kept in sync with whatever is ticked.
+const selectedServices = computed(() =>
+  serviceList.value.filter((svc) => form.service_ids.includes(svc.id)),
+)
+const formDuration = computed(() =>
+  selectedServices.value.reduce((sum, svc) => sum + Number(svc.duration || 0), 0),
+)
+const formTotal = computed(() =>
+  selectedServices.value.reduce((sum, svc) => sum + Number(svc.price || 0), 0),
+)
+
+// Laravel keys an array-level failure (required/min:1) as `service_ids`, but
+// a per-item failure (an id that doesn't belong to this salon) as
+// `service_ids.0`, `service_ids.1`, ... — both shapes need checking.
+const serviceIdsErrors = computed(() => {
+  if (formErrors.value.service_ids) return formErrors.value.service_ids
+  const perItem = Object.keys(formErrors.value)
+    .filter((key) => key.startsWith('service_ids.'))
+    .flatMap((key) => formErrors.value[key])
+  return perItem.length ? perItem : null
+})
+
 function resetForm() {
   Object.assign(form, {
     branch_id: '',
-    service_id: '',
+    service_ids: [],
     staff_id: '',
     customerMode: 'existing',
     customer_id: '',
@@ -191,7 +220,7 @@ async function openEdit(appt) {
   await ensureOptions()
   Object.assign(form, {
     branch_id: appt.branch?.id ?? '',
-    service_id: appt.service?.id ?? '',
+    service_ids: (appt.services || []).map((s) => s.id),
     staff_id: appt.staff?.id ?? '',
     customerMode: 'existing',
     customer_id: appt.customer?.id ?? '',
@@ -214,7 +243,7 @@ async function submitForm() {
 
   const payload = {
     branch_id: form.branch_id ? Number(form.branch_id) : null,
-    service_id: form.service_id ? Number(form.service_id) : null,
+    service_ids: form.service_ids.map(Number),
     staff_id: form.staff_id ? Number(form.staff_id) : null,
     booking_date: form.booking_date,
     start_time: form.start_time,
@@ -389,8 +418,8 @@ onMounted(loadAppointments)
             </p>
             <dl class="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
               <div class="flex gap-2">
-                <dt class="text-slate-400">Service</dt>
-                <dd class="truncate text-slate-700">{{ appt.service?.name || '—' }}</dd>
+                <dt class="text-slate-400">Services</dt>
+                <dd class="truncate text-slate-700">{{ (appt.services || []).map((s) => s.name).join(', ') || '—' }}</dd>
               </div>
               <div class="flex gap-2">
                 <dt class="text-slate-400">Staff</dt>
@@ -483,18 +512,19 @@ onMounted(loadAppointments)
           <p v-if="formErrors.branch_id" class="mt-1 text-sm text-rose-600">{{ formErrors.branch_id[0] }}</p>
         </div>
 
-        <!-- Service -->
+        <!-- Services -->
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Service <span class="text-rose-500">*</span></label>
-          <select
-            v-model="form.service_id"
-            required
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-          >
-            <option value="" disabled>Select a service</option>
-            <option v-for="svc in serviceList" :key="svc.id" :value="svc.id">{{ serviceLabel(svc) }}</option>
-          </select>
-          <p v-if="formErrors.service_id" class="mt-1 text-sm text-rose-600">{{ formErrors.service_id[0] }}</p>
+          <fieldset>
+            <legend class="mb-1 block text-sm font-medium text-slate-700">Services <span class="text-rose-500">*</span></legend>
+            <label v-for="svc in serviceList" :key="svc.id" class="flex items-center gap-2 py-1 text-sm text-slate-700">
+              <input type="checkbox" :value="svc.id" v-model="form.service_ids" />
+              <span>{{ serviceLabel(svc) }}</span>
+            </label>
+            <p v-if="form.service_ids.length" class="mt-2 text-sm text-slate-500">
+              {{ form.service_ids.length }} selected · {{ formDuration }} min · {{ formTotal.toFixed(2) }}
+            </p>
+            <p v-if="serviceIdsErrors" class="mt-1 text-sm text-rose-600">{{ serviceIdsErrors[0] }}</p>
+          </fieldset>
         </div>
 
         <!-- Staff -->
@@ -509,7 +539,7 @@ onMounted(loadAppointments)
             <option v-for="member in filteredStaff" :key="member.id" :value="member.id">{{ member.name }}</option>
           </select>
           <p v-if="noStaffMatch" class="mt-1 text-xs text-slate-400">
-            No staff are assigned to this service — showing everyone.
+            No staff can perform every selected service — showing everyone.
           </p>
           <p v-if="formErrors.staff_id" class="mt-1 text-sm text-rose-600">{{ formErrors.staff_id[0] }}</p>
         </div>
