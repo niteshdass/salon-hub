@@ -19,6 +19,7 @@ class PayrollRun extends Model
         'status',
         'total_salary',
         'total_commission',
+        'total_tips',
         'total_amount',
         'finalized_at',
         'finalized_by',
@@ -31,6 +32,7 @@ class PayrollRun extends Model
             'status' => PayrollRunStatus::class,
             'total_salary' => 'decimal:2',
             'total_commission' => 'decimal:2',
+            'total_tips' => 'decimal:2',
             'total_amount' => 'decimal:2',
             'finalized_at' => 'datetime',
         ];
@@ -54,8 +56,20 @@ class PayrollRun extends Model
         $this->update([
             'total_salary' => round((float) $lines->sum('salary_amount'), 2),
             'total_commission' => round((float) $lines->sum('commission_amount'), 2),
+            'total_tips' => round((float) $lines->sum('tips_amount'), 2),
             'total_amount' => round((float) $lines->sum('total_amount'), 2),
         ]);
+    }
+
+    /**
+     * What this run costs the salon: total_amount minus the tips it merely
+     * passes through. A tip is the customer's money forwarded to the
+     * stylist, never the salon's — so it belongs on neither side of the P&L.
+     * This is what finalize() books as the salary expense.
+     */
+    public function costAmount(): float
+    {
+        return round((float) $this->total_amount - (float) $this->total_tips, 2);
     }
 
     public function lines(): HasMany

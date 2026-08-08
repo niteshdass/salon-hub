@@ -98,7 +98,10 @@ class PayrollRunController extends Controller
                 'organization_id' => $locked->organization_id,
                 'category' => ExpenseCategory::SALARY,
                 'expense_date' => $locked->period_month->copy()->endOfMonth()->toDateString(),
-                'amount' => $locked->total_amount,
+                // Tips ride through payroll but are never the salon's cost —
+                // costAmount() strips them so the P&L never double-counts
+                // money that was always the stylist's.
+                'amount' => $locked->costAmount(),
                 'note' => 'Payroll — '.$locked->period_month->format('F Y'),
                 'recorded_by' => $request->user()->id,
             ]);

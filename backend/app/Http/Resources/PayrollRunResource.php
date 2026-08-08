@@ -19,6 +19,7 @@ class PayrollRunResource extends JsonResource
             'status' => $this->status->value,
             'total_salary' => $this->total_salary,
             'total_commission' => $this->total_commission,
+            'total_tips' => $this->total_tips,
             'total_amount' => $this->total_amount,
             'finalized_at' => $this->finalized_at,
             'lines' => PayrollLineResource::collection($this->whenLoaded('lines')),
