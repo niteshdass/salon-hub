@@ -385,7 +385,7 @@ onMounted(async () => {
             >
               <span class="block font-semibold">{{ appt.start_time }}–{{ appt.end_time }}</span>
               <span class="block truncate">{{ appt.customer?.name || 'Walk-in' }}</span>
-              <span class="block truncate opacity-70">{{ appt.service?.name }}</span>
+              <span class="block truncate opacity-70">{{ (appt.services || []).map((s) => s.name).join(', ') }}</span>
             </button>
           </li>
         </ul>
@@ -420,7 +420,7 @@ onMounted(async () => {
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-slate-900">{{ appt.customer?.name || 'Walk-in' }}</p>
             <p class="truncate text-xs text-slate-500">
-              {{ appt.service?.name }} · {{ appt.staff?.name }}
+              {{ (appt.services || []).map((s) => s.name).join(', ') }} · {{ appt.staff?.name }}
               <span v-if="appt.branch"> · {{ appt.branch.name }}</span>
             </p>
           </div>
@@ -464,7 +464,7 @@ onMounted(async () => {
           </div>
           <div class="flex justify-between gap-4 py-2">
             <dt class="text-slate-500">Service</dt>
-            <dd class="text-right text-slate-900">{{ selected.service?.name || '—' }}</dd>
+            <dd class="text-right text-slate-900">{{ (selected.services || []).map((s) => s.name).join(', ') || '—' }}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
             <dt class="text-slate-500">Staff</dt>

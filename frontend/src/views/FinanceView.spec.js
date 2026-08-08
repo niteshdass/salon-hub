@@ -47,6 +47,7 @@ const DRAFT_RUN_DETAIL = {
       earned_revenue: '1100.00',
       salary_amount: '0.00',
       commission_amount: '275.00',
+      tips_amount: '0.00',
       total_amount: '275.00',
     },
   ],
@@ -102,6 +103,24 @@ describe('FinanceView — Payroll tab', () => {
     expect(wrapper.text()).toContain('August 2026')
     // Formatted as currency (has a $ sign), not the bare API string "275.00".
     expect(wrapper.text()).toContain('$275.00')
+  })
+
+  it('shows a tip in its own Tips column, separate from the commission it never enters', async () => {
+    loginAsOwner()
+    mockRuns({
+      detail: {
+        ...DRAFT_RUN_DETAIL,
+        lines: [{ ...DRAFT_RUN_DETAIL.lines[0], tips_amount: '15.00', total_amount: '290.00' }],
+      },
+    })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Tips')
+    expect(wrapper.text()).toContain('$15.00')
+    // Commission stays 275 — the tip was added on top, not folded into it.
+    expect(wrapper.text()).toContain('$275.00')
+    expect(wrapper.text()).toContain('$290.00')
   })
 
   it('shows only the payroll section on the payroll tab, and switches away when another tab is clicked', async () => {

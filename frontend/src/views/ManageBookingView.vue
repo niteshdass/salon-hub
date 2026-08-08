@@ -197,14 +197,14 @@ function closeReschedule() {
 }
 
 async function loadSlots() {
-  if (!booking.value?.service?.id || !booking.value?.staff?.id) return
+  if (!booking.value?.services?.length || !booking.value?.staff?.id) return
   slotsLoading.value = true
   slotsError.value = ''
   selectedSlot.value = ''
   try {
     const { data } = await api.get(`${apiBase}/slots`, {
       params: {
-        service_id: booking.value.service.id,
+        service_ids: booking.value.services.map((s) => s.id),
         staff_id: booking.value.staff.id,
         date: rescheduleDate.value,
       },
@@ -362,7 +362,7 @@ onMounted(loadBooking)
             </div>
             <div>
               <dt>Service</dt>
-              <dd>{{ booking.service?.name }}</dd>
+              <dd>{{ booking.services.map((s) => s.name).join(', ') }}</dd>
             </div>
             <div>
               <dt>Professional</dt>

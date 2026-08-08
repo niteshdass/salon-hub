@@ -254,7 +254,7 @@ onMounted(async () => {
               {{ appt.customer?.name || 'Walk-in' }}
             </p>
             <p class="truncate text-xs text-slate-500">
-              {{ appt.service?.name }}
+              {{ (appt.services || []).map((s) => s.name).join(', ') }}
               <span v-if="!isStaff && appt.staff?.name"> · {{ appt.staff.name }}</span>
               <span v-if="appt.branch?.name"> · {{ appt.branch.name }}</span>
             </p>

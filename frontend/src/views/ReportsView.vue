@@ -206,7 +206,7 @@ onMounted(() => applyPreset('30d'))
             <thead>
               <tr class="text-left text-xs uppercase tracking-wide text-slate-400">
                 <th class="pb-2">Service</th>
-                <th class="pb-2 text-right">Bookings</th>
+                <th class="pb-2 text-right">Services booked</th>
                 <th class="pb-2 text-right">Earned</th>
               </tr>
             </thead>

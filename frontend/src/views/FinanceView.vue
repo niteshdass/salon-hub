@@ -372,6 +372,7 @@ onMounted(async () => {
                 <th class="px-4 py-2 text-right">Earned</th>
                 <th class="px-4 py-2 text-right">Salary</th>
                 <th class="px-4 py-2 text-right">Commission</th>
+                <th class="px-4 py-2 text-right">Tips</th>
                 <th class="px-4 py-2 text-right">Total</th>
               </tr>
             </thead>
@@ -408,10 +409,13 @@ onMounted(async () => {
                   />
                   <span v-else>{{ money(line.commission_amount) }}</span>
                 </td>
+                <!-- Recorded at the counter, not edited here: a tip is 100% the staff
+                     member's and never enters the commission base. -->
+                <td class="px-4 py-2 text-right">{{ money(line.tips_amount) }}</td>
                 <td class="px-4 py-2 text-right font-semibold text-slate-900">{{ money(line.total_amount) }}</td>
               </tr>
               <tr v-if="!activeRun.lines.length">
-                <td colspan="7" class="px-4 py-6 text-center text-slate-500">
+                <td colspan="8" class="px-4 py-6 text-center text-slate-500">
                   No staff have a pay rule yet. Set one on the Staff page.
                 </td>
               </tr>

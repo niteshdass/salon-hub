@@ -176,7 +176,7 @@ onMounted(load)
             <div class="flex items-start justify-between gap-5">
               <div class="min-w-0">
                 <p class="font-display text-xl text-white">
-                  {{ b.service }} <span class="text-white/25">·</span>
+                  {{ b.services.join(', ') }} <span class="text-white/25">·</span>
                   <RouterLink v-if="b.salon.slug" :to="`/salon/${b.salon.slug}`" class="salon-link">
                     {{ b.salon.name }}
                   </RouterLink>
@@ -211,7 +211,7 @@ onMounted(load)
             <div class="flex items-start justify-between gap-5">
               <div class="min-w-0">
                 <p class="font-display text-xl text-white">
-                  {{ b.service }} <span class="text-white/25">·</span>
+                  {{ b.services.join(', ') }} <span class="text-white/25">·</span>
                   <RouterLink v-if="b.salon.slug" :to="`/salon/${b.salon.slug}`" class="salon-link">
                     {{ b.salon.name }}
                   </RouterLink>
@@ -253,7 +253,7 @@ onMounted(load)
     <div v-if="rescheduling" class="scrim" @click.self="rescheduling = null">
       <div class="panel w-full max-w-md p-7">
         <p class="rule-label text-[var(--accent)]">Reschedule</p>
-        <p class="mt-4 font-display text-2xl text-white">{{ rescheduling.service }}</p>
+        <p class="mt-4 font-display text-2xl text-white">{{ rescheduling.services.join(', ') }}</p>
 
         <label class="field-label mt-6">Date</label>
         <input v-model="rDate" type="date" class="field" @change="loadSlots" />
@@ -292,7 +292,7 @@ onMounted(load)
     <div v-if="reviewing" class="scrim" @click.self="reviewing = null">
       <div class="panel w-full max-w-md p-7">
         <p class="rule-label text-[var(--accent)]">Leave a review</p>
-        <p class="mt-4 font-display text-2xl text-white">{{ reviewing.service }}</p>
+        <p class="mt-4 font-display text-2xl text-white">{{ reviewing.services.join(', ') }}</p>
 
         <label class="field-label mt-6">Rating</label>
         <div class="flex gap-1.5">
