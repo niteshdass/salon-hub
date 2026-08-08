@@ -241,7 +241,7 @@ class BookingController extends Controller
         return response()->json([
             'data' => [
                 'date' => $validated['date'],
-                'slots' => $slotGenerator->generate($service, $staff, $validated['date'], $branch),
+                'slots' => $slotGenerator->generate($service->duration, $staff, $validated['date'], $branch),
             ],
         ]);
     }
@@ -277,7 +277,7 @@ class BookingController extends Controller
         // The requested start must still be an open slot: this re-checks the
         // staff + branch hours, existing conflicts and past times in one gate,
         // closing the gap between viewing a slot and submitting the booking.
-        if (! in_array(substr($startTime, 0, 5), $slotGenerator->generate($service, $staff, $data['date'], $branch), true)) {
+        if (! in_array(substr($startTime, 0, 5), $slotGenerator->generate($service->duration, $staff, $data['date'], $branch), true)) {
             return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
         }
 
@@ -484,13 +484,15 @@ class BookingController extends Controller
             'start_time' => ['required', 'date_format:H:i,H:i:s'],
         ]);
 
-        $appointment->loadMissing(['service', 'staff', 'branch']);
-        $service = $appointment->service;
+        $appointment->loadMissing(['staff', 'branch']);
+
+        // An existing booking already knows how long it takes: its own window.
+        $duration = (int) ((strtotime($appointment->end_time) - strtotime($appointment->start_time)) / 60);
 
         $startTime = $this->scheduler->normalizeTime($data['start_time']);
-        $endTime = $this->scheduler->deriveEndTime($data['start_time'], $service->duration);
+        $endTime = $this->scheduler->deriveEndTime($data['start_time'], $duration);
 
-        $open = $slotGenerator->generate($service, $appointment->staff, $data['date'], $appointment->branch, $appointment->id);
+        $open = $slotGenerator->generate($duration, $appointment->staff, $data['date'], $appointment->branch, $appointment->id);
         if (! in_array(substr($startTime, 0, 5), $open, true)) {
             return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
         }

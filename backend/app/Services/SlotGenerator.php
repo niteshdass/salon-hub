@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Branch;
 use App\Models\BranchClosure;
-use App\Models\Service;
 use App\Models\StaffTimeOff;
 use App\Models\User;
 use Carbon\Carbon;
@@ -30,6 +29,9 @@ class SlotGenerator
     /**
      * Open 'H:i' start times for the staff member on the date.
      *
+     * $durationMinutes is the whole visit: the sum of every service booked,
+     * performed back-to-back by this one staff member.
+     *
      * The bookable window is the intersection of the staff member's working
      * hours and (when supplied) the branch's opening hours. If either the staff
      * or the branch is closed on that weekday, there are no slots.
@@ -39,7 +41,7 @@ class SlotGenerator
      *
      * @return list<string>
      */
-    public function generate(Service $service, User $staff, string $date, ?Branch $branch = null, ?int $excludeAppointmentId = null): array
+    public function generate(int $durationMinutes, User $staff, string $date, ?Branch $branch = null, ?int $excludeAppointmentId = null): array
     {
         $profile = $staff->staffProfile;
         $weekday = Carbon::parse($date)->dayOfWeekIso; // 1=Mon .. 7=Sun
@@ -104,8 +106,8 @@ class SlotGenerator
         $slots = [];
         $candidate = $dayStart->copy();
 
-        while ($candidate->copy()->addMinutes($service->duration)->lessThanOrEqualTo($dayEnd)) {
-            $candidateEnd = $candidate->copy()->addMinutes($service->duration);
+        while ($candidate->copy()->addMinutes($durationMinutes)->lessThanOrEqualTo($dayEnd)) {
+            $candidateEnd = $candidate->copy()->addMinutes($durationMinutes);
 
             $passed = $isToday && $candidate->lessThan($now);
 

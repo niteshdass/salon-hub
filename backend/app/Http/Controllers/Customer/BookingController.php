@@ -71,11 +71,14 @@ class BookingController extends Controller
 
         $data = $request->validate(['date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today']]);
         $this->bindTenant($booking);
-        $booking->loadMissing(['service', 'staff', 'branch']);
+        $booking->loadMissing(['staff', 'branch']);
+
+        // An existing booking already knows how long it takes: its own window.
+        $duration = (int) ((strtotime($booking->end_time) - strtotime($booking->start_time)) / 60);
 
         return response()->json(['data' => [
             'date' => $data['date'],
-            'slots' => $slotGenerator->generate($booking->service, $booking->staff, $data['date'], $booking->branch, $booking->id),
+            'slots' => $slotGenerator->generate($duration, $booking->staff, $data['date'], $booking->branch, $booking->id),
         ]]);
     }
 
@@ -93,12 +96,15 @@ class BookingController extends Controller
         ]);
 
         $this->bindTenant($booking);
-        $booking->loadMissing(['service', 'staff', 'branch']);
+        $booking->loadMissing(['staff', 'branch']);
+
+        // An existing booking already knows how long it takes: its own window.
+        $duration = (int) ((strtotime($booking->end_time) - strtotime($booking->start_time)) / 60);
 
         $startTime = $scheduler->normalizeTime($data['start_time']);
-        $endTime = $scheduler->deriveEndTime($data['start_time'], $booking->service->duration);
+        $endTime = $scheduler->deriveEndTime($data['start_time'], $duration);
 
-        $open = $slotGenerator->generate($booking->service, $booking->staff, $data['date'], $booking->branch, $booking->id);
+        $open = $slotGenerator->generate($duration, $booking->staff, $data['date'], $booking->branch, $booking->id);
         if (! in_array(substr($startTime, 0, 5), $open, true)) {
             return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
         }
