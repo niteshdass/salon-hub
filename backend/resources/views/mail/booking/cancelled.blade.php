@@ -23,7 +23,7 @@ Hi {{ $appointment->customer->name }}, your appointment at **{{ $salon }}** has 
 | **Customer**    | {{ $appointment->customer->name }}       |
 | **Phone**       | {{ $appointment->customer->phone ?? '—' }} |
 @endif
-| **Service**     | {{ $appointment->service->name }}        |
+| **Services**    | {{ $appointment->lines->pluck('name')->join(', ') }} |
 | **Professional**| {{ $appointment->staff->name }}          |
 | **Was**         | {{ $date }} · {{ $start }}–{{ $end }}    |
 | **Location**    | {{ $appointment->branch->name }}         |

@@ -59,7 +59,7 @@ class BookingNotifier
      */
     private function deliver(Appointment $appointment, callable $customerMail, callable $salonMail): void
     {
-        $appointment->loadMissing(['service', 'staff', 'branch', 'customer', 'organization']);
+        $appointment->loadMissing(['lines', 'staff', 'branch', 'customer', 'organization']);
 
         try {
             if ($email = $appointment->customer?->email) {

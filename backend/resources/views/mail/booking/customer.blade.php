@@ -13,7 +13,7 @@ Thanks for booking with **{{ $salon }}**. Here are your appointment details:
 @component('mail::table')
 |                 |                                          |
 | --------------- | ---------------------------------------- |
-| **Service**     | {{ $appointment->service->name }}        |
+| **Services**    | {{ $appointment->lines->pluck('name')->join(', ') }} |
 | **Professional**| {{ $appointment->staff->name }}          |
 | **When**        | {{ $date }} · {{ $start }}–{{ $end }}    |
 | **Location**    | {{ $appointment->branch->name }}         |

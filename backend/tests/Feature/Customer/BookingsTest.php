@@ -3,6 +3,7 @@
 namespace Tests\Feature\Customer;
 
 use App\Models\Appointment;
+use App\Models\AppointmentService;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\CustomerAccount;
@@ -53,12 +54,19 @@ class BookingsTest extends TestCase
         $staff = $this->makeStaff($org, $o['staff'] ?? 'Sam');
         $customer = Customer::create(['organization_id' => $org->id, 'name' => 'Jane', 'phone' => Str::random(6), 'email' => $account->email, 'customer_account_id' => $account->id]);
 
-        return Appointment::create([
+        $appointment = Appointment::create([
             'organization_id' => $org->id, 'public_token' => (string) Str::uuid(),
             'branch_id' => $branch->id, 'customer_id' => $customer->id, 'staff_id' => $staff->id, 'service_id' => $service->id,
             'booking_date' => $o['date'] ?? '2026-08-10', 'start_time' => $o['start_time'] ?? '10:00:00', 'end_time' => '10:30:00',
             'price' => $o['price'] ?? 40, 'status' => $o['status'] ?? 'confirmed',
         ]);
+
+        AppointmentService::create([
+            'appointment_id' => $appointment->id, 'service_id' => $service->id,
+            'name' => $service->name, 'price' => $service->price, 'duration' => $service->duration, 'sort_order' => 0,
+        ]);
+
+        return $appointment;
     }
 
     public function test_lists_own_bookings_split_upcoming_and_past(): void
@@ -73,12 +81,12 @@ class BookingsTest extends TestCase
 
         $res->assertOk()
             ->assertJsonStructure(['data' => [
-                'upcoming' => [['id', 'salon' => ['id', 'name', 'slug'], 'service', 'staff', 'branch', 'booking_date', 'start_time', 'end_time', 'status', 'price', 'amount_paid', 'balance_due', 'can_manage', 'can_review', 'review']],
-                'past' => [['id', 'service']],
+                'upcoming' => [['id', 'salon' => ['id', 'name', 'slug'], 'services', 'staff', 'branch', 'booking_date', 'start_time', 'end_time', 'status', 'price', 'amount_paid', 'balance_due', 'can_manage', 'can_review', 'review']],
+                'past' => [['id', 'services']],
             ]]);
         $this->assertCount(1, $res->json('data.upcoming'));
         $this->assertCount(1, $res->json('data.past'));
-        $this->assertSame('Future Cut', $res->json('data.upcoming.0.service'));
+        $this->assertSame(['Future Cut'], $res->json('data.upcoming.0.services'));
         $this->assertTrue($res->json('data.upcoming.0.can_manage'));
     }
 
@@ -107,7 +115,7 @@ class BookingsTest extends TestCase
 
         $res = $this->withToken($this->tokenFor($mine))->getJson('/api/customer/bookings');
         $res->assertOk();
-        $services = collect($res->json('data.upcoming'))->pluck('service')->all();
+        $services = collect($res->json('data.upcoming'))->pluck('services')->flatten()->all();
         $this->assertSame(['Mine'], $services);
     }
 

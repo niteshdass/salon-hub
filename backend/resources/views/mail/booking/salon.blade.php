@@ -15,7 +15,7 @@ A new appointment has been booked. Details:
 | **Customer**    | {{ $appointment->customer->name }}       |
 | **Phone**       | {{ $appointment->customer->phone ?? '—' }} |
 | **Email**       | {{ $appointment->customer->email ?? '—' }} |
-| **Service**     | {{ $appointment->service->name }}        |
+| **Services**    | {{ $appointment->lines->pluck('name')->join(', ') }} |
 | **Professional**| {{ $appointment->staff->name }}          |
 | **When**        | {{ $date }} · {{ $start }}–{{ $end }}    |
 | **Location**    | {{ $appointment->branch->name }}         |

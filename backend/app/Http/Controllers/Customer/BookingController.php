@@ -28,7 +28,7 @@ class BookingController extends Controller
         $ids = $this->ownedCustomerIds($request);
 
         $appointments = Appointment::whereIn('customer_id', $ids)
-            ->with(['organization', 'service', 'staff', 'branch', 'review', 'payments'])
+            ->with(['organization', 'lines', 'staff', 'branch', 'review', 'payments'])
             ->get();
 
         $today = now()->toDateString();
@@ -55,7 +55,7 @@ class BookingController extends Controller
 
         $this->bindTenant($booking);
         $booking->update(['status' => AppointmentStatus::CANCELLED->value]);
-        $fresh = $booking->fresh()->load(['organization', 'service', 'staff', 'branch', 'review', 'payments', 'customer']);
+        $fresh = $booking->fresh()->load(['organization', 'lines', 'staff', 'branch', 'review', 'payments', 'customer']);
         $notifier->sendForCancellation($fresh);
 
         return response()->json(['data' => $this->present($fresh)]);
@@ -110,7 +110,7 @@ class BookingController extends Controller
         }
 
         $booking->update(['booking_date' => $data['date'], 'start_time' => $startTime, 'end_time' => $endTime]);
-        $fresh = $booking->fresh()->load(['organization', 'service', 'staff', 'branch', 'review', 'payments', 'customer']);
+        $fresh = $booking->fresh()->load(['organization', 'lines', 'staff', 'branch', 'review', 'payments', 'customer']);
         $notifier->sendForReschedule($fresh);
 
         return response()->json(['data' => $this->present($fresh)]);
@@ -179,7 +179,7 @@ class BookingController extends Controller
                 // appointments at salons that price in different currencies.
                 'currency' => $a->organization?->currency,
             ],
-            'service' => $a->service?->name,
+            'services' => $a->lines->pluck('name')->values(),
             'staff' => $a->staff?->name,
             'branch' => $a->branch?->name,
             'booking_date' => $a->booking_date->format('Y-m-d'),

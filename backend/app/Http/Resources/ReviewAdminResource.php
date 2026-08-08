@@ -24,7 +24,9 @@ class ReviewAdminResource extends JsonResource
             'reviewer_name' => $this->reviewer_name,
             'status' => $this->status,
             'created_at' => $this->created_at,
-            'service_name' => $this->appointment?->service?->name,
+            // A visit can carry several services; the owner reads them as one
+            // line next to the review.
+            'service_name' => $this->appointment?->lines->pluck('name')->join(', '),
             'staff_name' => $this->staff?->name,
             'booking_date' => $this->appointment?->booking_date?->toDateString(),
         ];

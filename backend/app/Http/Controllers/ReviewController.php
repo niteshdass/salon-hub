@@ -20,7 +20,7 @@ class ReviewController extends Controller
         $this->authorize('viewAny', Review::class);
 
         $reviews = Review::query()
-            ->with(['appointment.service', 'staff'])
+            ->with(['appointment.lines', 'staff'])
             ->latest()
             ->get();
 
@@ -37,7 +37,7 @@ class ReviewController extends Controller
 
         $review->update(['status' => $request->validated('status')]);
 
-        return new ReviewAdminResource($review->load(['appointment.service', 'staff']));
+        return new ReviewAdminResource($review->load(['appointment.lines', 'staff']));
     }
 
     public function destroy(Review $review): Response

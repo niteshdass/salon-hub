@@ -4,6 +4,7 @@ namespace Tests\Feature\Reminders;
 
 use App\Jobs\SendAppointmentReminder;
 use App\Models\Appointment;
+use App\Models\AppointmentService;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Organization;
@@ -142,6 +143,11 @@ class SendAppointmentReminderJobTest extends TestCase
             'start_time' => '14:30:00',
             'end_time' => '15:00:00',
             'status' => 'confirmed',
+        ]);
+
+        AppointmentService::create([
+            'appointment_id' => $appointment->id, 'service_id' => $service->id,
+            'name' => $service->name, 'price' => $service->price, 'duration' => $service->duration, 'sort_order' => 0,
         ]);
 
         (new SendAppointmentReminder($appointment->id))->handle($manager);

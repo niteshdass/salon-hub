@@ -3,6 +3,7 @@
 namespace Tests\Feature\Reviews;
 
 use App\Models\Appointment;
+use App\Models\AppointmentService;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Organization;
@@ -71,6 +72,11 @@ class ReviewModerationTest extends TestCase
             'end_time' => '12:30:00',
             'price' => 25,
             'status' => 'completed',
+        ]);
+
+        AppointmentService::create([
+            'appointment_id' => $appt->id, 'service_id' => $service->id,
+            'name' => $service->name, 'price' => $service->price, 'duration' => $service->duration, 'sort_order' => 0,
         ]);
 
         return Review::create([

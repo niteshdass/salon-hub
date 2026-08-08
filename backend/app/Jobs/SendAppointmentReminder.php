@@ -28,7 +28,7 @@ class SendAppointmentReminder implements ShouldQueue
 
     public function handle(ReminderChannelManager $channels): void
     {
-        $appointment = Appointment::with(['customer', 'service', 'organization'])
+        $appointment = Appointment::with(['customer', 'lines', 'organization'])
             ->find($this->appointmentId);
 
         $phone = $appointment?->customer?->phone;
@@ -59,7 +59,7 @@ class SendAppointmentReminder implements ShouldQueue
             $tz,
         );
         $salon = $appointment->organization?->name ?? 'the salon';
-        $service = $appointment->service?->name ?? 'your appointment';
+        $service = $appointment->lines->pluck('name')->join(', ') ?: 'your appointment';
 
         return sprintf(
             'Reminder: %s at %s on %s, %s. See you soon!',
