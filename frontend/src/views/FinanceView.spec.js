@@ -479,3 +479,200 @@ describe('FinanceView — Expenses tab', () => {
     expect(wrapper.text()).toContain('No expenses in this range.')
   })
 })
+
+const PROFIT_DATA = {
+  earned: 5000,
+  expenses_total: 3050,
+  expenses_by_category: [
+    { category: 'salary', amount: 2000, share_pct: 65.6 },
+    { category: 'rent', amount: 1050, share_pct: 34.4 },
+  ],
+  net_profit: 1950,
+}
+
+const LOSING_PROFIT_DATA = {
+  earned: 500,
+  expenses_total: 3050,
+  expenses_by_category: [
+    { category: 'salary', amount: 2000, share_pct: 65.6 },
+    { category: 'rent', amount: 1050, share_pct: 34.4 },
+  ],
+  net_profit: -2550,
+}
+
+// Stubs every URL FinanceView can hit while the Profit tab is exercised —
+// following the file's own convention of an explicit stub per URL rather
+// than a fallback that could mask a missing one.
+function mockProfit({ profit = PROFIT_DATA } = {}) {
+  vi.mocked(api.get)
+    .mockReset()
+    .mockImplementation((url) => {
+      if (url === '/payroll/runs') return Promise.resolve({ data: { data: [] } })
+      if (url === '/expenses') return Promise.resolve({ data: { data: [] } })
+      if (url === '/reports') return Promise.resolve({ data: { data: { profit } } })
+      return Promise.resolve({ data: { data: null } })
+    })
+}
+
+async function openProfitTab(wrapper) {
+  const profitTab = wrapper.findAll('button').find((b) => b.text() === 'Profit')
+  await profitTab.trigger('click')
+  await flushPromises()
+}
+
+describe('FinanceView — Profit tab', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(api.post).mockReset()
+    vi.mocked(api.patch).mockReset()
+    vi.mocked(api.delete).mockReset()
+  })
+
+  afterEach(() => {
+    currentWrapper?.unmount()
+    currentWrapper = null
+    vi.restoreAllMocks()
+  })
+
+  it('does not load the reports endpoint until the Profit tab is opened', async () => {
+    loginAsOwner()
+    mockProfit()
+    const wrapper = mountFinanceView()
+    await flushPromises()
+
+    expect(api.get).not.toHaveBeenCalledWith('/reports', expect.anything())
+
+    await openProfitTab(wrapper)
+
+    expect(api.get).toHaveBeenCalledWith('/reports', {
+      params: { from: startOfMonth(), to: today() },
+    })
+  })
+
+  it('renders earned, expenses, and a positive net profit in green', async () => {
+    loginAsOwner()
+    mockProfit()
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+
+    expect(wrapper.text()).toContain('$5,000.00')
+    expect(wrapper.text()).toContain('$3,050.00')
+    expect(wrapper.text()).toContain('$1,950.00')
+
+    const netEls = wrapper.findAll('.text-emerald-600, .text-rose-600')
+    const netEl = netEls.find((el) => el.text() === '$1,950.00')
+    expect(netEl).toBeTruthy()
+    expect(netEl.classes()).toContain('text-emerald-600')
+    expect(netEl.classes()).not.toContain('text-rose-600')
+  })
+
+  it('renders a negative net profit in red, not green', async () => {
+    loginAsOwner()
+    mockProfit({ profit: LOSING_PROFIT_DATA })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+
+    // Formatted as a negative currency amount.
+    expect(wrapper.text()).toContain('-$2,550.00')
+
+    const netEls = wrapper.findAll('.text-emerald-600, .text-rose-600')
+    const netEl = netEls.find((el) => el.text() === '-$2,550.00')
+    expect(netEl).toBeTruthy()
+    expect(netEl.classes()).toContain('text-rose-600')
+    expect(netEl.classes()).not.toContain('text-emerald-600')
+  })
+
+  it('renders one row per expense category with its share, and totals match the header', async () => {
+    loginAsOwner()
+    mockProfit()
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].text()).toContain('salary')
+    expect(rows[0].text()).toContain('$2,000.00')
+    expect(rows[0].text()).toContain('65.6%')
+    expect(rows[1].text()).toContain('rent')
+    expect(rows[1].text()).toContain('$1,050.00')
+    expect(rows[1].text()).toContain('34.4%')
+  })
+
+  it('shows an empty-expenses message instead of a table when the category list is empty', async () => {
+    loginAsOwner()
+    mockProfit({
+      profit: { earned: 5000, expenses_total: 0, expenses_by_category: [], net_profit: 5000 },
+    })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.text()).toContain('No expenses in this range — net profit is everything earned.')
+  })
+
+  it('refetches with the new range when the From/To pickers change', async () => {
+    loginAsOwner()
+    mockProfit()
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+
+    const fromInput = wrapper.findAll('input[type="date"]')[0]
+    await fromInput.setValue('2026-01-01')
+    await fromInput.trigger('change')
+    await flushPromises()
+
+    expect(api.get).toHaveBeenLastCalledWith('/reports', {
+      params: { from: '2026-01-01', to: today() },
+    })
+
+    const toInput = wrapper.findAll('input[type="date"]')[1]
+    await toInput.setValue('2026-12-31')
+    await toInput.trigger('change')
+    await flushPromises()
+
+    expect(api.get).toHaveBeenLastCalledWith('/reports', {
+      params: { from: '2026-01-01', to: '2026-12-31' },
+    })
+  })
+
+  it('does not refetch on a second visit to an already-loaded Profit tab', async () => {
+    loginAsOwner()
+    mockProfit()
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+
+    const callsAfterFirstOpen = api.get.mock.calls.filter(([url]) => url === '/reports').length
+    expect(callsAfterFirstOpen).toBe(1)
+
+    const payrollTab = wrapper.findAll('button').find((b) => b.text() === 'Payroll')
+    await payrollTab.trigger('click')
+    await openProfitTab(wrapper)
+
+    expect(api.get.mock.calls.filter(([url]) => url === '/reports').length).toBe(1)
+  })
+
+  it('renders exactly parseApiError(...).message in the banner when the reports call fails', async () => {
+    loginAsOwner()
+    vi.mocked(api.get)
+      .mockReset()
+      .mockImplementation((url) => {
+        if (url === '/payroll/runs') return Promise.resolve({ data: { data: [] } })
+        if (url === '/expenses') return Promise.resolve({ data: { data: [] } })
+        if (url === '/reports') {
+          return Promise.reject({ response: { status: 500, data: { message: 'Reports service is down' } } })
+        }
+        return Promise.resolve({ data: { data: null } })
+      })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+
+    expect(wrapper.find('.text-rose-700').text()).toBe('Reports service is down')
+  })
+})
