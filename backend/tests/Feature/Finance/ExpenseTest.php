@@ -94,8 +94,40 @@ class ExpenseTest extends FinanceTestCase
             $this->withToken($token)->postJson('/api/expenses', [
                 'category' => 'rent', 'expense_date' => '2026-07-01', 'amount' => 10,
             ])->assertForbidden();
+            $this->withToken($token)->patchJson("/api/expenses/{$expense->id}", ['amount' => 20])
+                ->assertForbidden();
             $this->withToken($token)->deleteJson("/api/expenses/{$expense->id}")->assertForbidden();
         }
+    }
+
+    public function test_a_payroll_generated_expense_rejects_update(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $expense = $this->expense($org, ['amount' => 100]);
+        $expense->forceFill(['payroll_run_id' => 1])->save();
+
+        $this->withToken($this->token($owner))
+            ->patchJson("/api/expenses/{$expense->id}", ['amount' => 999])
+            ->assertStatus(422)
+            ->assertJson(['message' => 'This expense comes from a payroll run. Change the run instead.']);
+
+        $this->assertSame('100.00', $expense->fresh()->amount);
+    }
+
+    public function test_a_payroll_generated_expense_rejects_destroy(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $expense = $this->expense($org, ['amount' => 100]);
+        $expense->forceFill(['payroll_run_id' => 1])->save();
+
+        $this->withToken($this->token($owner))
+            ->deleteJson("/api/expenses/{$expense->id}")
+            ->assertStatus(422)
+            ->assertJson(['message' => 'This expense comes from a payroll run. Delete the run instead.']);
+
+        $this->assertSame(1, Expense::count());
     }
 
     public function test_another_tenants_expense_is_not_found(): void
