@@ -21,8 +21,18 @@ function loginAs(role) {
   })
 }
 
+// The layout is the authenticated route record's own component, so an
+// unstubbed RouterView renders a second copy of the shell inside the first.
+// Stubbing it leaves exactly one sidebar to assert against.
+function mountShell() {
+  return mount(DashboardLayout, {
+    global: { plugins: [router], stubs: { RouterView: true } },
+  })
+}
+
 describe('DashboardLayout sidebar — Finance entry', () => {
   beforeEach(async () => {
+    localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(api.get).mockReset().mockResolvedValue({ data: { data: {} } })
     await router.replace('/dashboard')
@@ -30,7 +40,7 @@ describe('DashboardLayout sidebar — Finance entry', () => {
 
   it('offers Finance to an owner', async () => {
     loginAs('owner')
-    const wrapper = mount(DashboardLayout, { global: { plugins: [router] } })
+    const wrapper = mountShell()
 
     const link = wrapper.findAll('a').find((a) => a.text() === 'Finance')
     expect(link).toBeDefined()
@@ -39,14 +49,14 @@ describe('DashboardLayout sidebar — Finance entry', () => {
 
   it('hides Finance from a manager', async () => {
     loginAs('manager')
-    const wrapper = mount(DashboardLayout, { global: { plugins: [router] } })
+    const wrapper = mountShell()
 
     expect(wrapper.findAll('a').find((a) => a.text() === 'Finance')).toBeUndefined()
   })
 
   it('hides Finance from staff', async () => {
     loginAs('staff')
-    const wrapper = mount(DashboardLayout, { global: { plugins: [router] } })
+    const wrapper = mountShell()
 
     expect(wrapper.findAll('a').find((a) => a.text() === 'Finance')).toBeUndefined()
   })
@@ -54,28 +64,43 @@ describe('DashboardLayout sidebar — Finance entry', () => {
 
 describe('DashboardLayout sidebar — nav groups', () => {
   beforeEach(async () => {
+    localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(api.get).mockReset().mockResolvedValue({ data: { data: {} } })
     await router.replace('/dashboard')
   })
 
-  // The layout is the route record's own component, so the RouterView we
-  // mount renders a second copy of the shell inside the first. Read the
-  // outermost sidebar only, or every heading is counted twice.
   function groupHeadings(wrapper) {
-    return wrapper.get('aside').findAll('[data-nav-group]').map((el) => el.text())
+    return wrapper.findAll('[data-nav-group]').map((el) => el.text())
   }
 
   it('shows every group to an owner', () => {
     loginAs('owner')
-    const wrapper = mount(DashboardLayout, { global: { plugins: [router] } })
+    const wrapper = mountShell()
 
     expect(groupHeadings(wrapper)).toEqual(['Operate', 'Business', 'Insight', 'Presence'])
   })
 
+  it('files every page under the group it belongs to', () => {
+    loginAs('owner')
+    const wrapper = mountShell()
+
+    const grouped = wrapper.findAll('nav > section').map((section) => [
+      section.get('[data-nav-group]').text(),
+      section.findAll('a').map((link) => link.text()),
+    ])
+
+    expect(grouped).toEqual([
+      ['Operate', ['Dashboard', 'Appointments', 'Calendar']],
+      ['Business', ['Branches', 'Services', 'Staff', 'Customers']],
+      ['Insight', ['Reports', 'Finance', 'Reviews']],
+      ['Presence', ['Gallery', 'Settings']],
+    ])
+  })
+
   it('drops a group whose every item is out of the role’s reach', () => {
     loginAs('staff')
-    const wrapper = mount(DashboardLayout, { global: { plugins: [router] } })
+    const wrapper = mountShell()
 
     // Gallery is owner/manager work and Settings is owner-only, so Presence
     // disappears for staff. Insight survives on Reviews alone.
@@ -84,7 +109,7 @@ describe('DashboardLayout sidebar — nav groups', () => {
 
   it('names the salon and its plan in the sidebar footer', () => {
     loginAs('owner')
-    const wrapper = mount(DashboardLayout, { global: { plugins: [router] } })
+    const wrapper = mountShell()
 
     const footer = wrapper.get('[data-org-card]')
     expect(footer.text()).toContain('Heaven Touch Salon')

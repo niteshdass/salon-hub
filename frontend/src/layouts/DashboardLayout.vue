@@ -149,16 +149,22 @@ const visibleGroups = computed(() =>
 )
 
 // The bar names the page the sidebar highlighted, so the two never disagree.
+// Match the item exactly or as a path prefix, never as a string prefix, so a
+// future `/reports-archive` cannot label itself Reports.
 const pageLabel = computed(() => {
   const match = navGroups
     .flatMap((group) => group.items)
-    .find((item) => route.path.startsWith(item.to))
+    .find((item) => route.path === item.to || route.path.startsWith(`${item.to}/`))
   return match?.name ?? ''
 })
 
-const today = computed(() =>
-  new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
-)
+// Read once at setup: the date only turns over between sessions, and nothing
+// here would make a computed recalculate anyway.
+const today = new Date().toLocaleDateString(undefined, {
+  weekday: 'long',
+  month: 'short',
+  day: 'numeric',
+})
 
 onMounted(async () => {
   if (!authStore.user) {
@@ -198,7 +204,7 @@ async function onLogout() {
       </div>
 
       <nav class="flex-1 space-y-6 overflow-y-auto px-3 pb-4">
-        <div v-for="group in visibleGroups" :key="group.label">
+        <section v-for="group in visibleGroups" :key="group.label" :aria-label="group.label">
           <p
             data-nav-group
             class="px-3 pb-2 text-[0.68rem] font-semibold tracking-[0.18em] text-white/35 uppercase"
@@ -219,17 +225,21 @@ async function onLogout() {
             </svg>
             {{ item.name }}
           </RouterLink>
-        </div>
+        </section>
       </nav>
 
       <div data-org-card class="mt-auto flex items-center gap-3 border-t border-white/10 px-4 py-4">
-        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white">
-          {{ orgInitials }}
-        </div>
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-medium text-white">{{ organization?.name }}</p>
-          <p class="text-xs text-white/45">{{ planLabel }}</p>
-        </div>
+        <!-- Until `fetchMe` lands there is no salon to name, and a lone
+             fallback initial over two blank lines reads as a broken card. -->
+        <template v-if="organization">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white">
+            {{ orgInitials }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-medium text-white">{{ organization.name }}</p>
+            <p class="text-xs text-white/45">{{ planLabel }}</p>
+          </div>
+        </template>
         <button
           type="button"
           class="shrink-0 text-xs font-medium text-white/55 transition hover:text-white"
@@ -255,13 +265,9 @@ async function onLogout() {
             </svg>
           </button>
           <span class="truncate text-sm font-medium text-ink">{{ pageLabel }}</span>
-          <span class="hidden text-ink/20 sm:inline">|</span>
+          <span aria-hidden="true" class="hidden text-ink/20 sm:inline">|</span>
           <span class="hidden truncate text-sm text-ink/55 sm:inline">{{ today }}</span>
         </div>
-
-        <RouterLink to="/settings" class="shrink-0 text-sm font-medium text-ink/60 transition hover:text-ink">
-          Help
-        </RouterLink>
       </header>
 
       <main class="px-4 py-8 sm:px-6 lg:px-10">
