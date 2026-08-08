@@ -28,8 +28,12 @@ class StoreAppointmentRequest extends FormRequest
                 'required',
                 Rule::exists('branches', 'id')->where('organization_id', $tenantId),
             ],
-            'service_id' => [
-                'required',
+            // The services on this visit, in the order the customer picked
+            // them. Each must belong to this salon; a bare id is never trusted.
+            'service_ids' => ['required', 'array', 'min:1'],
+            'service_ids.*' => [
+                'integer',
+                'distinct',
                 Rule::exists('services', 'id')->where('organization_id', $tenantId),
             ],
             'staff_id' => [

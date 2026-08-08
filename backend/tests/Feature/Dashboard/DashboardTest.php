@@ -80,12 +80,11 @@ class DashboardTest extends TestCase
      */
     private function book(array $s, string $date, string $start, string $status = 'confirmed', ?User $staff = null): Appointment
     {
-        return Appointment::create([
+        $appointment = Appointment::create([
             'organization_id' => $s['org']->id,
             'branch_id' => $s['branch']->id,
             'customer_id' => $s['customer']->id,
             'staff_id' => ($staff ?? $s['staff'])->id,
-            'service_id' => $s['service']->id,
             'booking_date' => $date,
             'start_time' => $start,
             'end_time' => $start,
@@ -93,6 +92,18 @@ class DashboardTest extends TestCase
             'price' => $s['service']->price,
             'status' => $status,
         ]);
+
+        // Real bookings always carry a line; a fixture with none would
+        // never see the shape the dashboard actually renders.
+        $appointment->lines()->create([
+            'service_id' => $s['service']->id,
+            'name' => $s['service']->name,
+            'price' => $s['service']->price,
+            'duration' => $s['service']->duration,
+            'sort_order' => 0,
+        ]);
+
+        return $appointment;
     }
 
     private function actingAsRole(array $s, string $role): static
@@ -193,7 +204,7 @@ class DashboardTest extends TestCase
         $response->assertJsonPath('upcoming.1.id', $tomorrow->id);
         // Rendered as cards, so the names have to come along.
         $response->assertJsonPath('upcoming.0.customer.name', 'Client');
-        $response->assertJsonPath('upcoming.0.service.name', 'Haircut');
+        $response->assertJsonPath('upcoming.0.services.0.name', 'Haircut');
     }
 
     public function test_upcoming_is_capped(): void

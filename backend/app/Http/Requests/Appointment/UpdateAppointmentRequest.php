@@ -45,9 +45,12 @@ class UpdateAppointmentRequest extends FormRequest
                     ->where('organization_id', $tenantId)
                     ->where('role', UserRole::STAFF->value),
             ],
-            'service_id' => [
-                'sometimes',
-                'required',
+            // The services on this visit, in the order the customer picked
+            // them. Each must belong to this salon; a bare id is never trusted.
+            'service_ids' => ['sometimes', 'array', 'min:1'],
+            'service_ids.*' => [
+                'integer',
+                'distinct',
                 Rule::exists('services', 'id')->where('organization_id', $tenantId),
             ],
             'customer_id' => [

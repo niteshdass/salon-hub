@@ -94,7 +94,7 @@ class AppointmentCrudTest extends TestCase
     {
         return array_merge([
             'branch_id' => $ctx['branch']->id,
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'customer_id' => $ctx['customer']->id,
             'booking_date' => $this->tomorrow(),
@@ -113,7 +113,7 @@ class AppointmentCrudTest extends TestCase
         $response->assertJsonPath('data.end_time', '10:30');
         $response->assertJsonPath('data.status', 'pending');
         $response->assertJsonPath('data.customer.id', $ctx['customer']->id);
-        $response->assertJsonPath('data.service.duration', 30);
+        $response->assertJsonPath('data.services.0.duration', 30);
         $response->assertJsonPath('data.staff.id', $ctx['staff']->id);
         $response->assertJsonPath('data.branch.id', $ctx['branch']->id);
 
@@ -283,7 +283,7 @@ class AppointmentCrudTest extends TestCase
 
         $response = $this->withToken($ctxA['token'])->postJson('/api/appointments', [
             'branch_id' => $ctxB['branch']->id,
-            'service_id' => $ctxB['service']->id,
+            'service_ids' => [$ctxB['service']->id],
             'staff_id' => $ctxB['staff']->id,
             'customer_id' => $ctxB['customer']->id,
             'booking_date' => $this->tomorrow(),
@@ -291,7 +291,7 @@ class AppointmentCrudTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['branch_id', 'service_id', 'staff_id', 'customer_id']);
+        $response->assertJsonValidationErrors(['branch_id', 'service_ids.0', 'staff_id', 'customer_id']);
     }
 
     public function test_update_reschedule_rechecks_conflict_and_status_change(): void

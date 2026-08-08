@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\AppointmentServiceWriter;
 use App\Enums\AppointmentStatus;
 use App\Http\Requests\Appointment\StoreAppointmentRequest;
 use App\Http\Requests\Appointment\UpdateAppointmentRequest;
 use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use App\Models\Customer;
-use App\Models\Service;
 use App\Services\AppointmentScheduler;
 use App\Services\BookingNotifier;
 use Illuminate\Http\JsonResponse;
@@ -27,9 +27,12 @@ use Illuminate\Support\Facades\DB;
  */
 class AppointmentController extends Controller
 {
-    private const RELATIONS = ['customer', 'staff', 'service', 'branch'];
+    private const RELATIONS = ['customer', 'staff', 'lines', 'branch'];
 
-    public function __construct(protected AppointmentScheduler $scheduler) {}
+    public function __construct(
+        protected AppointmentScheduler $scheduler,
+        protected AppointmentServiceWriter $writer,
+    ) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -61,10 +64,10 @@ class AppointmentController extends Controller
     {
         $data = $request->validated();
 
-        // Service (tenant-scoped) drives the duration -> end time.
-        $service = Service::findOrFail($data['service_id']);
+        // The whole visit's duration drives the block this booking occupies.
+        $totals = $this->writer->totalsFor($data['service_ids']);
         $startTime = $this->scheduler->normalizeTime($data['start_time']);
-        $endTime = $this->scheduler->deriveEndTime($data['start_time'], $service->duration);
+        $endTime = $this->scheduler->deriveEndTime($data['start_time'], $totals['duration']);
 
         // Reject overlapping bookings before creating anything, so a
         // walk-in customer is never persisted for a booking that fails.
@@ -72,20 +75,24 @@ class AppointmentController extends Controller
             return $this->conflictResponse();
         }
 
-        $appointment = DB::transaction(function () use ($data, $service, $startTime, $endTime) {
-            return Appointment::create([
+        $appointment = DB::transaction(function () use ($data, $startTime, $endTime) {
+            $appointment = Appointment::create([
                 'branch_id' => $data['branch_id'],
                 'customer_id' => $this->resolveCustomerId($data),
                 'staff_id' => $data['staff_id'],
-                'service_id' => $data['service_id'],
                 'booking_date' => $data['booking_date'],
                 'start_time' => $startTime,
                 'end_time' => $endTime,
-                // Freeze what this booking owes at the price on the menu today.
-                'price' => $service->price,
+                'price' => 0,
                 'status' => $data['status'] ?? AppointmentStatus::PENDING->value,
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            // Freezes each line at today's menu price and writes back the
+            // appointment's own total and end time.
+            $this->writer->sync($appointment, $data['service_ids']);
+
+            return $appointment->fresh();
         });
 
         $appointment->load(self::RELATIONS);
@@ -110,8 +117,8 @@ class AppointmentController extends Controller
         // Effective schedule after applying any partial changes.
         $staffId = $data['staff_id'] ?? $appointment->staff_id;
         $bookingDate = $data['booking_date'] ?? $appointment->booking_date->format('Y-m-d');
-        $serviceId = $data['service_id'] ?? $appointment->service_id;
-        $duration = Service::findOrFail($serviceId)->duration;
+        $serviceIds = $data['service_ids'] ?? $appointment->lines->pluck('service_id')->filter()->all();
+        $duration = $this->writer->totalsFor($serviceIds)['duration'];
 
         $startSource = $data['start_time'] ?? $appointment->start_time;
         $startTime = $this->scheduler->normalizeTime($startSource);
@@ -124,8 +131,14 @@ class AppointmentController extends Controller
 
         $data['start_time'] = $startTime;
         $data['end_time'] = $endTime;
+        unset($data['service_ids']);
 
-        $appointment->update($data);
+        $appointment = DB::transaction(function () use ($appointment, $data, $serviceIds) {
+            $appointment->update($data);
+            $this->writer->sync($appointment, $serviceIds);
+
+            return $appointment;
+        });
 
         return new AppointmentResource($appointment->fresh()->load(self::RELATIONS));
     }

@@ -116,7 +116,7 @@ class DashboardController extends Controller
         $today = $now->toDateString();
 
         return $this->scopedAppointments($user)
-            ->with(['customer', 'staff', 'service', 'branch'])
+            ->with(['customer', 'staff', 'lines', 'branch'])
             ->where('status', '!=', AppointmentStatus::CANCELLED->value)
             ->where(function ($q) use ($today, $now) {
                 $q->whereDate('booking_date', '>', $today)

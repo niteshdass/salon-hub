@@ -32,12 +32,15 @@ class AppointmentResource extends JsonResource
                 'name' => $this->customer->name,
                 'phone' => $this->customer->phone,
             ] : null,
-            'service' => $this->service ? [
-                'id' => $this->service->id,
-                'name' => $this->service->name,
-                'duration' => $this->service->duration,
-                'price' => $this->service->price,
-            ] : null,
+            'services' => $this->whenLoaded('lines', fn () => $this->lines->map(fn ($line) => [
+                'id' => $line->service_id,
+                'name' => $line->name,
+                'price' => $line->price,
+                'duration' => $line->duration,
+            ])->values(), []),
+            // The whole visit, so the calendar can size a block without
+            // re-adding the lines on the client.
+            'duration' => $this->whenLoaded('lines', fn () => (int) $this->lines->sum('duration'), 0),
             'staff' => $this->staff ? [
                 'id' => $this->staff->id,
                 'name' => $this->staff->name,
