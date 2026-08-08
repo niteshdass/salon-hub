@@ -105,12 +105,12 @@ async function save() {
     @back="emit('back')"
   >
     <div class="grid gap-5 sm:grid-cols-2">
-      <div class="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div class="sh-card space-y-4 p-5">
         <div>
-          <span class="mb-2 block text-sm font-medium text-slate-700">Your logo</span>
+          <span class="sh-label">Your logo</span>
           <div class="flex items-center gap-3">
             <div
-              class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
+              class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-ink/5 ring-1 ring-ink/10"
             >
               <img
                 v-if="logoUrl"
@@ -119,7 +119,7 @@ async function save() {
                 data-test="logo-thumbnail"
                 class="h-full w-full object-cover"
               />
-              <span v-else data-test="logo-empty" class="px-1 text-center text-[11px] leading-tight text-slate-400">
+              <span v-else data-test="logo-empty" class="px-1 text-center text-[11px] leading-tight text-ink/40">
                 No logo
               </span>
             </div>
@@ -140,7 +140,7 @@ async function save() {
                 />
                 <label
                   for="onboarding-logo"
-                  class="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
+                  class="sh-btn cursor-pointer px-2.5 py-1 text-xs peer-focus-visible:ring-2 peer-focus-visible:ring-accent-400 peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
                 >
                   {{ uploading ? 'Uploading…' : logoUrl ? 'Change logo' : 'Upload logo' }}
                 </label>
@@ -149,30 +149,30 @@ async function save() {
                   type="button"
                   data-test="logo-remove"
                   :disabled="logoBusy"
-                  class="rounded-lg px-2 py-2 text-sm font-medium text-rose-600 transition hover:text-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 disabled:opacity-60"
+                  class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
                   @click="removeLogo"
                 >
                   {{ removing ? 'Removing…' : 'Remove' }}
                 </button>
               </div>
-              <p class="mt-1.5 text-xs text-slate-500">PNG or JPG. A square image looks best.</p>
+              <p class="mt-1.5 text-xs text-ink/60">PNG or JPG. A square image looks best.</p>
             </div>
           </div>
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">A line about your salon</label>
+          <label class="sh-label">A line about your salon</label>
           <textarea
             v-model="about"
             rows="4"
             maxlength="5000"
             placeholder="We have cut hair on this street since 1998."
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
           />
         </div>
 
         <div>
-          <label class="mb-2 block text-sm font-medium text-slate-700">Colour</label>
+          <label class="sh-label">Colour</label>
           <div class="flex flex-wrap gap-2">
             <button
               v-for="colour in THEME_SWATCHES"
@@ -188,26 +188,26 @@ async function save() {
         </div>
       </div>
 
-      <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <p class="text-xs font-medium uppercase tracking-wide text-slate-400">Preview</p>
-        <div class="mt-3 overflow-hidden rounded-xl ring-1 ring-slate-200">
+      <div class="sh-card p-5">
+        <p class="text-xs font-medium uppercase tracking-wide text-ink/40">Preview</p>
+        <div class="mt-3 overflow-hidden rounded-xl ring-1 ring-ink/10">
           <div class="h-20" :style="{ backgroundColor: themeColor }" />
           <div class="p-4">
             <img v-if="logoUrl" :src="logoUrl" alt="" class="h-12 w-12 rounded-full object-cover ring-2 ring-white" />
-            <p class="mt-2 font-semibold text-slate-900">{{ salonName }}</p>
-            <p class="mt-1 text-sm text-slate-600">{{ about || 'Your salon story goes here.' }}</p>
+            <p class="mt-2 font-semibold text-ink">{{ salonName }}</p>
+            <p class="mt-1 text-sm text-ink/60">{{ about || 'Your salon story goes here.' }}</p>
           </div>
         </div>
       </div>
     </div>
 
-    <p v-if="error" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ error }}</p>
+    <p v-if="error" class="sh-alert mt-4 border-rose-200 bg-rose-50 text-rose-700">{{ error }}</p>
 
     <template #action>
       <button
         type="button"
         :disabled="saving"
-        class="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:bg-slate-300"
+        class="sh-btn sh-btn-primary w-full py-3"
         @click="save"
       >
         {{ saving ? 'Saving…' : 'Continue' }}

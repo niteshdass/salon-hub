@@ -38,7 +38,7 @@ async function onSubmit() {
   >
     <div
       v-if="sent"
-      class="auth-alert border-emerald-200 bg-emerald-50 text-emerald-800"
+      class="sh-alert border-emerald-200 bg-emerald-50 text-emerald-800"
     >
       If <span class="font-semibold">{{ email }}</span> belongs to an account, a reset link is on
       its way. The link expires in 60 minutes.
@@ -47,34 +47,34 @@ async function onSubmit() {
     <template v-else>
       <div
         v-if="generalError"
-        class="auth-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"
+        class="sh-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"
       >
         {{ generalError }}
       </div>
 
       <form class="space-y-5" @submit.prevent="onSubmit">
         <div>
-          <label for="email" class="auth-label">Email</label>
+          <label for="email" class="sh-label">Email</label>
           <input
             id="email"
             v-model="email"
             type="email"
             autocomplete="email"
             required
-            class="auth-input"
+            class="sh-input"
             placeholder="you@example.com"
           />
-          <p v-if="errors.email" class="auth-error">{{ errors.email[0] }}</p>
+          <p v-if="errors.email" class="sh-error">{{ errors.email[0] }}</p>
         </div>
 
-        <button type="submit" :disabled="sending" class="auth-button">
+        <button type="submit" :disabled="sending" class="sh-btn sh-btn-primary w-full py-3 text-base">
           {{ sending ? 'Sending…' : 'Send reset link' }}
         </button>
       </form>
     </template>
 
     <template #footer>
-      <RouterLink to="/login" class="auth-link">Back to sign in</RouterLink>
+      <RouterLink to="/login" class="font-semibold text-accent-600 hover:text-accent-700">Back to sign in</RouterLink>
     </template>
   </AuthLayout>
 </template>

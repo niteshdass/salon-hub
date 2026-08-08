@@ -67,9 +67,7 @@ const home = computed(() =>
 
     <main class="relative flex flex-1 items-center justify-center px-6 py-12 lg:px-8">
       <div class="w-full max-w-md">
-        <div
-          class="rounded-3xl border border-brand-100 bg-white p-8 shadow-2xl shadow-ink/10 ring-1 ring-brand-50"
-        >
+        <div class="sh-card p-8 shadow-2xl shadow-ink/10">
           <div class="mb-7 text-center">
             <h1 class="font-display text-3xl font-semibold tracking-tight text-ink">{{ title }}</h1>
             <p v-if="subtitle" class="mt-2 text-sm leading-relaxed text-ink/60">{{ subtitle }}</p>

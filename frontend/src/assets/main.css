@@ -135,9 +135,21 @@ body {
   }
 
   /*
-   * Aliases for the five auth views, which convert to sh-* in their own
-   * commit. Tailwind v4 cannot @apply a class defined in this layer, so each
-   * body repeats its sh-* counterpart's utilities rather than nesting it.
+   * Banner for a message that is about the whole screen rather than one
+   * field — the hue comes from the caller, because "sent", "expired" and
+   * "failed" are not the same news.
+   */
+  .sh-alert {
+    @apply rounded-xl border px-4 py-3 text-sm;
+  }
+
+  /*
+   * Aliases kept alive for LoginView.vue alone — every other auth view has
+   * moved to the sh-* primitives above. LoginView is excluded from this
+   * branch because it carries unrelated in-flight work, so deleting these
+   * would strip that one page bare. Retire them with it, not before.
+   * Tailwind v4 cannot @apply a class defined in this layer, so each body
+   * repeats its sh-* counterpart's utilities rather than nesting it.
    */
   .auth-label {
     @apply mb-1.5 block text-sm font-medium text-ink/75;

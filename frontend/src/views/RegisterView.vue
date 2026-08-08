@@ -48,42 +48,42 @@ async function onSubmit() {
   <AuthLayout title="Register your salon" subtitle="Free to start. Your booking page is live in minutes.">
     <div
       v-if="generalError"
-      class="auth-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"
+      class="sh-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"
     >
       {{ generalError }}
     </div>
 
     <form class="space-y-5" @submit.prevent="onSubmit">
       <div>
-        <label for="salon_name" class="auth-label">Salon name</label>
+        <label for="salon_name" class="sh-label">Salon name</label>
         <input
           id="salon_name"
           v-model="form.salon_name"
           type="text"
           autocomplete="organization"
           required
-          class="auth-input"
+          class="sh-input"
           placeholder="Glamour Studio"
         />
-        <p v-if="errors.salon_name" class="auth-error">{{ errors.salon_name[0] }}</p>
+        <p v-if="errors.salon_name" class="sh-error">{{ errors.salon_name[0] }}</p>
       </div>
 
       <div>
-        <label for="email" class="auth-label">Email</label>
+        <label for="email" class="sh-label">Email</label>
         <input
           id="email"
           v-model="form.email"
           type="email"
           autocomplete="email"
           required
-          class="auth-input"
+          class="sh-input"
           placeholder="you@example.com"
         />
-        <p v-if="errors.email" class="auth-error">{{ errors.email[0] }}</p>
+        <p v-if="errors.email" class="sh-error">{{ errors.email[0] }}</p>
       </div>
 
       <div>
-        <label for="phone" class="auth-label">
+        <label for="phone" class="sh-label">
           Phone <span class="font-normal text-ink/40">(optional)</span>
         </label>
         <input
@@ -91,47 +91,47 @@ async function onSubmit() {
           v-model="form.phone"
           type="tel"
           autocomplete="tel"
-          class="auth-input"
+          class="sh-input"
           placeholder="+1 555 123 4567"
         />
-        <p v-if="errors.phone" class="auth-error">{{ errors.phone[0] }}</p>
+        <p v-if="errors.phone" class="sh-error">{{ errors.phone[0] }}</p>
       </div>
 
       <div>
-        <label for="password" class="auth-label">Password</label>
+        <label for="password" class="sh-label">Password</label>
         <input
           id="password"
           v-model="form.password"
           type="password"
           autocomplete="new-password"
           required
-          class="auth-input"
+          class="sh-input"
           placeholder="••••••••"
         />
-        <p v-if="errors.password" class="auth-error">{{ errors.password[0] }}</p>
+        <p v-if="errors.password" class="sh-error">{{ errors.password[0] }}</p>
       </div>
 
       <div>
-        <label for="password_confirmation" class="auth-label">Confirm password</label>
+        <label for="password_confirmation" class="sh-label">Confirm password</label>
         <input
           id="password_confirmation"
           v-model="form.password_confirmation"
           type="password"
           autocomplete="new-password"
           required
-          class="auth-input"
+          class="sh-input"
           placeholder="••••••••"
         />
       </div>
 
-      <button type="submit" :disabled="authStore.loading" class="auth-button">
+      <button type="submit" :disabled="authStore.loading" class="sh-btn sh-btn-primary w-full py-3 text-base">
         {{ authStore.loading ? 'Creating account…' : 'Create account' }}
       </button>
     </form>
 
     <template #footer>
       Already have an account?
-      <RouterLink to="/login" class="auth-link">Sign in</RouterLink>
+      <RouterLink to="/login" class="font-semibold text-accent-600 hover:text-accent-700">Sign in</RouterLink>
     </template>
   </AuthLayout>
 </template>

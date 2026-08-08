@@ -51,7 +51,7 @@ async function onSubmit() {
   >
     <div
       v-if="!linkIsUsable"
-      class="auth-alert border-amber-200 bg-amber-50 text-amber-800"
+      class="sh-alert border-amber-200 bg-amber-50 text-amber-800"
     >
       This reset link is incomplete. Request a fresh one from the
       <RouterLink to="/forgot-password" class="font-semibold underline">
@@ -62,7 +62,7 @@ async function onSubmit() {
 
     <div
       v-else-if="done"
-      class="auth-alert border-emerald-200 bg-emerald-50 text-emerald-800"
+      class="sh-alert border-emerald-200 bg-emerald-50 text-emerald-800"
     >
       Password updated. Taking you to the sign-in page…
     </div>
@@ -70,14 +70,14 @@ async function onSubmit() {
     <template v-else>
       <div
         v-if="generalError"
-        class="auth-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"
+        class="sh-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"
       >
         {{ generalError }}
       </div>
 
       <form class="space-y-5" @submit.prevent="onSubmit">
         <div>
-          <label for="password" class="auth-label">New password</label>
+          <label for="password" class="sh-label">New password</label>
           <input
             id="password"
             v-model="form.password"
@@ -85,22 +85,22 @@ async function onSubmit() {
             autocomplete="new-password"
             required
             minlength="8"
-            class="auth-input"
+            class="sh-input"
             placeholder="••••••••"
           />
-          <p v-if="errors.password" class="auth-error">{{ errors.password[0] }}</p>
+          <p v-if="errors.password" class="sh-error">{{ errors.password[0] }}</p>
           <p v-else class="mt-1.5 text-xs text-ink/50">At least 8 characters.</p>
         </div>
 
         <div>
-          <label for="password_confirmation" class="auth-label">Confirm new password</label>
+          <label for="password_confirmation" class="sh-label">Confirm new password</label>
           <input
             id="password_confirmation"
             v-model="form.password_confirmation"
             type="password"
             autocomplete="new-password"
             required
-            class="auth-input"
+            class="sh-input"
             placeholder="••••••••"
           />
         </div>
@@ -114,14 +114,14 @@ async function onSubmit() {
           </RouterLink>
         </p>
 
-        <button type="submit" :disabled="saving" class="auth-button">
+        <button type="submit" :disabled="saving" class="sh-btn sh-btn-primary w-full py-3 text-base">
           {{ saving ? 'Updating…' : 'Update password' }}
         </button>
       </form>
     </template>
 
     <template #footer>
-      <RouterLink to="/login" class="auth-link">Back to sign in</RouterLink>
+      <RouterLink to="/login" class="font-semibold text-accent-600 hover:text-accent-700">Back to sign in</RouterLink>
     </template>
   </AuthLayout>
 </template>

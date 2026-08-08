@@ -90,28 +90,28 @@ function leave() {
 </script>
 
 <template>
-  <div v-if="!ready" class="grid min-h-screen place-items-center text-slate-500">Loading…</div>
+  <div v-if="!ready" class="grid min-h-screen place-items-center bg-paper text-ink/60">Loading…</div>
 
-  <div v-else-if="loadFailed" class="min-h-screen bg-slate-50 px-4 py-12">
+  <div v-else-if="loadFailed" class="min-h-screen bg-paper px-4 py-12">
     <div class="mx-auto max-w-xl text-center">
-      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-slate-200 text-2xl">?</div>
-      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ink/10 text-2xl">?</div>
+      <h1 class="mt-4 font-display text-3xl font-semibold text-ink">
         We couldn't load your setup
       </h1>
-      <p class="mt-2 text-slate-600">
+      <p class="mt-2 text-ink/60">
         Something went wrong on our side, so we don't know how far you've got. Nothing you've
         already saved is lost.
       </p>
       <button
         type="button"
-        class="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+        class="sh-btn sh-btn-primary mt-6 w-full py-3"
         @click="resume"
       >
         Try again
       </button>
       <button
         type="button"
-        class="mt-3 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+        class="mt-3 text-sm font-medium text-ink/60 transition hover:text-ink"
         @click="leave"
       >
         I'll do this later

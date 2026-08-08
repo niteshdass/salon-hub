@@ -76,7 +76,7 @@ onMounted(async () => {
 
       <RouterLink
         :to="authStore.isAuthenticated ? '/dashboard' : '/login'"
-        class="auth-button inline-block w-auto"
+        class="sh-btn sh-btn-primary py-3 text-base"
       >
         {{ authStore.isAuthenticated ? 'Go to dashboard' : 'Go to sign in' }}
       </RouterLink>

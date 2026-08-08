@@ -168,17 +168,17 @@ async function save() {
     @skip="emit('skip')"
     @back="emit('back')"
   >
-    <div v-if="loading" class="rounded-2xl bg-white p-6 text-center text-sm text-slate-500 shadow-sm ring-1 ring-slate-200">
+    <div v-if="loading" class="sh-card p-6 text-center text-sm text-ink/60">
       Loading your services…
     </div>
 
-    <div v-else-if="servicesFailed" class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <p class="text-sm text-slate-600">
+    <div v-else-if="servicesFailed" class="sh-card p-6">
+      <p class="text-sm text-ink/60">
         We couldn't load your services just now, so we can't show what each person can do yet.
       </p>
       <button
         type="button"
-        class="mt-3 text-sm font-medium text-indigo-600"
+        class="sh-btn sh-btn-ghost mt-3 px-2.5 py-1 text-xs"
         @click="loadEverything"
       >
         Try again
@@ -188,53 +188,53 @@ async function save() {
     <div v-else-if="!mode" class="grid gap-3 sm:grid-cols-2">
       <button
         type="button"
-        class="rounded-2xl bg-white p-6 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-400"
+        class="sh-card p-6 text-left transition hover:border-accent-300"
         @click="chooseSolo"
       >
-        <span class="block text-lg font-semibold text-slate-900">I work alone</span>
-        <span class="mt-1 block text-sm text-slate-500">We'll set you up as the only person customers can book.</span>
+        <span class="block text-lg font-semibold text-ink">I work alone</span>
+        <span class="mt-1 block text-sm text-ink/60">We'll set you up as the only person customers can book.</span>
       </button>
       <button
         type="button"
-        class="rounded-2xl bg-white p-6 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-400"
+        class="sh-card p-6 text-left transition hover:border-accent-300"
         @click="chooseTeam"
       >
-        <span class="block text-lg font-semibold text-slate-900">I have a team</span>
-        <span class="mt-1 block text-sm text-slate-500">Add each person and what they do.</span>
+        <span class="block text-lg font-semibold text-ink">I have a team</span>
+        <span class="mt-1 block text-sm text-ink/60">Add each person and what they do.</span>
       </button>
     </div>
 
     <div v-else-if="mode === 'team'" class="space-y-4">
-      <div v-for="(person, i) in people" :key="i" class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div v-for="(person, i) in people" :key="i" class="sh-card p-5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1 space-y-3">
             <input
               v-model="person.name"
               type="text"
               placeholder="Name"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              class="sh-input"
             />
             <div class="grid gap-3 sm:grid-cols-2">
               <input
                 v-model="person.phone"
                 type="tel"
                 placeholder="Phone (optional)"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                class="sh-input"
               />
               <input
                 v-model="person.email"
                 type="email"
                 placeholder="Email — only if they should log in"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                class="sh-input"
               />
             </div>
           </div>
-          <button v-if="people.length > 1" type="button" class="text-sm text-slate-400 hover:text-rose-600" @click="removePerson(i)">
+          <button v-if="people.length > 1" type="button" class="text-sm text-ink/40 hover:text-rose-600" @click="removePerson(i)">
             Remove
           </button>
         </div>
 
-        <p class="mt-4 text-sm font-medium text-slate-700">What do they do?</p>
+        <p class="mt-4 text-sm font-medium text-ink/75">What do they do?</p>
         <div class="mt-2 flex flex-wrap gap-2">
           <button
             v-for="service in services"
@@ -242,8 +242,8 @@ async function save() {
             type="button"
             class="rounded-full px-3 py-1.5 text-sm ring-1 transition"
             :class="person.serviceIds.includes(service.id)
-              ? 'bg-indigo-600 text-white ring-indigo-600'
-              : 'bg-white text-slate-600 ring-slate-300'"
+              ? 'bg-accent-500 text-accent-fg ring-accent-500'
+              : 'bg-white text-ink/60 ring-ink/15'"
             @click="toggleService(person, service.id)"
           >
             {{ service.name }}
@@ -254,30 +254,30 @@ async function save() {
       <button
         type="button"
         :disabled="atLimit"
-        class="text-sm font-medium text-indigo-600 disabled:text-slate-400"
+        class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs"
         @click="addPerson"
       >
         + Add another person
       </button>
-      <p v-if="atLimit" class="text-sm text-slate-500">
+      <p v-if="atLimit" class="text-sm text-ink/60">
         Your free plan covers {{ FREE_MAX_STAFF }} people. Upgrade later to add more.
       </p>
     </div>
 
-    <p v-if="error" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ error }}</p>
+    <p v-if="error" class="sh-alert mt-4 border-rose-200 bg-rose-50 text-rose-700">{{ error }}</p>
 
     <template #action>
       <button
         v-if="mode === 'team'"
         type="button"
         :disabled="!canSave || saving"
-        class="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        class="sh-btn sh-btn-primary w-full py-3"
         @click="save"
       >
         {{ saving ? 'Saving…' : 'Continue' }}
       </button>
-      <p v-else-if="saving" class="text-center text-sm text-slate-500">Setting you up…</p>
-      <p v-if="mode === 'team' && !saving && continueBlockedReason" class="mt-2 text-center text-sm text-slate-500">
+      <p v-else-if="saving" class="text-center text-sm text-ink/60">Setting you up…</p>
+      <p v-if="mode === 'team' && !saving && continueBlockedReason" class="mt-2 text-center text-sm text-ink/60">
         {{ continueBlockedReason }}
       </p>
     </template>

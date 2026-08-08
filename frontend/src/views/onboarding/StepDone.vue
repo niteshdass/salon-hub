@@ -137,18 +137,18 @@ function leaveWithoutCompleting() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 px-4 py-12">
-    <div v-if="checking" class="mx-auto max-w-xl text-center text-slate-500">Checking your setup…</div>
+  <div class="min-h-screen bg-paper px-4 py-12">
+    <div v-if="checking" class="mx-auto max-w-xl text-center text-ink/60">Checking your setup…</div>
 
     <div v-else-if="checkFailed" class="mx-auto max-w-xl text-center">
-      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-slate-200 text-2xl">?</div>
-      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">Couldn't check your setup</h1>
-      <p class="mt-2 text-slate-600">
+      <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ink/10 text-2xl">?</div>
+      <h1 class="mt-4 font-display text-3xl font-semibold text-ink">Couldn't check your setup</h1>
+      <p class="mt-2 text-ink/60">
         We weren't able to reach the server to confirm {{ salonName }} is ready to take bookings.
       </p>
       <button
         type="button"
-        class="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+        class="sh-btn sh-btn-primary mt-6 w-full py-3"
         @click="checkStatus"
       >
         Try again
@@ -157,18 +157,18 @@ function leaveWithoutCompleting() {
 
     <div v-else-if="!bookable" class="mx-auto max-w-xl text-center">
       <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-2xl">!</div>
-      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">Almost there</h1>
-      <p class="mt-2 text-slate-600">
+      <h1 class="mt-4 font-display text-3xl font-semibold text-ink">Almost there</h1>
+      <p class="mt-2 text-ink/60">
         {{ salonName }} isn't ready to take bookings yet.
       </p>
 
-      <div class="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
+      <div class="sh-alert mt-4 border-amber-200 bg-amber-50 text-left text-amber-800">
         You still need to add {{ missing.join(' and ') }} before customers can book you.
       </div>
 
       <button
         type="button"
-        class="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+        class="sh-btn sh-btn-primary mt-6 w-full py-3"
         @click="resumeSetup"
       >
         Finish setup
@@ -176,7 +176,7 @@ function leaveWithoutCompleting() {
 
       <button
         type="button"
-        class="mt-3 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+        class="mt-3 text-sm font-medium text-ink/60 transition hover:text-ink"
         @click="leaveWithoutCompleting"
       >
         I'll do this later
@@ -185,16 +185,16 @@ function leaveWithoutCompleting() {
 
     <div v-else class="mx-auto max-w-xl text-center">
       <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-2xl">✓</div>
-      <h1 class="mt-4 font-[Fraunces_Variable,serif] text-3xl font-semibold text-slate-900">
+      <h1 class="mt-4 font-display text-3xl font-semibold text-ink">
         {{ salonName }} is live
       </h1>
-      <p class="mt-2 text-slate-600">Share this link and customers can book you right now.</p>
+      <p class="mt-2 text-ink/60">Share this link and customers can book you right now.</p>
 
-      <div class="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <p class="select-all break-all text-lg font-medium text-indigo-700">{{ url }}</p>
+      <div class="sh-card mt-6 p-5">
+        <p class="select-all break-all text-lg font-medium text-accent-700">{{ url }}</p>
         <button
           type="button"
-          class="mt-3 w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700"
+          class="sh-btn sh-btn-primary mt-3 w-full py-3"
           @click="copy"
         >
           {{
@@ -218,7 +218,7 @@ function leaveWithoutCompleting() {
         <button
           type="button"
           :disabled="posterState === 'downloading'"
-          class="mt-3 w-full rounded-xl px-4 py-2.5 font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50"
+          class="sh-btn mt-3 w-full py-2.5"
           @click="downloadPosterClicked"
         >
           {{
@@ -230,7 +230,7 @@ function leaveWithoutCompleting() {
           }}
         </button>
 
-        <a :href="url" target="_blank" rel="noopener" class="mt-3 block text-sm font-medium text-indigo-600">
+        <a :href="url" target="_blank" rel="noopener" class="mt-3 block text-sm font-semibold text-accent-600 hover:text-accent-700">
           Try booking yourself &rarr;
         </a>
       </div>
@@ -240,7 +240,7 @@ function leaveWithoutCompleting() {
       <button
         type="button"
         :disabled="finishing"
-        class="mt-6 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+        class="mt-6 text-sm font-medium text-ink/60 transition hover:text-ink"
         @click="finish"
       >
         {{ finishing ? 'One moment…' : 'Go to dashboard' }}

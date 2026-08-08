@@ -112,74 +112,74 @@ async function save() {
     @skip="emit('skip')"
     @back="emit('back')"
   >
-    <div class="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div class="sh-card space-y-4 p-5">
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700">Street address</label>
+        <label class="sh-label">Street address</label>
         <input
           v-model="form.address"
           type="text"
           placeholder="12 Green Road, Dhanmondi"
-          class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          class="sh-input"
         />
-        <p v-if="fieldErrors.address" class="mt-1 text-sm text-rose-600">{{ fieldErrors.address[0] }}</p>
+        <p v-if="fieldErrors.address" class="sh-error">{{ fieldErrors.address[0] }}</p>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">City</label>
+          <label class="sh-label">City</label>
           <input
             v-model="form.city"
             type="text"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
           />
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Phone</label>
+          <label class="sh-label">Phone</label>
           <input
             v-model="form.phone"
             type="tel"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            class="sh-input"
           />
         </div>
       </div>
     </div>
 
-    <div class="mt-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div class="sh-card mt-5 p-5">
       <div class="flex items-center justify-between">
-        <h2 class="font-semibold text-slate-900">When are you open?</h2>
-        <button type="button" class="text-sm font-medium text-indigo-600" @click="copyMondayDown">
+        <h2 class="font-semibold text-ink">When are you open?</h2>
+        <button type="button" class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs" @click="copyMondayDown">
           Same time every day
         </button>
       </div>
 
-      <ul class="mt-4 divide-y divide-slate-100">
+      <ul class="mt-4 divide-y divide-ink/10">
         <li v-for="day in DAYS" :key="day.key" class="flex flex-wrap items-center gap-3 py-2.5">
           <label class="flex min-w-32 items-center gap-2">
-            <input v-model="hours[day.key].open" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-            <span class="text-sm font-medium text-slate-700">{{ day.label }}</span>
+            <input v-model="hours[day.key].open" type="checkbox" class="h-4 w-4 rounded border-ink/20 text-accent-600 focus:ring-accent-300" />
+            <span class="text-sm font-medium text-ink/75">{{ day.label }}</span>
           </label>
           <template v-if="hours[day.key].open">
-            <input v-model="hours[day.key].from" type="time" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
-            <span class="text-slate-400">to</span>
-            <input v-model="hours[day.key].to" type="time" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+            <input v-model="hours[day.key].from" type="time" class="sh-input w-auto px-2 py-1.5 text-sm" />
+            <span class="text-ink/40">to</span>
+            <input v-model="hours[day.key].to" type="time" class="sh-input w-auto px-2 py-1.5 text-sm" />
           </template>
-          <span v-else class="text-sm text-slate-400">Closed</span>
+          <span v-else class="text-sm text-ink/40">Closed</span>
         </li>
       </ul>
     </div>
 
-    <p v-if="error" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ error }}</p>
+    <p v-if="error" class="sh-alert mt-4 border-rose-200 bg-rose-50 text-rose-700">{{ error }}</p>
 
     <template #action>
       <button
         type="button"
         :disabled="!canSave || saving"
-        class="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        class="sh-btn sh-btn-primary w-full py-3"
         @click="save"
       >
         {{ saving ? 'Saving…' : 'Continue' }}
       </button>
-      <p v-if="blockedReason" class="mt-2 text-center text-sm text-slate-500">{{ blockedReason }}</p>
+      <p v-if="blockedReason" class="mt-2 text-center text-sm text-ink/60">{{ blockedReason }}</p>
     </template>
   </OnboardingLayout>
 </template>

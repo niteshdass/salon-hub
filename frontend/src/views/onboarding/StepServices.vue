@@ -154,18 +154,18 @@ async function save() {
         v-for="type in presets"
         :key="type.key"
         type="button"
-        class="rounded-2xl bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-indigo-400"
+        class="sh-card p-5 text-left transition hover:border-accent-300"
         @click="chooseType(type)"
       >
-        <span class="block font-semibold text-slate-900">{{ type.label }}</span>
-        <span class="mt-1 block text-sm text-slate-500">{{ type.services.length }} popular services ready to go</span>
+        <span class="block font-semibold text-ink">{{ type.label }}</span>
+        <span class="mt-1 block text-sm text-ink/60">{{ type.services.length }} popular services ready to go</span>
       </button>
     </div>
 
-    <div v-else class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <div v-else class="sh-card p-5">
       <div class="flex items-center justify-between">
-        <h2 class="font-semibold text-slate-900">{{ chosenType.label }}</h2>
-        <button type="button" class="text-sm font-medium text-indigo-600" @click="changeType">Change</button>
+        <h2 class="font-semibold text-ink">{{ chosenType.label }}</h2>
+        <button type="button" class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs" @click="changeType">Change</button>
       </div>
 
       <ul class="mt-4 space-y-3">
@@ -173,23 +173,23 @@ async function save() {
           v-for="(row, i) in rows"
           :key="i"
           class="rounded-xl p-3 ring-1"
-          :class="rowErrors[i] ? 'ring-rose-300 bg-rose-50' : 'ring-slate-200'"
+          :class="rowErrors[i] ? 'ring-rose-300 bg-rose-50' : 'ring-ink/10'"
         >
           <div class="flex items-center gap-3">
-            <input v-model="row.ticked" type="checkbox" class="h-5 w-5 rounded border-slate-300 text-indigo-600" />
+            <input v-model="row.ticked" type="checkbox" class="h-5 w-5 rounded border-ink/20 text-accent-600 focus:ring-accent-300" />
             <input
               v-model="row.name"
               type="text"
               placeholder="Service name"
-              class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              class="sh-input min-w-0 flex-1"
             />
           </div>
           <div v-if="row.ticked" class="mt-2 flex items-center gap-3 pl-8">
-            <label class="flex items-center gap-1.5 text-sm text-slate-600">
-              <input v-model.number="row.duration" type="number" min="5" step="5" class="w-20 rounded-lg border border-slate-300 px-2 py-1.5" />
+            <label class="flex items-center gap-1.5 text-sm text-ink/60">
+              <input v-model.number="row.duration" type="number" min="5" step="5" class="sh-input w-20 px-2 py-1.5" />
               min
             </label>
-            <label class="flex items-center gap-1.5 text-sm text-slate-600">
+            <label class="flex items-center gap-1.5 text-sm text-ink/60">
               <span>{{ currency }}</span>
               <input
                 v-model="row.price"
@@ -197,7 +197,7 @@ async function save() {
                 min="0"
                 step="any"
                 placeholder="Price"
-                class="w-28 rounded-lg border border-slate-300 px-2 py-1.5"
+                class="sh-input w-28 px-2 py-1.5"
               />
             </label>
           </div>
@@ -205,23 +205,23 @@ async function save() {
         </li>
       </ul>
 
-      <button type="button" class="mt-4 text-sm font-medium text-indigo-600" @click="addOwnRow">
+      <button type="button" class="sh-btn sh-btn-ghost mt-4 px-2.5 py-1 text-xs" @click="addOwnRow">
         + Add your own
       </button>
     </div>
 
-    <p v-if="error" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ error }}</p>
+    <p v-if="error" class="sh-alert mt-4 border-rose-200 bg-rose-50 text-rose-700">{{ error }}</p>
 
     <template #action>
       <button
         type="button"
         :disabled="!canSave || saving"
-        class="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        class="sh-btn sh-btn-primary w-full py-3"
         @click="save"
       >
         {{ saving ? 'Saving…' : 'Continue' }}
       </button>
-      <p v-if="blockingReason" class="mt-2 text-center text-sm text-slate-500">{{ blockingReason }}</p>
+      <p v-if="blockingReason" class="mt-2 text-center text-sm text-ink/60">{{ blockingReason }}</p>
     </template>
   </OnboardingLayout>
 </template>
