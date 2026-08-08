@@ -75,12 +75,18 @@ class PayrollRunTest extends FinanceTestCase
     public function test_manager_and_staff_cannot_reach_payroll(): void
     {
         $org = $this->makeOrg();
+        $run = PayrollRun::create(['organization_id' => $org->id, 'period_month' => '2026-07-01']);
 
         foreach (['manager', 'staff'] as $role) {
             $token = $this->token($this->makeUser($org, $role));
             $this->withToken($token)->getJson('/api/payroll/runs')->assertForbidden();
             $this->withToken($token)
                 ->postJson('/api/payroll/runs', ['period_month' => '2026-07-01'])
+                ->assertForbidden();
+            // Same-org run (not a foreign tenant id), so a 403 here proves the
+            // role gate rather than a 404 from BelongsToOrganization scoping.
+            $this->withToken($token)
+                ->getJson("/api/payroll/runs/{$run->id}")
                 ->assertForbidden();
         }
     }
