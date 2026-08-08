@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import { monthOptions, payTypeLabel } from '@/lib/payroll'
+import Modal from '@/components/Modal.vue'
 
 const authStore = useAuthStore()
 const currency = computed(() => authStore.organization?.currency || 'USD')
@@ -98,7 +99,98 @@ async function deleteRun() {
   }
 }
 
-onMounted(loadRuns)
+const EXPENSE_CATEGORIES = [
+  'rent', 'utilities', 'supplies', 'salary', 'marketing', 'equipment', 'maintenance', 'other',
+]
+
+const expenses = ref([])
+const expenseFilters = reactive({ from: '', to: '', category: '' })
+const expenseModalOpen = ref(false)
+const editingExpenseId = ref(null)
+const expenseForm = reactive({ category: 'supplies', expense_date: '', amount: '', note: '' })
+const expenseErrors = ref({})
+
+function startOfMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+function today() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+async function loadExpenses() {
+  error.value = ''
+  try {
+    const { data } = await api.get('/expenses', {
+      params: {
+        from: expenseFilters.from || startOfMonth(),
+        to: expenseFilters.to || today(),
+        category: expenseFilters.category || undefined,
+      },
+    })
+    expenses.value = data.data || []
+  } catch (e) {
+    error.value = parseApiError(e, 'Could not load expenses.').message
+  }
+}
+
+function openExpenseModal(expense = null) {
+  expenseErrors.value = {}
+  editingExpenseId.value = expense?.id ?? null
+  Object.assign(expenseForm, {
+    category: expense?.category ?? 'supplies',
+    expense_date: expense?.expense_date ?? today(),
+    amount: expense?.amount ?? '',
+    note: expense?.note ?? '',
+  })
+  expenseModalOpen.value = true
+}
+
+async function saveExpense() {
+  expenseErrors.value = {}
+  const payload = {
+    category: expenseForm.category,
+    expense_date: expenseForm.expense_date,
+    amount: Number(expenseForm.amount || 0),
+    note: expenseForm.note || null,
+  }
+  try {
+    if (editingExpenseId.value) {
+      await api.patch(`/expenses/${editingExpenseId.value}`, payload)
+    } else {
+      await api.post('/expenses', payload)
+    }
+    expenseModalOpen.value = false
+    await loadExpenses()
+  } catch (e) {
+    // A 422 carries per-field errors; anything else (including the "this came
+    // from payroll" refusal) only has a sentence, so show it in the banner.
+    const parsed = parseApiError(e, 'Could not save this expense.')
+    expenseErrors.value = parsed.errors
+    if (!Object.keys(parsed.errors).length) error.value = parsed.message
+  }
+}
+
+async function deleteExpense(expense) {
+  if (!window.confirm('Delete this expense?')) return
+  try {
+    await api.delete(`/expenses/${expense.id}`)
+    await loadExpenses()
+  } catch (e) {
+    error.value = parseApiError(e, 'Could not delete this expense.').message
+  }
+}
+
+const expenseTotal = computed(() =>
+  expenses.value.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+)
+
+onMounted(async () => {
+  await loadRuns()
+  await loadExpenses()
+})
 </script>
 
 <template>
@@ -235,5 +327,100 @@ onMounted(loadRuns)
         </div>
       </div>
     </section>
+
+    <section v-if="tab === 'expenses'" class="space-y-4">
+      <div class="flex flex-wrap items-end gap-3">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">From</label>
+          <input v-model="expenseFilters.from" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadExpenses" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">To</label>
+          <input v-model="expenseFilters.to" type="date" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadExpenses" />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
+          <select v-model="expenseFilters.category" class="rounded-lg border border-slate-300 px-3 py-2.5" @change="loadExpenses">
+            <option value="">All</option>
+            <option v-for="c in EXPENSE_CATEGORIES" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700" @click="openExpenseModal()">
+          Add expense
+        </button>
+      </div>
+
+      <div class="overflow-hidden rounded-xl border border-slate-200">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="px-4 py-2">Date</th>
+              <th class="px-4 py-2">Category</th>
+              <th class="px-4 py-2">Note</th>
+              <th class="px-4 py-2 text-right">Amount</th>
+              <th class="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="expense in expenses" :key="expense.id">
+              <td class="px-4 py-2">{{ expense.expense_date }}</td>
+              <td class="px-4 py-2 capitalize">{{ expense.category }}</td>
+              <td class="px-4 py-2 text-slate-500">{{ expense.note || '—' }}</td>
+              <td class="px-4 py-2 text-right">{{ money(expense.amount) }}</td>
+              <td class="px-4 py-2 text-right">
+                <span v-if="expense.is_locked" class="text-xs text-slate-400">From payroll</span>
+                <template v-else>
+                  <button class="text-sm text-indigo-600 hover:underline" @click="openExpenseModal(expense)">Edit</button>
+                  <button class="ml-3 text-sm text-rose-600 hover:underline" @click="deleteExpense(expense)">Delete</button>
+                </template>
+              </td>
+            </tr>
+            <tr v-if="!expenses.length">
+              <td colspan="5" class="px-4 py-6 text-center text-slate-500">No expenses in this range.</td>
+            </tr>
+          </tbody>
+          <tfoot v-if="expenses.length" class="bg-slate-50">
+            <tr>
+              <td colspan="3" class="px-4 py-2 text-right text-sm font-medium text-slate-600">Total</td>
+              <td class="px-4 py-2 text-right text-sm font-semibold text-slate-900">{{ money(expenseTotal) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <Modal
+      v-if="expenseModalOpen"
+      :title="editingExpenseId ? 'Edit expense' : 'Add expense'"
+      @close="expenseModalOpen = false"
+    >
+      <div class="space-y-4">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
+          <select v-model="expenseForm.category" class="w-full rounded-lg border border-slate-300 px-3 py-2.5">
+            <option v-for="c in EXPENSE_CATEGORIES" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Date</label>
+          <input v-model="expenseForm.expense_date" type="date" class="w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+          <p v-if="expenseErrors.expense_date" class="mt-1 text-sm text-rose-600">{{ expenseErrors.expense_date[0] }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Amount</label>
+          <input v-model="expenseForm.amount" type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+          <p v-if="expenseErrors.amount" class="mt-1 text-sm text-rose-600">{{ expenseErrors.amount[0] }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Note</label>
+          <input v-model="expenseForm.note" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2.5" />
+        </div>
+      </div>
+      <template #footer>
+        <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm" @click="expenseModalOpen = false">Cancel</button>
+        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="saveExpense">Save</button>
+      </template>
+    </Modal>
   </div>
 </template>
