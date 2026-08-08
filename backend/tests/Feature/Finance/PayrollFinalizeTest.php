@@ -10,6 +10,7 @@ use App\Models\PayrollLine;
 use App\Models\PayrollRun;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
@@ -26,32 +27,109 @@ class PayrollFinalizeTest extends FinanceTestCase
         ]);
     }
 
-    /** @return array{0: User, 1: PayrollRun} */
+    /** @return array{0: User, 1: PayrollRun, 2: User} owner, run, staff */
     private function draftRun(Organization $org, string $month = '2026-07-01'): array
     {
         $owner = $this->makeUser($org, 'owner');
-        $this->makeStaff($org, ['pay_type' => 'salary', 'monthly_salary' => 1000]);
+        $staff = $this->makeStaff($org, ['pay_type' => 'salary', 'monthly_salary' => 1000]);
+        // A completed booking inside the period, so earned_revenue is a real
+        // number rather than zero: "the API ignored what the client sent"
+        // proves nothing when the computed value would have been 0 anyway.
+        $this->makeAppointment($org, [
+            'staff' => $staff,
+            'date' => Carbon::parse($month)->addDays(14)->toDateString(),
+            'price' => 250,
+        ]);
 
         $res = $this->withToken($this->token($owner))
             ->postJson('/api/payroll/runs', ['period_month' => $month]);
 
-        return [$owner, PayrollRun::findOrFail($res->json('data.id'))];
+        return [$owner, PayrollRun::findOrFail($res->json('data.id')), $staff];
     }
 
-    public function test_owner_can_edit_a_line_on_a_draft(): void
+    public function test_owner_can_edit_a_line_on_a_draft_and_computed_fields_stay_computed(): void
     {
         $org = $this->makeOrg();
         [$owner, $run] = $this->draftRun($org);
         $line = $run->lines()->first();
+        $this->assertSame('250.00', $line->earned_revenue);
+        $this->assertSame(1, $line->bookings);
 
         $res = $this->withToken($this->token($owner))
-            ->patchJson("/api/payroll/runs/{$run->id}/lines/{$line->id}", ['salary_amount' => 600]);
+            ->patchJson("/api/payroll/runs/{$run->id}/lines/{$line->id}", [
+                'salary_amount' => 600,
+                // Not editable: sent anyway, and must be dropped on the floor.
+                'earned_revenue' => 99999,
+                'bookings' => 42,
+            ]);
 
         $res->assertOk();
         $res->assertJsonPath('data.total_amount', '600.00');
         $this->assertSame('600.00', $run->fresh()->total_amount);
-        // The computed revenue is untouched, so the override stays visible.
-        $this->assertSame('0.00', $line->fresh()->earned_revenue);
+        // The computed revenue is untouched, so the override stays visible
+        // against the reality it departs from.
+        $this->assertSame('250.00', $line->fresh()->earned_revenue);
+        $this->assertSame(1, $line->fresh()->bookings);
+    }
+
+    /**
+     * The whole reason the line carries its own pay_type / rate / salary
+     * columns instead of reading them off the staff profile: a later raise
+     * must not silently rewrite what a past month says it paid.
+     */
+    public function test_a_raise_after_finalizing_does_not_rewrite_the_finalized_line(): void
+    {
+        $org = $this->makeOrg();
+        [$owner, $run, $staff] = $this->draftRun($org);
+        $token = $this->token($owner);
+        $this->withToken($token)->postJson("/api/payroll/runs/{$run->id}/finalize")->assertOk();
+        $line = $run->lines()->first();
+
+        $this->withToken($token)->patchJson("/api/staff/{$staff->id}", [
+            'pay_type' => 'hybrid',
+            'monthly_salary' => 2500,
+            'commission_rate' => 30,
+        ])->assertOk();
+
+        $after = $line->fresh();
+        $this->assertSame('salary', $after->pay_type->value);
+        $this->assertSame('0.00', $after->commission_rate);
+        $this->assertSame('1000.00', $after->monthly_salary);
+        $this->assertSame('1000.00', $after->salary_amount);
+        $this->assertSame('0.00', $after->commission_amount);
+        $this->assertSame('1000.00', $after->total_amount);
+        // …and neither the run header nor the booked cost moves either.
+        $this->assertSame('1000.00', $run->fresh()->total_amount);
+        $this->assertSame('1000.00', Expense::first()->amount);
+    }
+
+    /**
+     * The reason staff_name is snapshotted and staff_id is nullOnDelete:
+     * losing a colleague must not erase the record of what they were paid.
+     */
+    public function test_deleting_a_staff_account_leaves_the_pay_line_and_its_name(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        // No appointments: StaffController refuses to delete a stylist who
+        // has any, so this is the only shape in which the case can arise.
+        $staff = $this->makeStaff($org, ['pay_type' => 'salary', 'monthly_salary' => 1000], 'Ruma Akter');
+        $token = $this->token($owner);
+
+        $runId = $this->withToken($token)
+            ->postJson('/api/payroll/runs', ['period_month' => '2026-07-01'])->json('data.id');
+        $this->withToken($token)->postJson("/api/payroll/runs/{$runId}/finalize")->assertOk();
+        $line = PayrollRun::findOrFail($runId)->lines()->first();
+        $this->assertSame($staff->id, $line->staff_id);
+
+        $this->withToken($token)->deleteJson("/api/staff/{$staff->id}")->assertNoContent();
+
+        $after = $line->fresh();
+        $this->assertNotNull($after, 'the pay line must outlive the staff account');
+        $this->assertNull($after->staff_id);
+        $this->assertSame('Ruma Akter', $after->staff_name);
+        $this->assertSame('salary', $after->pay_type->value);
+        $this->assertSame('1000.00', $after->total_amount);
     }
 
     public function test_finalize_locks_the_run_and_writes_one_salary_expense(): void
@@ -210,13 +288,22 @@ class PayrollFinalizeTest extends FinanceTestCase
             ->assertNotFound();
     }
 
-    public function test_manager_cannot_finalize_or_delete(): void
+    public function test_manager_and_staff_cannot_finalize_delete_or_edit_a_line(): void
     {
         $org = $this->makeOrg();
         [, $run] = $this->draftRun($org);
-        $token = $this->token($this->makeUser($org, 'manager'));
+        $line = $run->lines()->first();
 
-        $this->withToken($token)->postJson("/api/payroll/runs/{$run->id}/finalize")->assertForbidden();
-        $this->withToken($token)->deleteJson("/api/payroll/runs/{$run->id}")->assertForbidden();
+        foreach (['manager', 'staff'] as $role) {
+            $token = $this->token($this->makeUser($org, $role));
+
+            $this->withToken($token)->postJson("/api/payroll/runs/{$run->id}/finalize")->assertForbidden();
+            $this->withToken($token)->deleteJson("/api/payroll/runs/{$run->id}")->assertForbidden();
+            $this->withToken($token)
+                ->patchJson("/api/payroll/runs/{$run->id}/lines/{$line->id}", ['salary_amount' => 1])
+                ->assertForbidden();
+        }
+
+        $this->assertSame('1000.00', $line->fresh()->salary_amount);
     }
 }
