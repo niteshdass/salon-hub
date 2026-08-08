@@ -19,6 +19,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
+use App\Http\Controllers\PayrollRunController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\DiscoveryController;
 use App\Http\Controllers\Public\PaymentCallbackController;
@@ -141,6 +142,10 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('reports', ReportController::class);
 
     Route::apiResource('expenses', ExpenseController::class)->except('show');
+
+    Route::get('payroll/runs', [PayrollRunController::class, 'index']);
+    Route::post('payroll/runs', [PayrollRunController::class, 'store']);
+    Route::get('payroll/runs/{run}', [PayrollRunController::class, 'show']);
 
     Route::get('settings/organization', [OrganizationSettingController::class, 'show']);
     Route::put('settings/organization', [OrganizationSettingController::class, 'update']);
