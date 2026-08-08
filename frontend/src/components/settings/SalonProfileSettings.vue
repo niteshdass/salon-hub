@@ -2,9 +2,12 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
+import { THEME_SWATCHES } from '@/lib/theme'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 
 const loading = ref(true)
 const saving = ref(false)
@@ -30,7 +33,7 @@ const form = reactive({
   country: '',
   timezone: '',
   currency: '',
-  theme_color: '#6366f1',
+  theme_color: THEME_SWATCHES[0],
   about: '',
   facebook: '',
   instagram: '',
@@ -67,6 +70,14 @@ function apply(data) {
   for (const key of Object.keys(form)) {
     form[key] = data[key] ?? (key === 'theme_color' ? '#6366f1' : '')
   }
+  themeStore.setAccent(form.theme_color)
+}
+
+// Selecting a colour repaints the app at once — the owner judges it against
+// the real sidebar rather than a swatch.
+function chooseTheme(hex) {
+  form.theme_color = hex
+  themeStore.setAccent(hex)
 }
 
 async function load() {
@@ -192,19 +203,47 @@ onMounted(load)
           </div>
         </div>
 
-        <div class="mt-5 flex flex-wrap items-center gap-4">
-          <label class="text-xs font-medium text-slate-600">Theme colour</label>
-          <input
-            v-model="form.theme_color"
-            type="color"
-            class="h-9 w-14 cursor-pointer rounded-lg border border-slate-300 bg-white p-1"
-          />
-          <input
-            v-model="form.theme_color"
-            type="text"
-            class="w-28 rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm uppercase focus:border-indigo-500 focus:outline-none"
-          />
-          <p v-if="fieldError('theme_color')" class="text-xs text-red-600">{{ fieldError('theme_color') }}</p>
+        <div class="mt-6">
+          <span class="sh-label">Theme colour</span>
+          <p class="mb-3 text-xs text-ink/55">
+            Accents your dashboard and your public booking pages.
+          </p>
+
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button
+              v-for="hex in THEME_SWATCHES"
+              :key="hex"
+              data-swatch
+              type="button"
+              class="h-9 w-9 rounded-full ring-2 ring-offset-2 transition"
+              :style="{ backgroundColor: hex }"
+              :class="form.theme_color === hex ? 'ring-ink' : 'ring-transparent hover:ring-ink/20'"
+              :aria-label="hex"
+              :aria-pressed="form.theme_color === hex"
+              @click="chooseTheme(hex)"
+            />
+
+            <span class="ml-2 h-6 w-px bg-ink/10"></span>
+
+            <label class="flex items-center gap-2 text-xs font-medium text-ink/60">
+              Custom
+              <input
+                :value="form.theme_color"
+                type="color"
+                class="h-9 w-12 cursor-pointer rounded-lg border border-ink/15 bg-white p-1"
+                @input="chooseTheme($event.target.value)"
+              />
+            </label>
+
+            <input
+              :value="form.theme_color"
+              type="text"
+              class="sh-input w-32 font-mono text-sm uppercase"
+              @change="chooseTheme($event.target.value)"
+            />
+          </div>
+
+          <p v-if="fieldError('theme_color')" class="sh-error">{{ fieldError('theme_color') }}</p>
         </div>
       </section>
 

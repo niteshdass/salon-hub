@@ -2,16 +2,15 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
+import { THEME_SWATCHES } from '@/lib/theme'
 import { useAuthStore } from '@/stores/auth'
 import OnboardingLayout from '@/layouts/OnboardingLayout.vue'
 
 const emit = defineEmits(['done', 'skip', 'back'])
 const authStore = useAuthStore()
 
-const THEMES = ['#4f46e5', '#0f766e', '#be123c', '#b45309', '#7c3aed', '#0369a1']
-
 const about = ref('')
-const themeColor = ref(THEMES[0])
+const themeColor = ref(THEME_SWATCHES[0])
 const logoUrl = ref(null)
 const logoInput = ref(null)
 const saving = ref(false)
@@ -27,7 +26,7 @@ onMounted(async () => {
   try {
     const { data } = await api.get('/settings/organization')
     about.value = data.data.about ?? ''
-    themeColor.value = data.data.theme_color || THEMES[0]
+    themeColor.value = data.data.theme_color || THEME_SWATCHES[0]
     logoUrl.value = data.data.logo_url ?? null
   } catch (err) {
     error.value = parseApiError(err).message
@@ -176,7 +175,7 @@ async function save() {
           <label class="mb-2 block text-sm font-medium text-slate-700">Colour</label>
           <div class="flex flex-wrap gap-2">
             <button
-              v-for="colour in THEMES"
+              v-for="colour in THEME_SWATCHES"
               :key="colour"
               type="button"
               class="h-9 w-9 rounded-full ring-2 ring-offset-2 transition"

@@ -13,6 +13,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 })
 
 import api from '@/lib/api'
+import { THEME_SWATCHES } from '@/lib/theme'
 import { useAuthStore } from '@/stores/auth'
 import StepLook from './StepLook.vue'
 
@@ -237,7 +238,7 @@ describe('StepLook', () => {
     await flushPromises()
 
     const [, body] = vi.mocked(api.put).mock.calls[0]
-    expect(body.theme_color).toBe('#4f46e5')
+    expect(body.theme_color).toBe(THEME_SWATCHES[0])
   })
 
   it('skipping this optional step saves nothing and leaves the owner able to move on', async () => {
