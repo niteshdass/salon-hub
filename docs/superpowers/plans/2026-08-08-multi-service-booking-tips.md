@@ -741,7 +741,6 @@ return new class extends Migration
                     ->from('appointment_services')
                     ->whereColumn('appointment_services.appointment_id', 'appointments.id');
             })
-            ->orderBy('appointments.id')
             ->select([
                 'appointments.id',
                 'appointments.service_id',
@@ -751,7 +750,10 @@ return new class extends Migration
                 'services.name',
                 'services.duration',
             ])
-            ->chunk(500, function ($rows): void {
+            // chunkById, not chunk: inserting a line makes its appointment stop
+            // matching whereNotExists, so an offset-paged chunk() would step
+            // straight over every row the previous page just fixed.
+            ->chunkById(500, function ($rows): void {
                 $now = now();
                 $lines = [];
 
@@ -771,7 +773,7 @@ return new class extends Migration
                 if ($lines !== []) {
                     DB::table('appointment_services')->insert($lines);
                 }
-            });
+            }, 'appointments.id', 'id');
     }
 
     /**
