@@ -52,16 +52,22 @@ class StorePaymentRequest extends FormRequest
             }
 
             // The amount settles the booking's own balance and must never
-            // overshoot it. The tip is never capped by anything.
+            // overshoot it. A zero amount settles nothing — it's a tip-only
+            // payment — so it never needs capping, which matters once the
+            // balance itself has gone negative (an already-overpaid booking,
+            // e.g. a deposit verified after the counter already collected in
+            // full): 0 is not "over" a negative balance in any sense a
+            // counter operator would recognise. The tip is never capped by
+            // anything.
             $appointment = $this->route('appointment');
-            if ($appointment instanceof Appointment) {
+            if ($appointment instanceof Appointment && $amount > 0) {
                 $appointment->loadMissing('payments');
                 $balance = (float) $appointment->balanceDue();
 
                 if ($amount > $balance) {
                     $validator->errors()->add(
                         'amount',
-                        'Amount cannot exceed the remaining balance of '.number_format($balance, 2, '.', '').'.'
+                        'Amount cannot exceed the remaining balance of '.number_format(max($balance, 0.0), 2, '.', '').'.'
                     );
                 }
             }

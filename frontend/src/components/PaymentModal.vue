@@ -4,12 +4,14 @@
 // doesn't need to mount the component. A tip is always its own key — never
 // folded into `amount`, since it sits outside the balance it settles.
 //
-// `paidInFull` zero-locks Amount here, not just in the template: once a
-// booking is settled, PaymentController::store() has nothing capping Amount
-// against the remaining balance, so a stray value there would drive
-// balance_due negative while the invoice still claims "Paid in full". A tip
-// must still get through — that is the whole point of a settled booking
-// reaching this form at all — so only `amount` is clamped.
+// `paidInFull` zero-locks Amount here, not just in the template. The server
+// (StorePaymentRequest) also caps Amount against the remaining balance, but
+// only rejects with a 422 — it can't stop the operator from typing a stray
+// value into a field the UI itself says is settled. Clamping client-side
+// turns that into a form that never lets the mistake happen, instead of one
+// that lets it happen and then argues about it. A tip must still get
+// through — that is the whole point of a settled booking reaching this form
+// at all — so only `amount` is clamped.
 export function buildPaymentPayload(form, paidInFull) {
   return {
     amount: paidInFull ? 0 : (form.amount === '' ? 0 : Number(form.amount)),

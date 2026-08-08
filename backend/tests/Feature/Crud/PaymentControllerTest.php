@@ -305,6 +305,43 @@ class PaymentControllerTest extends TestCase
         $this->assertSame('500.00', $ctx['appointment']->fresh()->load('payments')->tipsCollected());
     }
 
+    /**
+     * A pending manual-transfer deposit (as the public booking flow creates
+     * it) doesn't count toward the balance yet, so the counter still sees
+     * the full price owed and can take a "Full" payment for it. Only once
+     * the owner verifies the deposit afterwards does it also land on the
+     * balance, taking it negative. A tip must still get through then.
+     */
+    public function test_tip_only_payment_survives_a_negative_balance(): void
+    {
+        $ctx = $this->scaffold('negbalance');
+        $url = "/api/appointments/{$ctx['appointment']->id}/payments";
+
+        $deposit = $ctx['appointment']->payments()->create([
+            'organization_id' => $ctx['org']->id,
+            'amount' => 15,
+            'method' => PaymentMethod::BANK_TRANSFER,
+            'status' => PaymentStatus::PENDING,
+            'source' => PaymentSource::PUBLIC_MANUAL,
+            'reference' => 'txn-ref',
+        ]);
+
+        $this->withToken($ctx['staffToken'])->postJson($url, ['amount' => 40, 'method' => 'cash'])->assertCreated();
+
+        $this->as($ctx, $ctx['ownerToken'])
+            ->postJson("{$url}/{$deposit->id}/verify")
+            ->assertOk();
+
+        $this->assertSame('-15.00', $ctx['appointment']->fresh()->load('payments')->balanceDue());
+
+        $response = $this->as($ctx, $ctx['staffToken'])->postJson($url, [
+            'amount' => 0, 'tip_amount' => 25, 'method' => 'cash',
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame('25.00', $ctx['appointment']->fresh()->load('payments')->tipsCollected());
+    }
+
     public function test_a_tip_larger_than_the_balance_is_still_accepted(): void
     {
         $ctx = $this->scaffold('bigtip');
