@@ -320,6 +320,160 @@ class PayrollFinalizeTest extends FinanceTestCase
             ->assertNotFound();
     }
 
+    /**
+     * A tip is pass-through money: the customer hands it over, the salon
+     * forwards it to the stylist. It is never a salon cost, so the salary
+     * expense finalize() books must exclude it — otherwise the P&L subtracts
+     * an expense that contains tips from revenue that never did, and every
+     * month's tip total silently understates profit.
+     *
+     * Amounts are deliberately non-round so a coincidental match (e.g. tips
+     * happening to equal zero after rounding) cannot pass this by accident.
+     */
+    public function test_finalize_excludes_tips_from_the_salary_expense(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $staff = $this->makeStaff($org, [
+            'pay_type' => 'hybrid',
+            'monthly_salary' => 733.41,
+            'commission_rate' => 37,
+        ]);
+        $appointment = $this->makeAppointment($org, [
+            'staff' => $staff,
+            'date' => '2026-07-14',
+            'price' => 158.30,
+        ]);
+        $appointment->payments()->create([
+            'organization_id' => $org->id,
+            'amount' => 158.30,
+            'tip_amount' => 44.63,
+            'method' => 'cash',
+            'status' => 'verified',
+            'source' => 'staff',
+        ]);
+
+        $token = $this->token($owner);
+        $runId = $this->withToken($token)
+            ->postJson('/api/payroll/runs', ['period_month' => '2026-07-01'])
+            ->json('data.id');
+        $line = PayrollRun::findOrFail($runId)->lines()->first();
+
+        // Salary 733.41 + commission (158.30 * 37% = 58.57) = 791.98.
+        $this->assertSame('733.41', $line->salary_amount);
+        $this->assertSame('58.57', $line->commission_amount);
+        $this->assertSame('44.63', $line->tips_amount);
+
+        $this->withToken($token)->postJson("/api/payroll/runs/{$runId}/finalize")->assertOk();
+
+        $expense = Expense::first();
+        $this->assertSame('791.98', $expense->amount, 'the salary expense must exclude the tip');
+    }
+
+    /**
+     * The guard against fixing the P&L by removing tips from payroll
+     * altogether: the run header and the line both still owe the stylist
+     * their tip in full after finalizing, even though the booked expense
+     * does not.
+     */
+    public function test_finalize_still_pays_the_tip_through_in_full(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $staff = $this->makeStaff($org, [
+            'pay_type' => 'hybrid',
+            'monthly_salary' => 733.41,
+            'commission_rate' => 37,
+        ]);
+        $appointment = $this->makeAppointment($org, [
+            'staff' => $staff,
+            'date' => '2026-07-14',
+            'price' => 158.30,
+        ]);
+        $appointment->payments()->create([
+            'organization_id' => $org->id,
+            'amount' => 158.30,
+            'tip_amount' => 44.63,
+            'method' => 'cash',
+            'status' => 'verified',
+            'source' => 'staff',
+        ]);
+
+        $token = $this->token($owner);
+        $runId = $this->withToken($token)
+            ->postJson('/api/payroll/runs', ['period_month' => '2026-07-01'])
+            ->json('data.id');
+        $run = PayrollRun::findOrFail($runId);
+        $line = $run->lines()->first();
+
+        $this->withToken($token)->postJson("/api/payroll/runs/{$runId}/finalize")->assertOk();
+
+        // 733.41 + 58.57 + 44.63 = 836.61 — the tip is still in both totals.
+        $this->assertSame('836.61', $run->fresh()->total_amount);
+        $this->assertSame('836.61', $line->fresh()->total_amount);
+        $this->assertSame('44.63', $run->fresh()->total_tips);
+    }
+
+    /**
+     * Regression guard: a run with no tips must book exactly what it always
+     * has. The fix must change what happens when tips are present, not the
+     * ordinary case.
+     */
+    public function test_finalize_expense_is_unchanged_for_a_tip_free_run(): void
+    {
+        $org = $this->makeOrg();
+        [$owner, $run] = $this->draftRun($org);
+
+        $this->withToken($this->token($owner))
+            ->postJson("/api/payroll/runs/{$run->id}/finalize")->assertOk();
+
+        $this->assertSame('0.00', $run->fresh()->total_tips);
+        $this->assertSame($run->fresh()->total_amount, Expense::first()->amount);
+        $this->assertSame('1000.00', Expense::first()->amount);
+    }
+
+    /**
+     * syncTotals() is documented to keep the header matching the rows under
+     * it; total_tips is one of those totals now, so a line edit must move it
+     * exactly like total_salary and total_commission already do.
+     */
+    public function test_sync_totals_keeps_total_tips_in_step_after_a_line_edit(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        $staff = $this->makeStaff($org, ['pay_type' => 'commission', 'commission_rate' => 50]);
+        $appointment = $this->makeAppointment($org, [
+            'staff' => $staff,
+            'date' => '2026-07-14',
+            'price' => 100,
+        ]);
+        $appointment->payments()->create([
+            'organization_id' => $org->id,
+            'amount' => 100,
+            'tip_amount' => 20,
+            'method' => 'cash',
+            'status' => 'verified',
+            'source' => 'staff',
+        ]);
+
+        $token = $this->token($owner);
+        $runId = $this->withToken($token)
+            ->postJson('/api/payroll/runs', ['period_month' => '2026-07-01'])
+            ->json('data.id');
+        $run = PayrollRun::findOrFail($runId);
+        $line = $run->lines()->first();
+
+        $this->assertSame('20.00', $run->fresh()->total_tips);
+
+        $this->withToken($token)
+            ->patchJson("/api/payroll/runs/{$runId}/lines/{$line->id}", ['commission_amount' => 80])
+            ->assertOk();
+
+        // The edit changes commission, not tips — total_tips must still read
+        // 20.00, not drift to 0 or double up.
+        $this->assertSame('20.00', $run->fresh()->total_tips);
+    }
+
     public function test_manager_and_staff_cannot_finalize_delete_or_edit_a_line(): void
     {
         $org = $this->makeOrg();
