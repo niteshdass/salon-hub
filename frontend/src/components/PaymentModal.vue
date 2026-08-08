@@ -3,9 +3,16 @@
 // coercion (a blank field must send 0, never '' or NaN) has a test that
 // doesn't need to mount the component. A tip is always its own key — never
 // folded into `amount`, since it sits outside the balance it settles.
-export function buildPaymentPayload(form) {
+//
+// `paidInFull` zero-locks Amount here, not just in the template: once a
+// booking is settled, PaymentController::store() has nothing capping Amount
+// against the remaining balance, so a stray value there would drive
+// balance_due negative while the invoice still claims "Paid in full". A tip
+// must still get through — that is the whole point of a settled booking
+// reaching this form at all — so only `amount` is clamped.
+export function buildPaymentPayload(form, paidInFull) {
   return {
-    amount: form.amount === '' ? 0 : Number(form.amount),
+    amount: paidInFull ? 0 : (form.amount === '' ? 0 : Number(form.amount)),
     tip_amount: form.tip_amount === '' ? 0 : Number(form.tip_amount),
     method: form.method,
     reference: form.reference || null,
@@ -14,7 +21,7 @@ export function buildPaymentPayload(form) {
 </script>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
@@ -87,12 +94,23 @@ function fillBalance() {
   if (invoice.value) form.amount = invoice.value.balance_due
 }
 
+// Once the balance is settled there is nothing left for Amount to do — keep
+// it visually locked at 0 rather than merely uneditable, so a lingering
+// typed value from before the booking got paid off elsewhere can't confuse
+// what is about to be submitted.
+watch(
+  () => invoice.value?.paid_in_full,
+  (paidInFull) => {
+    if (paidInFull) form.amount = '0'
+  },
+)
+
 async function record() {
   saving.value = true
   formMessage.value = ''
   formErrors.value = {}
   try {
-    await api.post(`${base.value}/payments`, buildPaymentPayload(form))
+    await api.post(`${base.value}/payments`, buildPaymentPayload(form, invoice.value?.paid_in_full))
     form.amount = ''
     form.tip_amount = ''
     form.reference = ''
@@ -415,9 +433,11 @@ onMounted(load)
                 type="number"
                 step="0.01"
                 min="0"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                :disabled="invoice.paid_in_full"
+                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               />
               <button
+                v-if="!invoice.paid_in_full"
                 type="button"
                 class="whitespace-nowrap rounded-lg border border-slate-300 px-2 text-xs text-slate-600 hover:bg-slate-50"
                 @click="fillBalance"
@@ -425,6 +445,7 @@ onMounted(load)
                 Full
               </button>
             </div>
+            <p v-if="invoice.paid_in_full" class="mt-1 text-xs text-slate-400">Balance settled — only a tip can be recorded.</p>
             <p v-if="fieldError('amount')" class="mt-1 text-xs text-rose-600">{{ fieldError('amount') }}</p>
           </div>
           <div>
