@@ -242,7 +242,7 @@ async function onLogout() {
         </template>
         <button
           type="button"
-          class="shrink-0 text-xs font-medium text-white/55 transition hover:text-white"
+          class="ml-auto shrink-0 text-xs font-medium text-white/55 transition hover:text-white"
           @click="onLogout"
         >
           Logout
