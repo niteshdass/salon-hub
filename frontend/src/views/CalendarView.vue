@@ -55,8 +55,8 @@ const STATUS_META = {
   pending: { label: 'Pending', badge: 'sh-badge-pending', dot: 'bg-amber-400', chip: 'border-l-2 border-accent-300 bg-accent-50 text-ink' },
   confirmed: { label: 'Confirmed', badge: 'sh-badge-confirmed', dot: 'bg-sky-500', chip: 'border-l-2 border-accent-500 bg-accent-50 text-ink' },
   completed: { label: 'Completed', badge: 'sh-badge-completed', dot: 'bg-emerald-500', chip: 'border-l-2 border-accent-500 bg-accent-50 text-ink/60' },
-  cancelled: { label: 'Cancelled', badge: 'sh-badge-cancelled', dot: 'bg-ink/20', chip: 'border-l-2 border-ink/20 bg-ink/5 text-ink/50 line-through' },
-  no_show: { label: 'No-show', badge: 'sh-badge-no-show', dot: 'bg-rose-500', chip: 'border-l-2 border-rose-400 bg-rose-50 text-ink' },
+  cancelled: { label: 'Cancelled', badge: 'sh-badge-cancelled', dot: 'bg-rose-500', chip: 'border-l-2 border-rose-400 bg-rose-50 text-ink/60 line-through' },
+  no_show: { label: 'No-show', badge: 'sh-badge-no-show', dot: 'bg-ink/25', chip: 'border-l-2 border-ink/20 bg-ink/5 text-ink' },
 }
 function statusMeta(status) {
   return STATUS_META[status] || { label: status || '—', badge: 'sh-badge-no-show', dot: 'bg-ink/20', chip: 'border-l-2 border-ink/20 bg-ink/5 text-ink' }
@@ -390,7 +390,7 @@ onMounted(async () => {
 
     <!-- Day -->
     <template v-else>
-      <p v-if="loading" class="sh-card p-5 py-10 text-center text-sm text-ink/60">Loading…</p>
+      <p v-if="loading" class="sh-card px-5 py-10 text-center text-sm text-ink/60">Loading…</p>
       <div v-else-if="dayAppointments(dayKey).length === 0" class="sh-empty">
         <p class="font-medium text-ink">Nothing booked</p>
         <p class="mt-1">This day is completely free.</p>

@@ -373,60 +373,141 @@ onMounted(loadAppointments)
       </button>
     </div>
 
-    <!-- List -->
-    <div v-else class="sh-card overflow-x-auto">
-      <table class="sh-table">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Customer</th>
-            <th>Booking</th>
-            <th>Staff</th>
-            <th>Status</th>
-            <th class="text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="appt in sortedAppointments" :key="appt.id">
-            <td class="whitespace-nowrap">
-              <span class="font-semibold text-ink">{{ appt.start_time }}</span>
-              <span v-if="appt.end_time" class="block text-xs text-ink/50">to {{ appt.end_time }}</span>
-            </td>
-            <td>
-              <span class="font-medium text-ink">{{ appt.customer?.name || 'Customer' }}</span>
-              <span v-if="appt.customer?.phone" class="block text-xs text-ink/50">{{ appt.customer.phone }}</span>
-              <span v-if="appt.notes" class="mt-0.5 block text-xs text-ink/50">{{ appt.notes }}</span>
-            </td>
-            <td>
-              <span class="text-ink">{{ (appt.services || []).map((s) => s.name).join(', ') || '—' }}</span>
-              <span class="block text-xs text-ink/50">
-                {{ appt.branch?.name || '—' }}
-                <template v-if="appt.price != null"> · {{ money(appt.price) }}</template>
-              </span>
-            </td>
-            <td class="text-ink/75">{{ appt.staff?.name || '—' }}</td>
-            <td>
-              <span class="sh-badge" :class="statusBadge(appt.status)">{{ statusLabel(appt.status) }}</span>
-              <span class="mt-1.5 flex flex-wrap gap-1">
-                <button
-                  v-for="action in QUICK_ACTIONS"
-                  v-show="appt.status !== action"
-                  :key="action"
-                  type="button"
-                  :disabled="statusUpdatingId === appt.id"
-                  class="sh-btn px-2 py-0.5 text-[11px] font-medium text-ink/70"
-                  @click="setStatus(appt, action)"
-                >
-                  {{ statusLabel(action) }}
-                </button>
-              </span>
-            </td>
-            <td class="text-right whitespace-nowrap">
-              <button type="button" class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs" @click="paymentTarget = appt">
+    <!-- List. The table needs ~700px of width, so below md it is replaced by
+         the card list rather than left to scroll sideways behind an overlay
+         scrollbar that renders no affordance on a phone. Every field and every
+         control appears in both branches. -->
+    <template v-else>
+      <div class="sh-card hidden overflow-x-auto md:block">
+        <table class="sh-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Customer</th>
+              <th>Booking</th>
+              <th>Staff</th>
+              <th>Status</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="appt in sortedAppointments" :key="appt.id">
+              <td class="whitespace-nowrap">
+                <span class="font-semibold text-ink">{{ appt.start_time }}</span>
+                <span v-if="appt.end_time" class="block text-xs text-ink/50">to {{ appt.end_time }}</span>
+              </td>
+              <td>
+                <span class="font-medium text-ink">{{ appt.customer?.name || 'Customer' }}</span>
+                <span v-if="appt.customer?.phone" class="block text-xs text-ink/50">{{ appt.customer.phone }}</span>
+                <span v-if="appt.notes" class="mt-0.5 block text-xs text-ink/50">{{ appt.notes }}</span>
+              </td>
+              <td>
+                <span class="text-ink">{{ (appt.services || []).map((s) => s.name).join(', ') || '—' }}</span>
+                <span class="block text-xs text-ink/50">
+                  {{ appt.branch?.name || '—' }}
+                  <template v-if="appt.price != null"> · {{ money(appt.price) }}</template>
+                </span>
+              </td>
+              <td class="text-ink/75">{{ appt.staff?.name || '—' }}</td>
+              <td>
+                <span class="sh-badge" :class="statusBadge(appt.status)">{{ statusLabel(appt.status) }}</span>
+                <span class="mt-1.5 flex flex-wrap gap-1">
+                  <button
+                    v-for="action in QUICK_ACTIONS"
+                    v-show="appt.status !== action"
+                    :key="action"
+                    type="button"
+                    :disabled="statusUpdatingId === appt.id"
+                    class="sh-btn px-2 py-0.5 text-[11px] font-medium text-ink/70"
+                    @click="setStatus(appt, action)"
+                  >
+                    {{ statusLabel(action) }}
+                  </button>
+                </span>
+              </td>
+              <td class="text-right whitespace-nowrap">
+                <div class="inline-flex items-center gap-1">
+                  <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="paymentTarget = appt">
+                    Invoice
+                  </button>
+                  <template v-if="canWrite">
+                    <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(appt)">
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                      @click="confirmTarget = appt"
+                    >
+                      Delete
+                    </button>
+                  </template>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Same data, same handlers, stacked so nothing sits off the right
+           edge of a 390px viewport. -->
+      <div class="space-y-3 md:hidden">
+        <div v-for="appt in sortedAppointments" :key="appt.id" class="sh-card p-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-semibold text-ink">
+              {{ appt.start_time }}<span v-if="appt.end_time">–{{ appt.end_time }}</span>
+            </span>
+            <span class="sh-badge" :class="statusBadge(appt.status)">{{ statusLabel(appt.status) }}</span>
+          </div>
+
+          <p class="mt-1 font-medium text-ink">
+            {{ appt.customer?.name || 'Customer' }}
+            <span v-if="appt.customer?.phone" class="text-sm font-normal text-ink/50">
+              · {{ appt.customer.phone }}
+            </span>
+          </p>
+
+          <dl class="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm">
+            <div class="flex gap-2">
+              <dt class="text-ink/40">Services</dt>
+              <dd class="truncate text-ink">{{ (appt.services || []).map((s) => s.name).join(', ') || '—' }}</dd>
+            </div>
+            <div class="flex gap-2">
+              <dt class="text-ink/40">Staff</dt>
+              <dd class="truncate text-ink">{{ appt.staff?.name || '—' }}</dd>
+            </div>
+            <div class="flex gap-2">
+              <dt class="text-ink/40">Branch</dt>
+              <dd class="truncate text-ink">{{ appt.branch?.name || '—' }}</dd>
+            </div>
+            <div v-if="appt.price != null" class="flex gap-2">
+              <dt class="text-ink/40">Price</dt>
+              <dd class="truncate font-medium text-ink">{{ money(appt.price) }}</dd>
+            </div>
+          </dl>
+
+          <p v-if="appt.notes" class="mt-2 text-sm text-ink/60">{{ appt.notes }}</p>
+
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-ink/10 pt-4">
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="action in QUICK_ACTIONS"
+                v-show="appt.status !== action"
+                :key="action"
+                type="button"
+                :disabled="statusUpdatingId === appt.id"
+                class="sh-btn px-2 py-0.5 text-[11px] font-medium text-ink/70"
+                @click="setStatus(appt, action)"
+              >
+                {{ statusLabel(action) }}
+              </button>
+            </div>
+            <div class="flex gap-1">
+              <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="paymentTarget = appt">
                 Invoice
               </button>
               <template v-if="canWrite">
-                <button type="button" class="sh-btn sh-btn-ghost px-2.5 py-1 text-xs" @click="openEdit(appt)">
+                <button type="button" class="sh-btn px-2.5 py-1 text-xs" @click="openEdit(appt)">
                   Edit
                 </button>
                 <button
@@ -437,11 +518,11 @@ onMounted(loadAppointments)
                   Delete
                 </button>
               </template>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <!-- Create / edit form -->
     <Modal

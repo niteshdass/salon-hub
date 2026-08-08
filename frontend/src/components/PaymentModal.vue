@@ -406,7 +406,7 @@ onMounted(load)
                 v-if="canDelete"
                 type="button"
                 :disabled="removingId === p.id"
-                class="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50"
+                class="sh-btn sh-btn-danger px-2.5 py-1 text-xs"
                 @click="remove(p)"
               >
                 Remove
