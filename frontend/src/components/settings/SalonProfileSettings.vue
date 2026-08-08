@@ -1,8 +1,8 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
-import { THEME_SWATCHES } from '@/lib/theme'
+import { BRAND_ACCENT, THEME_SWATCHES, normalizeAccent } from '@/lib/theme'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 
@@ -25,6 +25,9 @@ const coverInput = ref(null)
 const slug = ref('')
 const logoUrl = ref(null)
 const coverUrl = ref(null)
+
+// The colour the server last confirmed, so an abandoned preview can be undone.
+const savedThemeColor = ref(null)
 
 const form = reactive({
   name: '',
@@ -58,19 +61,37 @@ const siteUrl = computed(() =>
   slug.value ? `${window.location.origin}/salon/${slug.value}` : '',
 )
 
+/*
+ * The column's default. It has to survive untouched: the public site, the
+ * booking flow and the manage-booking page all read it as "this salon never
+ * chose", and answer with their own gold. Writing a real colour over it here
+ * would silently restyle those customer-facing pages for an owner who only
+ * came in to edit a phone number. So the sentinel stays in the database and
+ * we simply stop showing it as if it were a choice.
+ */
+const UNCHOSEN = '#6366f1'
+
+const isUnchosen = computed(() => form.theme_color?.toLowerCase() === UNCHOSEN)
+
 function fieldError(key) {
   const e = formErrors.value[key]
   return Array.isArray(e) ? e[0] : e || ''
 }
 
-function apply(data) {
+// The image endpoints return the whole organization, including the stored
+// colour — landing that would undo a pick the owner has not saved yet.
+function apply(data, { theme = true } = {}) {
   slug.value = data.slug || ''
   logoUrl.value = data.logo_url || null
   coverUrl.value = data.cover_image_url || null
   for (const key of Object.keys(form)) {
-    form[key] = data[key] ?? (key === 'theme_color' ? '#6366f1' : '')
+    if (key === 'theme_color' && !theme) continue
+    form[key] = data[key] ?? (key === 'theme_color' ? UNCHOSEN : '')
   }
-  themeStore.setAccent(form.theme_color)
+  if (theme) {
+    savedThemeColor.value = form.theme_color
+    themeStore.setAccent(form.theme_color)
+  }
 }
 
 // Selecting a colour repaints the app at once — the owner judges it against
@@ -79,6 +100,26 @@ function chooseTheme(hex) {
   form.theme_color = hex
   themeStore.setAccent(hex)
 }
+
+/*
+ * Typed hexes only settle on blur. Normalizing every keystroke would fight
+ * someone half way through '#0f7'; leaving them alone entirely would send
+ * whatever they typed to a server that rejects anything but six hex digits.
+ */
+function commitTheme(event) {
+  chooseTheme(normalizeAccent(event.target.value))
+  // If the junk normalized back to the colour already held, the bound value
+  // never changed and Vue leaves the junk on screen. Put it right by hand.
+  event.target.value = form.theme_color
+}
+
+// A preview the owner walked away from must not follow them around the app,
+// nor sit in localStorage waiting to flash on the next load.
+onUnmounted(() => {
+  if (savedThemeColor.value !== null && form.theme_color !== savedThemeColor.value) {
+    themeStore.setAccent(savedThemeColor.value)
+  }
+})
 
 async function load() {
   loading.value = true
@@ -123,8 +164,14 @@ async function uploadImage(kind, event) {
     const body = new FormData()
     body.append('image', file)
     const { data } = await api.post(`/settings/organization/${kind}`, body)
-    apply(data.data || {})
-    if (kind === 'logo') await authStore.fetchMe().catch(() => {})
+    apply(data.data || {}, { theme: false })
+    if (kind === 'logo') {
+      // The sidebar needs the new logo, but fetchMe also repaints the accent
+      // from the stored organization — the same unsaved pick apply() just
+      // protected. Put the preview back once the session has refreshed.
+      await authStore.fetchMe().catch(() => {})
+      themeStore.setAccent(form.theme_color)
+    }
   } catch (err) {
     imageError.value = parseApiError(err, 'Could not upload that image.').message
   } finally {
@@ -140,7 +187,7 @@ async function removeImage(kind) {
   imageError.value = ''
   try {
     const { data } = await api.delete(`/settings/organization/${kind}`)
-    apply(data.data || {})
+    apply(data.data || {}, { theme: false })
   } catch (err) {
     imageError.value = parseApiError(err, 'Could not remove that image.').message
   } finally {
@@ -206,7 +253,7 @@ onMounted(load)
         <div class="mt-6">
           <span class="sh-label">Theme colour</span>
           <p class="mb-3 text-xs text-ink/55">
-            Accents your dashboard and your public booking pages.
+            Pick a colour and it accents your dashboard, your public page and your booking flow.
           </p>
 
           <div class="flex flex-wrap items-center gap-2.5">
@@ -228,7 +275,8 @@ onMounted(load)
             <label class="flex items-center gap-2 text-xs font-medium text-ink/60">
               Custom
               <input
-                :value="form.theme_color"
+                :value="isUnchosen ? BRAND_ACCENT : form.theme_color"
+                data-theme-picker
                 type="color"
                 class="h-9 w-12 cursor-pointer rounded-lg border border-ink/15 bg-white p-1"
                 @input="chooseTheme($event.target.value)"
@@ -236,12 +284,18 @@ onMounted(load)
             </label>
 
             <input
-              :value="form.theme_color"
+              :value="isUnchosen ? '' : form.theme_color"
+              data-theme-hex
               type="text"
+              placeholder="Not set"
               class="sh-input w-32 font-mono text-sm uppercase"
-              @change="chooseTheme($event.target.value)"
+              @change="commitTheme"
             />
           </div>
+
+          <p v-if="isUnchosen" class="mt-3 text-xs text-ink/55">
+            Not set — your dashboard uses SalonHub terracotta and your public page uses its own gold.
+          </p>
 
           <p v-if="fieldError('theme_color')" class="sh-error">{{ fieldError('theme_color') }}</p>
         </div>

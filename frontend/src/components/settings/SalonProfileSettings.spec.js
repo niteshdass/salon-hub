@@ -10,7 +10,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 import api from '@/lib/api'
 import SalonProfileSettings from '@/components/settings/SalonProfileSettings.vue'
 import { useThemeStore } from '@/stores/theme'
-import { THEME_SWATCHES } from '@/lib/theme'
+import { BRAND_ACCENT, THEME_SWATCHES } from '@/lib/theme'
 
 const PROFILE = {
   name: 'Heaven Touch',
@@ -42,6 +42,7 @@ describe('SalonProfileSettings — theme picker', () => {
     setActivePinia(createPinia())
     vi.mocked(api.get).mockReset()
     vi.mocked(api.put).mockReset()
+    vi.mocked(api.post).mockReset()
   })
 
   it('offers every curated swatch', async () => {
@@ -61,13 +62,76 @@ describe('SalonProfileSettings — theme picker', () => {
 
   it('saves the chosen colour with the profile', async () => {
     const wrapper = await mountSettings()
-    vi.mocked(api.put).mockResolvedValue({ data: { data: { ...PROFILE, theme_color: '#0f766e' } } })
+    // save() hands the reactive form straight to axios and then writes the
+    // response back into it, so the recorded call argument is a live
+    // reference that already holds the mocked reply by assertion time.
+    // Snapshot the body as it is sent or this test proves nothing.
+    let sent
+    vi.mocked(api.put).mockImplementation((url, body) => {
+      sent = { ...body }
+      return Promise.resolve({ data: { data: { ...PROFILE, theme_color: '#0f766e' } } })
+    })
     const teal = THEME_SWATCHES.indexOf('#0f766e')
 
     await wrapper.findAll('[data-swatch]')[teal].trigger('click')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(vi.mocked(api.put).mock.calls[0][1].theme_color).toBe('#0f766e')
+    expect(sent.theme_color).toBe('#0f766e')
+  })
+
+  it('shows a salon that never chose a colour as unset, not as the placeholder hex', async () => {
+    const wrapper = await mountSettings()
+
+    // The stored '#6366f1' is a sentinel the public pages read as their own
+    // gold. It must stay in the database, but printing it here would name a
+    // colour that appears nowhere on screen.
+    expect(wrapper.find('[data-theme-hex]').element.value).toBe('')
+    expect(wrapper.find('[data-theme-picker]').element.value).toBe(BRAND_ACCENT)
+    expect(wrapper.findAll('[data-swatch][aria-pressed="true"]')).toHaveLength(0)
+    expect(wrapper.text()).toContain('Not set')
+  })
+
+  it('corrects a junk custom hex on blur instead of letting it reach the server', async () => {
+    const wrapper = await mountSettings()
+    const field = wrapper.find('[data-theme-hex]')
+
+    await field.setValue('not-a-colour')
+    await field.trigger('change')
+
+    expect(field.element.value).toBe(BRAND_ACCENT)
+    expect(useThemeStore().accent).toBe(BRAND_ACCENT)
+  })
+
+  it('keeps an unsaved colour pick through a logo upload', async () => {
+    const wrapper = await mountSettings()
+    vi.mocked(api.post).mockResolvedValue({
+      data: { data: { ...PROFILE, logo_url: 'https://cdn.test/logo.png' } },
+    })
+    const teal = THEME_SWATCHES.indexOf('#0f766e')
+
+    await wrapper.findAll('[data-swatch]')[teal].trigger('click')
+
+    const fileInput = wrapper.find('input[type="file"]')
+    const file = new File(['logo-bytes'], 'logo.png', { type: 'image/png' })
+    Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
+    await fileInput.trigger('change')
+    await flushPromises()
+
+    // The upload response carries the salon's stored theme_color; letting it
+    // land would snap the app back mid-decision.
+    expect(useThemeStore().accent).toBe('#0f766e')
+  })
+
+  it('drops an unsaved preview when the page goes away', async () => {
+    const wrapper = await mountSettings()
+    const teal = THEME_SWATCHES.indexOf('#0f766e')
+
+    await wrapper.findAll('[data-swatch]')[teal].trigger('click')
+    wrapper.unmount()
+
+    // Nothing was saved, so the app returns to the colour the server last
+    // confirmed — here the sentinel, which reads as brand terracotta.
+    expect(useThemeStore().accent).toBe(BRAND_ACCENT)
   })
 })
