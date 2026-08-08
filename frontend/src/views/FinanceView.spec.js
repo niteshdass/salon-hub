@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
 // Mock only the axios calls; keep everything else real, matching the house
@@ -221,5 +221,260 @@ describe('FinanceView — Payroll tab', () => {
     // assertion here would pass on that regression too. Pinning the exact
     // string rules that out.
     expect(wrapper.find('.text-rose-700').text()).toBe('Server exploded')
+  })
+})
+
+// Matches FinanceView's own startOfMonth()/today() helpers, which are tied
+// to the wall clock (not injectable) — mirrored here so assertions on the
+// default filter window stay exact rather than approximate.
+function startOfMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+function today() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+const OWN_EXPENSE = {
+  id: 21,
+  category: 'rent',
+  expense_date: '2026-08-05',
+  amount: '1050.00',
+  note: 'August rent',
+  branch_id: 3,
+  payroll_run_id: null,
+  is_locked: false,
+}
+
+const PAYROLL_EXPENSE = {
+  id: 22,
+  category: 'salary',
+  expense_date: '2026-08-01',
+  amount: '2000.00',
+  note: null,
+  branch_id: 3,
+  payroll_run_id: 5,
+  is_locked: true,
+}
+
+function mockExpensesAndEmptyRuns(list = [OWN_EXPENSE, PAYROLL_EXPENSE]) {
+  vi.mocked(api.get)
+    .mockReset()
+    .mockImplementation((url) => {
+      if (url === '/payroll/runs') return Promise.resolve({ data: { data: [] } })
+      if (url === '/expenses') return Promise.resolve({ data: { data: list } })
+      return Promise.resolve({ data: { data: null } })
+    })
+}
+
+describe('FinanceView — Expenses tab', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(api.post).mockReset()
+    vi.mocked(api.patch).mockReset()
+    vi.mocked(api.delete).mockReset()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    currentWrapper?.unmount()
+    currentWrapper = null
+    vi.restoreAllMocks()
+  })
+
+  async function openExpensesTab(wrapper) {
+    const expensesTab = wrapper.findAll('button').find((b) => b.text() === 'Expenses')
+    await expensesTab.trigger('click')
+  }
+
+  it('loads expenses on mount for the current month by default, formats currency, and totals the visible rows', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns()
+    const wrapper = mountFinanceView()
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledWith('/expenses', {
+      params: { from: startOfMonth(), to: today(), category: undefined },
+    })
+
+    await openExpensesTab(wrapper)
+
+    // Formatted as currency, not the bare API strings "1050.00"/"2000.00".
+    expect(wrapper.text()).toContain('$1,050.00')
+    expect(wrapper.text()).toContain('$2,000.00')
+    // Total = 1050 + 2000 = 3050, also formatted as currency.
+    expect(wrapper.text()).toContain('$3,050.00')
+  })
+
+  it('shows a lock label with no Edit/Delete for a payroll-generated expense, and both controls for a manual one', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns()
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    const rows = wrapper.findAll('tbody tr')
+    const ownRow = rows.find((r) => r.text().includes('August rent'))
+    const payrollRow = rows.find((r) => r.text().includes('From payroll'))
+
+    expect(ownRow.text()).toContain('Edit')
+    expect(ownRow.text()).toContain('Delete')
+    expect(payrollRow.text()).toContain('From payroll')
+    expect(payrollRow.findAll('button')).toHaveLength(0)
+  })
+
+  it('filters by category, refetching with the chosen value', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([OWN_EXPENSE])
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    const selects = wrapper.findAll('select')
+    const categorySelect = selects[selects.length - 1]
+    await categorySelect.setValue('rent')
+    await flushPromises()
+
+    expect(api.get).toHaveBeenLastCalledWith('/expenses', {
+      params: { from: startOfMonth(), to: today(), category: 'rent' },
+    })
+  })
+
+  it('creates a new expense via POST, closes the modal, and reloads the list', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([])
+    vi.mocked(api.post).mockResolvedValue({ data: { data: OWN_EXPENSE } })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Add expense').trigger('click')
+    await flushPromises()
+
+    const body = new DOMWrapper(document.body)
+    expect(body.find('h2').text()).toBe('Add expense')
+
+    await body.find('input[type="date"]').setValue('2026-08-06')
+    await body.find('input[type="number"]').setValue('75.50')
+    await body.find('input[type="text"]').setValue('Cleaning supplies')
+    await body.findAll('button').find((b) => b.text() === 'Save').trigger('click')
+    await flushPromises()
+
+    expect(api.post).toHaveBeenCalledWith('/expenses', {
+      category: 'supplies',
+      expense_date: '2026-08-06',
+      amount: 75.5,
+      note: 'Cleaning supplies',
+    })
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(api.get.mock.calls.filter(([url]) => url === '/expenses').length).toBeGreaterThan(1)
+  })
+
+  it('edits an existing expense via PATCH, prefilling the form from the clicked row', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([OWN_EXPENSE])
+    vi.mocked(api.patch).mockResolvedValue({ data: { data: OWN_EXPENSE } })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Edit').trigger('click')
+    await flushPromises()
+
+    const body = new DOMWrapper(document.body)
+    expect(body.find('h2').text()).toBe('Edit expense')
+    expect(body.find('input[type="number"]').element.value).toBe('1050.00')
+
+    await body.find('input[type="number"]').setValue('1200')
+    await body.findAll('button').find((b) => b.text() === 'Save').trigger('click')
+    await flushPromises()
+
+    expect(api.patch).toHaveBeenCalledWith('/expenses/21', {
+      category: 'rent',
+      expense_date: '2026-08-05',
+      amount: 1200,
+      note: 'August rent',
+    })
+  })
+
+  it('shows per-field 422 errors in the modal without touching the page banner', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([])
+    vi.mocked(api.post).mockRejectedValue({
+      response: { status: 422, data: { message: 'The given data was invalid.', errors: { amount: ['The amount must be greater than 0.'] } } },
+    })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Add expense').trigger('click')
+    await flushPromises()
+    const body = new DOMWrapper(document.body)
+    await body.findAll('button').find((b) => b.text() === 'Save').trigger('click')
+    await flushPromises()
+
+    expect(body.text()).toContain('The amount must be greater than 0.')
+    expect(wrapper.find('.text-rose-700').exists()).toBe(false)
+  })
+
+  it('renders exactly parseApiError(...).message in the banner when a save is rejected outside a 422 (e.g. the payroll-lock refusal)', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([OWN_EXPENSE])
+    vi.mocked(api.patch).mockRejectedValue({
+      response: { status: 422, data: { message: 'This expense comes from a payroll run. Change the run instead.' } },
+    })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Edit').trigger('click')
+    await flushPromises()
+    const body = new DOMWrapper(document.body)
+    await body.findAll('button').find((b) => b.text() === 'Save').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.text-rose-700').text()).toBe('This expense comes from a payroll run. Change the run instead.')
+  })
+
+  it('deletes an expense after confirmation and reloads the list', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([OWN_EXPENSE])
+    vi.mocked(api.delete).mockResolvedValue({})
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Delete').trigger('click')
+    await flushPromises()
+
+    expect(window.confirm).toHaveBeenCalled()
+    expect(api.delete).toHaveBeenCalledWith('/expenses/21')
+    expect(api.get.mock.calls.filter(([url]) => url === '/expenses').length).toBeGreaterThan(1)
+  })
+
+  it('does not delete when the confirm dialog is dismissed', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([OWN_EXPENSE])
+    window.confirm.mockReturnValue(false)
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Delete').trigger('click')
+    await flushPromises()
+
+    expect(api.delete).not.toHaveBeenCalled()
+  })
+
+  it('shows the empty state when no expenses fall in range', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([])
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    expect(wrapper.text()).toContain('No expenses in this range.')
   })
 })
