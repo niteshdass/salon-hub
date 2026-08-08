@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const images = ref([])
 const loading = ref(true)
@@ -142,57 +143,42 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-semibold text-slate-900">Gallery</h1>
-        <p class="mt-1 text-sm text-slate-500">
-          Photos of your work, shown on your public page in this order.
-        </p>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <input
-          v-model="newTitle"
-          type="text"
-          placeholder="Caption (optional)"
-          class="w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-        />
-        <label
-          class="cursor-pointer rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-          :class="uploading && 'pointer-events-none opacity-60'"
-        >
+    <PageHeader title="Gallery" subtitle="Photos shown on your public page.">
+      <template #actions>
+        <input v-model="newTitle" type="text" placeholder="Caption (optional)" class="sh-input w-48" />
+        <label class="sh-btn sh-btn-primary cursor-pointer" :class="uploading && 'pointer-events-none opacity-60'">
           {{ uploading ? 'Uploading…' : 'Add photo' }}
           <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="upload" />
         </label>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
-    <p v-if="loadError || uploadError" class="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+    <p
+      v-if="loadError || uploadError"
+      class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+    >
       {{ loadError || uploadError }}
     </p>
 
     <div v-if="loading" class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-      <div v-for="n in 4" :key="n" class="h-48 animate-pulse rounded-2xl bg-slate-100" />
+      <div v-for="n in 4" :key="n" class="h-48 animate-pulse rounded-2xl bg-ink/5" />
     </div>
 
-    <div
-      v-else-if="!images.length"
-      class="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center"
-    >
-      <p class="text-sm font-medium text-slate-700">No photos yet</p>
-      <p class="mt-1 text-sm text-slate-500">
-        Add a few shots of your work — they are the first thing a visitor sees.
-      </p>
+    <div v-else-if="!images.length" class="sh-empty">
+      <p class="font-medium text-ink">No photos yet</p>
+      <p class="mt-1">Add a few shots of your work — they are the first thing a visitor sees.</p>
+      <!-- Reuses the header's file input so the reset after an upload still applies. -->
+      <button type="button" class="sh-btn sh-btn-primary mt-4" @click="fileInput?.click()">Add photo</button>
     </div>
 
     <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       <figure
         v-for="(image, index) in images"
         :key="image.id"
-        class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 transition"
+        class="overflow-hidden rounded-2xl bg-white ring-1 ring-ink/10 transition"
         :class="busy.has(image.id) && 'opacity-60'"
       >
-        <div class="relative aspect-4/3 bg-slate-100">
+        <div class="relative aspect-4/3 bg-ink/5">
           <img :src="image.image_url" :alt="image.title || 'Gallery photo'" class="h-full w-full object-cover" />
 
           <div class="absolute inset-x-0 top-0 flex justify-between p-2">
@@ -200,7 +186,7 @@ onMounted(load)
               <button
                 type="button"
                 :disabled="index === 0"
-                class="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white disabled:opacity-40"
+                class="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-ink shadow-sm transition hover:bg-white disabled:opacity-40"
                 aria-label="Move earlier"
                 @click="move(index, -1)"
               >
@@ -209,7 +195,7 @@ onMounted(load)
               <button
                 type="button"
                 :disabled="index === images.length - 1"
-                class="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white disabled:opacity-40"
+                class="rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-ink shadow-sm transition hover:bg-white disabled:opacity-40"
                 aria-label="Move later"
                 @click="move(index, 1)"
               >
@@ -231,7 +217,7 @@ onMounted(load)
             v-if="editingId === image.id"
             v-model="editingTitle"
             type="text"
-            class="w-full rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none"
+            class="sh-input px-2 py-1"
             autofocus
             @blur="saveTitle(image)"
             @keyup.enter="saveTitle(image)"
@@ -240,7 +226,7 @@ onMounted(load)
           <button
             v-else
             type="button"
-            class="w-full truncate text-left text-sm text-slate-600 hover:text-indigo-600"
+            class="w-full truncate text-left text-sm text-ink/60 hover:text-accent-600"
             @click="startEditing(image)"
           >
             {{ image.title || 'Add a caption' }}

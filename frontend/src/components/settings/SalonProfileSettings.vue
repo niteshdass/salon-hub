@@ -208,32 +208,44 @@ onMounted(load)
 
 <template>
   <div class="max-w-3xl space-y-6">
-    <p v-if="loadError" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ loadError }}</p>
+    <p v-if="loadError" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      {{ loadError }}
+    </p>
 
-    <div v-if="loading" class="h-64 animate-pulse rounded-2xl bg-slate-100" />
+    <div v-if="loading" class="h-64 animate-pulse rounded-2xl bg-ink/5" />
 
     <template v-else>
       <!-- Branding -->
-      <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 class="text-sm font-semibold text-slate-900">Branding</h2>
-        <p class="mt-1 text-sm text-slate-500">Shown across your public page and booking flow.</p>
+      <section class="sh-card p-6">
+        <h2 class="text-sm font-semibold text-ink">Branding</h2>
+        <p class="mt-1 text-sm text-ink/60">Shown across your public page and booking flow.</p>
 
-        <p v-if="imageError" class="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ imageError }}</p>
+        <p
+          v-if="imageError"
+          class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+        >
+          {{ imageError }}
+        </p>
 
         <div class="mt-5 grid gap-5 sm:grid-cols-[10rem_1fr]">
           <!-- Logo -->
           <div>
-            <span class="mb-2 block text-xs font-medium text-slate-600">Logo</span>
-            <div class="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
+            <span class="sh-label text-xs">Logo</span>
+            <div class="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl bg-ink/5 ring-1 ring-ink/10">
               <img v-if="logoUrl" :src="logoUrl" alt="Salon logo" class="h-full w-full object-cover" />
-              <span v-else class="text-xs text-slate-400">No logo</span>
+              <span v-else class="text-xs text-ink/40">No logo</span>
             </div>
-            <div class="mt-2 flex gap-2 text-xs">
-              <label class="cursor-pointer font-semibold text-indigo-600 hover:text-indigo-700">
+            <div class="mt-2 flex gap-2">
+              <label class="sh-btn sh-btn-ghost cursor-pointer px-2.5 py-1 text-xs">
                 {{ imageBusy === 'logo' ? 'Working…' : 'Upload' }}
                 <input ref="logoInput" type="file" accept="image/*" class="hidden" @change="uploadImage('logo', $event)" />
               </label>
-              <button v-if="logoUrl" type="button" class="text-rose-600 hover:text-rose-700" @click="removeImage('logo')">
+              <button
+                v-if="logoUrl"
+                type="button"
+                class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                @click="removeImage('logo')"
+              >
                 Remove
               </button>
             </div>
@@ -241,17 +253,22 @@ onMounted(load)
 
           <!-- Cover -->
           <div>
-            <span class="mb-2 block text-xs font-medium text-slate-600">Cover image</span>
-            <div class="flex h-32 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
+            <span class="sh-label text-xs">Cover image</span>
+            <div class="flex h-32 items-center justify-center overflow-hidden rounded-2xl bg-ink/5 ring-1 ring-ink/10">
               <img v-if="coverUrl" :src="coverUrl" alt="Cover" class="h-full w-full object-cover" />
-              <span v-else class="text-xs text-slate-400">No cover image</span>
+              <span v-else class="text-xs text-ink/40">No cover image</span>
             </div>
-            <div class="mt-2 flex gap-2 text-xs">
-              <label class="cursor-pointer font-semibold text-indigo-600 hover:text-indigo-700">
+            <div class="mt-2 flex gap-2">
+              <label class="sh-btn sh-btn-ghost cursor-pointer px-2.5 py-1 text-xs">
                 {{ imageBusy === 'cover' ? 'Working…' : 'Upload' }}
                 <input ref="coverInput" type="file" accept="image/*" class="hidden" @change="uploadImage('cover', $event)" />
               </label>
-              <button v-if="coverUrl" type="button" class="text-rose-600 hover:text-rose-700" @click="removeImage('cover')">
+              <button
+                v-if="coverUrl"
+                type="button"
+                class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                @click="removeImage('cover')"
+              >
                 Remove
               </button>
             </div>
@@ -311,147 +328,104 @@ onMounted(load)
 
       <form class="space-y-6" @submit.prevent="save">
         <!-- Details -->
-        <section class="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-sm font-semibold text-slate-900">Salon details</h2>
+        <section class="sh-card space-y-4 p-6">
+          <h2 class="text-sm font-semibold text-ink">Salon details</h2>
 
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-800">Name</label>
-            <input
-              v-model="form.name"
-              type="text"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-            />
-            <p v-if="fieldError('name')" class="mt-1 text-xs text-red-600">{{ fieldError('name') }}</p>
+            <label class="sh-label">Name</label>
+            <input v-model="form.name" type="text" class="sh-input" />
+            <p v-if="fieldError('name')" class="sh-error">{{ fieldError('name') }}</p>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-800">Email</label>
-              <input
-                v-model="form.email"
-                type="email"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              />
-              <p v-if="fieldError('email')" class="mt-1 text-xs text-red-600">{{ fieldError('email') }}</p>
+              <label class="sh-label">Email</label>
+              <input v-model="form.email" type="email" class="sh-input" />
+              <p v-if="fieldError('email')" class="sh-error">{{ fieldError('email') }}</p>
             </div>
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-800">Phone</label>
-              <input
-                v-model="form.phone"
-                type="text"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              />
-              <p v-if="fieldError('phone')" class="mt-1 text-xs text-red-600">{{ fieldError('phone') }}</p>
+              <label class="sh-label">Phone</label>
+              <input v-model="form.phone" type="text" class="sh-input" />
+              <p v-if="fieldError('phone')" class="sh-error">{{ fieldError('phone') }}</p>
             </div>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-3">
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-800">Country</label>
-              <input
-                v-model="form.country"
-                type="text"
-                maxlength="2"
-                placeholder="US"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase focus:border-indigo-500 focus:outline-none"
-              />
-              <p v-if="fieldError('country')" class="mt-1 text-xs text-red-600">{{ fieldError('country') }}</p>
+              <label class="sh-label">Country</label>
+              <input v-model="form.country" type="text" maxlength="2" placeholder="US" class="sh-input uppercase" />
+              <p v-if="fieldError('country')" class="sh-error">{{ fieldError('country') }}</p>
             </div>
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-800">Currency</label>
-              <input
-                v-model="form.currency"
-                type="text"
-                maxlength="3"
-                placeholder="USD"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase focus:border-indigo-500 focus:outline-none"
-              />
-              <p v-if="fieldError('currency')" class="mt-1 text-xs text-red-600">{{ fieldError('currency') }}</p>
+              <label class="sh-label">Currency</label>
+              <input v-model="form.currency" type="text" maxlength="3" placeholder="USD" class="sh-input uppercase" />
+              <p v-if="fieldError('currency')" class="sh-error">{{ fieldError('currency') }}</p>
             </div>
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-800">Timezone</label>
-              <select
-                v-if="timezones.length"
-                v-model="form.timezone"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              >
+              <label class="sh-label">Timezone</label>
+              <select v-if="timezones.length" v-model="form.timezone" class="sh-input">
                 <option value="">Select…</option>
                 <option v-for="zone in timezones" :key="zone" :value="zone">{{ zone }}</option>
               </select>
-              <input
-                v-else
-                v-model="form.timezone"
-                type="text"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              />
-              <p v-if="fieldError('timezone')" class="mt-1 text-xs text-red-600">{{ fieldError('timezone') }}</p>
+              <input v-else v-model="form.timezone" type="text" class="sh-input" />
+              <p v-if="fieldError('timezone')" class="sh-error">{{ fieldError('timezone') }}</p>
             </div>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-800">Public page</label>
-              <input
-                :value="siteUrl"
-                type="text"
-                readonly
-                class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
-              />
-              <a :href="siteUrl" target="_blank" rel="noopener" class="mt-1 inline-block text-xs font-medium text-indigo-600">
+              <label class="sh-label">Public page</label>
+              <input :value="siteUrl" type="text" readonly class="sh-input bg-paper text-ink/60" />
+              <a
+                :href="siteUrl"
+                target="_blank"
+                rel="noopener"
+                class="mt-1 inline-block text-xs font-medium text-accent-600 hover:text-accent-700"
+              >
                 Open ↗
               </a>
             </div>
             <div>
-              <label class="mb-1 block text-sm font-medium text-slate-800">Booking link</label>
-              <input
-                :value="bookingUrl"
-                type="text"
-                readonly
-                class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500"
-              />
-              <p class="mt-1 text-xs text-slate-500">Fixed — every link you have shared points here.</p>
+              <label class="sh-label">Booking link</label>
+              <input :value="bookingUrl" type="text" readonly class="sh-input bg-paper text-ink/60" />
+              <p class="mt-1 text-xs text-ink/55">Fixed — every link you have shared points here.</p>
             </div>
           </div>
         </section>
 
         <!-- Story + social -->
-        <section class="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-sm font-semibold text-slate-900">About &amp; social</h2>
+        <section class="sh-card space-y-4 p-6">
+          <h2 class="text-sm font-semibold text-ink">About &amp; social</h2>
 
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-800">About</label>
+            <label class="sh-label">About</label>
             <textarea
               v-model="form.about"
               rows="4"
               placeholder="A couple of lines about your salon, shown on your public page."
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              class="sh-input"
             />
-            <p v-if="fieldError('about')" class="mt-1 text-xs text-red-600">{{ fieldError('about') }}</p>
+            <p v-if="fieldError('about')" class="sh-error">{{ fieldError('about') }}</p>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-3">
             <div v-for="key in ['facebook', 'instagram', 'website']" :key="key">
-              <label class="mb-1 block text-sm font-medium text-slate-800 capitalize">{{ key }}</label>
-              <input
-                v-model="form[key]"
-                type="url"
-                placeholder="https://"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              />
-              <p v-if="fieldError(key)" class="mt-1 text-xs text-red-600">{{ fieldError(key) }}</p>
+              <label class="sh-label capitalize">{{ key }}</label>
+              <input v-model="form[key]" type="url" placeholder="https://" class="sh-input" />
+              <p v-if="fieldError(key)" class="sh-error">{{ fieldError(key) }}</p>
             </div>
           </div>
         </section>
 
-        <p v-if="formMessage" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ formMessage }}</p>
-        <p v-if="savedOk" class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Salon profile saved.</p>
+        <p v-if="formMessage" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {{ formMessage }}
+        </p>
+        <p v-if="savedOk" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Salon profile saved.
+        </p>
 
         <div class="flex justify-end">
-          <button
-            type="submit"
-            :disabled="saving"
-            class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
-          >
+          <button type="submit" :disabled="saving" class="sh-btn sh-btn-primary">
             {{ saving ? 'Saving…' : 'Save profile' }}
           </button>
         </div>

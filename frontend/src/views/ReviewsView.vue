@@ -4,6 +4,7 @@ import api from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { parseApiError } from '@/lib/errors'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 // Staff may read reviews but not moderate them — the API is the real gate.
 const authStore = useAuthStore()
@@ -29,6 +30,13 @@ const filtered = computed(() => {
     return reviews.value.filter((r) => r.status === 'hidden')
   }
   return reviews.value
+})
+
+// The header used to carry a separate star summary card; the same two numbers
+// now read as a sentence under the title.
+const subtitle = computed(() => {
+  const count = `${meta.value.count} review${meta.value.count === 1 ? '' : 's'}`
+  return meta.value.average !== null ? `${meta.value.average} average from ${count}` : count
 })
 
 async function loadReviews() {
@@ -87,36 +95,7 @@ onMounted(loadReviews)
 
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">Reviews</h1>
-        <p class="mt-1 text-sm text-slate-500">What customers say after their visit.</p>
-      </div>
-
-      <!-- Average rating summary -->
-      <div
-        v-if="meta.average !== null"
-        class="flex items-center gap-3 rounded-2xl bg-white px-5 py-3 shadow-sm ring-1 ring-slate-200"
-      >
-        <span class="text-3xl font-bold text-slate-900">{{ meta.average }}</span>
-        <div>
-          <div class="flex text-amber-400">
-            <svg
-              v-for="star in 5"
-              :key="star"
-              class="h-4 w-4"
-              :fill="star <= Math.round(meta.average) ? 'currentColor' : 'none'"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-            </svg>
-          </div>
-          <p class="mt-0.5 text-xs text-slate-500">{{ meta.count }} review{{ meta.count === 1 ? '' : 's' }}</p>
-        </div>
-      </div>
-    </div>
+    <PageHeader title="Reviews" :subtitle="subtitle" />
 
     <div
       v-if="listError"
@@ -126,13 +105,13 @@ onMounted(loadReviews)
     </div>
 
     <!-- Filter tabs -->
-    <div class="mb-5 inline-flex rounded-lg bg-slate-100 p-1 text-sm">
+    <div class="mb-5 inline-flex rounded-lg bg-ink/5 p-1 text-sm">
       <button
         v-for="tab in ['all', 'published', 'hidden']"
         :key="tab"
         type="button"
         class="rounded-md px-3 py-1.5 font-medium capitalize transition"
-        :class="filter === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+        :class="filter === tab ? 'bg-white text-ink shadow-sm' : 'text-ink/60 hover:text-ink'"
         @click="filter = tab"
       >
         {{ tab }}
@@ -140,19 +119,14 @@ onMounted(loadReviews)
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="rounded-2xl bg-white p-10 text-center text-sm text-slate-500 ring-1 ring-slate-200">
-      Loading reviews…
-    </div>
+    <div v-if="loading" class="sh-card p-10 text-center text-sm text-ink/60">Loading reviews…</div>
 
     <!-- Empty -->
-    <div
-      v-else-if="filtered.length === 0"
-      class="rounded-2xl bg-white p-10 text-center ring-1 ring-slate-200"
-    >
-      <p class="text-sm font-medium text-slate-900">
+    <div v-else-if="filtered.length === 0" class="sh-empty">
+      <p class="font-medium text-ink">
         {{ reviews.length === 0 ? 'No reviews yet' : 'Nothing here' }}
       </p>
-      <p class="mt-1 text-sm text-slate-500">
+      <p class="mt-1">
         {{ reviews.length === 0 ? 'Reviews appear once customers rate a completed booking.' : 'No reviews match this filter.' }}
       </p>
     </div>
@@ -162,13 +136,13 @@ onMounted(loadReviews)
       <div
         v-for="review in filtered"
         :key="review.id"
-        class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"
+        class="sh-card p-5"
         :class="review.status === 'hidden' ? 'opacity-60' : ''"
       >
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <div class="flex text-amber-400">
+              <div class="flex text-accent-500">
                 <svg
                   v-for="star in 5"
                   :key="star"
@@ -181,15 +155,10 @@ onMounted(loadReviews)
                   <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                 </svg>
               </div>
-              <span
-                v-if="review.status === 'hidden'"
-                class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600"
-              >
-                Hidden
-              </span>
+              <span v-if="review.status === 'hidden'" class="sh-badge bg-ink/10 text-ink/60">Hidden</span>
             </div>
-            <p class="mt-2 font-medium text-slate-900">{{ review.reviewer_name }}</p>
-            <p class="text-xs text-slate-500">
+            <p class="mt-2 font-medium text-ink">{{ review.reviewer_name }}</p>
+            <p class="text-xs text-ink/55">
               {{ review.service_name || 'Service' }}
               <template v-if="review.staff_name"> · with {{ review.staff_name }}</template>
               · {{ formatDate(review.booking_date) }}
@@ -200,14 +169,14 @@ onMounted(loadReviews)
             <button
               type="button"
               :disabled="busyId === review.id"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              class="sh-btn px-2.5 py-1 text-xs"
               @click="setStatus(review, review.status === 'hidden' ? 'published' : 'hidden')"
             >
               {{ review.status === 'hidden' ? 'Unhide' : 'Hide' }}
             </button>
             <button
               type="button"
-              class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+              class="sh-btn px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50"
               @click="confirmTarget = review"
             >
               Delete
@@ -215,7 +184,7 @@ onMounted(loadReviews)
           </div>
         </div>
 
-        <p v-if="review.comment" class="mt-3 text-sm text-slate-600">{{ review.comment }}</p>
+        <p v-if="review.comment" class="mt-3 text-sm text-ink/70">{{ review.comment }}</p>
       </div>
     </div>
 

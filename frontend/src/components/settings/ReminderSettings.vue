@@ -99,15 +99,11 @@ onMounted(load)
 
 <template>
   <div>
-    <p v-if="loadError" class="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+    <p v-if="loadError" class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
       {{ loadError }}
     </p>
 
-    <form
-      v-if="!loading"
-      class="max-w-2xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-      @submit.prevent="save"
-    >
+    <form v-if="!loading" class="sh-card max-w-2xl space-y-6 p-6" @submit.prevent="save">
       <div v-if="dryRun" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
         No Twilio account connected — reminders are written to the log instead of sent.
       </div>
@@ -117,122 +113,101 @@ onMounted(load)
 
       <!-- Enable -->
       <label class="flex items-center gap-3">
-        <input v-model="form.enabled" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-        <span class="text-sm font-medium text-slate-800">Send pre-appointment reminders</span>
+        <input v-model="form.enabled" type="checkbox" class="h-4 w-4 rounded border-ink/15 text-accent-600" />
+        <span class="text-sm font-medium text-ink">Send pre-appointment reminders</span>
       </label>
 
       <!-- Channel -->
       <div>
-        <span class="mb-2 block text-sm font-medium text-slate-800">Channel</span>
+        <span class="sh-label">Channel</span>
         <div class="flex gap-4">
-          <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input v-model="form.channel" type="radio" value="whatsapp" class="text-indigo-600" /> WhatsApp
+          <label class="flex items-center gap-2 text-sm text-ink/75">
+            <input v-model="form.channel" type="radio" value="whatsapp" class="text-accent-600" /> WhatsApp
           </label>
-          <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input v-model="form.channel" type="radio" value="sms" class="text-indigo-600" /> SMS
+          <label class="flex items-center gap-2 text-sm text-ink/75">
+            <input v-model="form.channel" type="radio" value="sms" class="text-accent-600" /> SMS
           </label>
         </div>
-        <p class="mt-1 text-xs text-slate-500">Both ride the same Twilio account.</p>
-        <p v-if="fieldError('channel')" class="mt-1 text-xs text-red-600">{{ fieldError('channel') }}</p>
+        <p class="mt-1 text-xs text-ink/55">Both ride the same Twilio account.</p>
+        <p v-if="fieldError('channel')" class="sh-error">{{ fieldError('channel') }}</p>
       </div>
 
       <!-- Lead time -->
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-800">Lead time (hours before appointment)</label>
-        <input
-          v-model="form.lead_hours"
-          type="number"
-          min="1"
-          max="168"
-          class="w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-        />
-        <p v-if="fieldError('lead_hours')" class="mt-1 text-xs text-red-600">{{ fieldError('lead_hours') }}</p>
+        <label class="sh-label">Lead time (hours before appointment)</label>
+        <input v-model="form.lead_hours" type="number" min="1" max="168" class="sh-input w-40" />
+        <p v-if="fieldError('lead_hours')" class="sh-error">{{ fieldError('lead_hours') }}</p>
       </div>
 
       <!-- Twilio connection -->
-      <fieldset class="space-y-3 rounded-xl border border-slate-200 p-4">
-        <legend class="px-1 text-sm font-semibold text-slate-700">
+      <fieldset class="space-y-3 rounded-xl border border-ink/10 p-4">
+        <legend class="px-1 text-sm font-semibold text-ink">
           Twilio account
           <span v-if="connected" class="ml-2 text-xs font-normal text-emerald-600">connected</span>
         </legend>
 
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Account SID</label>
-          <input
-            v-model="form.credentials.account_sid"
-            type="text"
-            placeholder="AC…"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
-          />
-          <p v-if="fieldError('credentials.account_sid')" class="mt-1 text-xs text-red-600">
+          <label class="sh-label text-xs">Account SID</label>
+          <input v-model="form.credentials.account_sid" type="text" placeholder="AC…" class="sh-input font-mono" />
+          <p v-if="fieldError('credentials.account_sid')" class="sh-error">
             {{ fieldError('credentials.account_sid') }}
           </p>
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Auth Token</label>
+          <label class="sh-label text-xs">Auth Token</label>
           <input
             v-model="form.credentials.auth_token"
             type="password"
             :placeholder="connected ? '•••••••• (leave blank to keep)' : ''"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            class="sh-input"
           />
-          <p v-if="fieldError('credentials.auth_token')" class="mt-1 text-xs text-red-600">
+          <p v-if="fieldError('credentials.auth_token')" class="sh-error">
             {{ fieldError('credentials.auth_token') }}
           </p>
         </div>
 
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">SMS sender</label>
-            <input
-              v-model="form.credentials.from"
-              type="text"
-              placeholder="+15550111"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
+            <label class="sh-label text-xs">SMS sender</label>
+            <input v-model="form.credentials.from" type="text" placeholder="+15550111" class="sh-input" />
           </div>
           <div>
-            <label class="mb-1 block text-xs font-medium text-slate-600">WhatsApp sender</label>
-            <input
-              v-model="form.credentials.whatsapp_from"
-              type="text"
-              placeholder="+14155238886"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
+            <label class="sh-label text-xs">WhatsApp sender</label>
+            <input v-model="form.credentials.whatsapp_from" type="text" placeholder="+14155238886" class="sh-input" />
           </div>
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">
-            Messaging Service SID <span class="font-normal text-slate-400">(optional)</span>
+          <label class="sh-label text-xs">
+            Messaging Service SID <span class="font-normal text-ink/40">(optional)</span>
           </label>
           <input
             v-model="form.credentials.messaging_service_sid"
             type="text"
             placeholder="MG…"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+            class="sh-input font-mono"
           />
-          <p class="mt-1 text-xs text-slate-500">
+          <p class="mt-1 text-xs text-ink/55">
             When set, Twilio picks the sender and the numbers above are ignored.
           </p>
         </div>
       </fieldset>
 
-      <p v-if="formMessage" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ formMessage }}</p>
-      <p v-if="savedOk" class="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Settings saved.</p>
+      <p v-if="formMessage" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        {{ formMessage }}
+      </p>
+      <p v-if="savedOk" class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        Settings saved.
+      </p>
 
       <div class="flex justify-end">
-        <button
-          type="submit"
-          :disabled="saving"
-          class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
-        >
+        <button type="submit" :disabled="saving" class="sh-btn sh-btn-primary">
           {{ saving ? 'Saving…' : 'Save settings' }}
         </button>
       </div>
     </form>
 
-    <p v-else class="text-sm text-slate-500">Loading…</p>
+    <p v-else class="text-sm text-ink/60">Loading…</p>
   </div>
 </template>

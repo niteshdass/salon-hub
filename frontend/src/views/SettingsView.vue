@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import SalonProfileSettings from '@/components/settings/SalonProfileSettings.vue'
 import ReminderSettings from '@/components/settings/ReminderSettings.vue'
 import PaymentSettings from '@/components/settings/PaymentSettings.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
@@ -22,24 +23,15 @@ const active = ref('profile')
 
 <template>
   <div>
-    <div class="mb-6">
-      <h1 class="text-2xl font-semibold text-slate-900">Settings</h1>
-      <p class="mt-1 text-sm text-slate-500">
-        {{ tabs.find((t) => t.key === active)?.blurb }}
-      </p>
-    </div>
+    <PageHeader title="Settings" subtitle="Your salon profile, reminders and payments." />
 
-    <div class="mb-6 flex gap-1 border-b border-slate-200">
+    <div class="mb-6 flex gap-1 border-b border-ink/10">
       <button
         v-for="tab in tabs"
         :key="tab.key"
         type="button"
-        class="-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition"
-        :class="
-          active === tab.key
-            ? 'border-indigo-600 text-indigo-700'
-            : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-        "
+        class="border-b-2 px-4 py-2 text-sm font-medium transition"
+        :class="active === tab.key ? 'border-accent-500 text-ink' : 'border-transparent text-ink/55 hover:text-ink'"
         @click="active = tab.key"
       >
         {{ tab.label }}
