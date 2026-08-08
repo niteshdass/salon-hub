@@ -107,6 +107,14 @@ function chooseTheme(hex) {
  * whatever they typed to a server that rejects anything but six hex digits.
  */
 function commitTheme(event) {
+  // An emptied field is not a choice. normalizeAccent('') answers brand
+  // terracotta, and committing that would write a real colour over the
+  // sentinel — moving the salon's public page off its gold on the next save.
+  if (event.target.value.trim() === '') {
+    event.target.value = isUnchosen.value ? '' : form.theme_color
+    return
+  }
+
   chooseTheme(normalizeAccent(event.target.value))
   // If the junk normalized back to the colour already held, the bound value
   // never changed and Vue leaves the junk on screen. Put it right by hand.

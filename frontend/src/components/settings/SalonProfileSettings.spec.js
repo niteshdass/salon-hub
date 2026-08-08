@@ -103,6 +103,19 @@ describe('SalonProfileSettings — theme picker', () => {
     expect(useThemeStore().accent).toBe(BRAND_ACCENT)
   })
 
+  it('treats an emptied hex field as no edit rather than a choice of terracotta', async () => {
+    const wrapper = await mountSettings()
+    const field = wrapper.find('[data-theme-hex]')
+
+    await field.setValue('')
+    await field.trigger('change')
+
+    // normalizeAccent('') answers brand terracotta. Committing it would write a
+    // real colour over the sentinel and move the salon's public page off gold.
+    expect(field.element.value).toBe('')
+    expect(wrapper.text()).toContain('Not set')
+  })
+
   it('keeps an unsaved colour pick through a logo upload', async () => {
     const wrapper = await mountSettings()
     vi.mocked(api.post).mockResolvedValue({
