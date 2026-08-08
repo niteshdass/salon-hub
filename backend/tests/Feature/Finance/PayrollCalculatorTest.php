@@ -111,4 +111,42 @@ class PayrollCalculatorTest extends FinanceTestCase
         $this->assertCount(1, $lines);
         $this->assertSame(100.0, $lines[0]['earned_revenue']);
     }
+
+    public function test_tips_are_paid_in_full_and_left_out_of_the_commission_base(): void
+    {
+        $org = $this->makeOrg();
+        $staff = $this->makeStaff($org, ['pay_type' => 'commission', 'commission_rate' => 50]);
+
+        // A completed 100.00 visit in the month, with a 20.00 tip.
+        $appointment = $this->makeAppointment($org, ['staff' => $staff, 'date' => '2026-07-10', 'price' => 100]);
+        $appointment->payments()->create([
+            'organization_id' => $org->id,
+            'amount' => 100, 'tip_amount' => 20,
+            'method' => 'cash', 'status' => 'verified', 'source' => 'staff',
+        ]);
+
+        $lines = $this->calculateFor($org, '2026-07-01');
+
+        $this->assertSame(100.0, $lines[0]['earned_revenue']);   // tip excluded
+        $this->assertSame(50.0, $lines[0]['commission_amount']); // 50% of 100, not of 120
+        $this->assertSame(20.0, $lines[0]['tips_amount']);
+        $this->assertSame(70.0, $lines[0]['total_amount']);      // commission + tips
+    }
+
+    public function test_an_unverified_tip_is_not_paid_out(): void
+    {
+        $org = $this->makeOrg();
+        $staff = $this->makeStaff($org, ['pay_type' => 'commission', 'commission_rate' => 50]);
+
+        $appointment = $this->makeAppointment($org, ['staff' => $staff, 'date' => '2026-07-10', 'price' => 100]);
+        $appointment->payments()->create([
+            'organization_id' => $org->id,
+            'amount' => 100, 'tip_amount' => 20,
+            'method' => 'bank_transfer', 'status' => 'pending', 'source' => 'public_manual',
+        ]);
+
+        $lines = $this->calculateFor($org, '2026-07-01');
+
+        $this->assertSame(0.0, $lines[0]['tips_amount']);
+    }
 }

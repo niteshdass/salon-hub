@@ -23,6 +23,7 @@ class PayrollLineResource extends JsonResource
             'bookings' => $this->bookings,
             'salary_amount' => $this->salary_amount,
             'commission_amount' => $this->commission_amount,
+            'tips_amount' => $this->tips_amount,
             'total_amount' => $this->total_amount,
         ];
     }

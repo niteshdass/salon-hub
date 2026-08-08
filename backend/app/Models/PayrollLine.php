@@ -23,6 +23,7 @@ class PayrollLine extends Model
         'bookings',
         'salary_amount',
         'commission_amount',
+        'tips_amount',
         'total_amount',
     ];
 
@@ -35,6 +36,7 @@ class PayrollLine extends Model
             'earned_revenue' => 'decimal:2',
             'salary_amount' => 'decimal:2',
             'commission_amount' => 'decimal:2',
+            'tips_amount' => 'decimal:2',
             'total_amount' => 'decimal:2',
             'bookings' => 'integer',
         ];
@@ -42,17 +44,21 @@ class PayrollLine extends Model
 
     /**
      * What a line is worth, defined in exactly one place: salary plus
-     * commission. PayrollCalculator builds a fresh line through this, and a
-     * manual amount edit re-runs it, so the two can never disagree.
+     * commission plus tips. PayrollCalculator builds a fresh line through
+     * this, and a manual amount edit re-runs it, so the two can never disagree.
      */
-    public static function totalFor(mixed $salary, mixed $commission): float
+    public static function totalFor(mixed $salary, mixed $commission, mixed $tips = 0): float
     {
-        return round((float) $salary + (float) $commission, 2);
+        return round((float) $salary + (float) $commission + (float) $tips, 2);
     }
 
     public function recomputeTotal(): static
     {
-        $this->total_amount = static::totalFor($this->salary_amount, $this->commission_amount);
+        $this->total_amount = static::totalFor(
+            $this->salary_amount,
+            $this->commission_amount,
+            $this->tips_amount,
+        );
 
         return $this;
     }

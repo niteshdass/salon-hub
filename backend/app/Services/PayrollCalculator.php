@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Enums\AppointmentStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\PayType;
 use App\Enums\UserRole;
 use App\Models\Appointment;
+use App\Models\Payment;
 use App\Models\PayrollLine;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -48,7 +50,21 @@ class PayrollCalculator
             ->get()
             ->keyBy('staff_id');
 
-        return $staff->map(function (User $member) use ($revenue) {
+        // Tips ride on the same window and status filter as the revenue base,
+        // so payroll and the revenue report still cannot disagree about which
+        // visits counted.
+        $tips = Payment::query()
+            ->join('appointments', 'appointments.id', '=', 'payments.appointment_id')
+            ->where('payments.status', PaymentStatus::VERIFIED->value)
+            ->where('appointments.status', AppointmentStatus::COMPLETED->value)
+            ->whereDate('appointments.booking_date', '>=', $start)
+            ->whereDate('appointments.booking_date', '<=', $end)
+            ->groupBy('appointments.staff_id')
+            ->selectRaw('appointments.staff_id as staff_id, SUM(payments.tip_amount) as tips')
+            ->get()
+            ->keyBy('staff_id');
+
+        return $staff->map(function (User $member) use ($revenue, $tips) {
             $profile = $member->staffProfile;
             $payType = $profile->pay_type;
             $row = $revenue->get($member->id);
@@ -57,6 +73,7 @@ class PayrollCalculator
             $rate = (float) $profile->commission_rate;
             $salary = $payType->paysSalary() ? round((float) $profile->monthly_salary, 2) : 0.0;
             $commission = $payType->paysCommission() ? round($earned * $rate / 100, 2) : 0.0;
+            $tipsAmount = round((float) ($tips->get($member->id)->tips ?? 0), 2);
 
             return [
                 'staff_id' => $member->id,
@@ -68,7 +85,8 @@ class PayrollCalculator
                 'bookings' => (int) ($row->bookings ?? 0),
                 'salary_amount' => $salary,
                 'commission_amount' => $commission,
-                'total_amount' => PayrollLine::totalFor($salary, $commission),
+                'tips_amount' => $tipsAmount,
+                'total_amount' => PayrollLine::totalFor($salary, $commission, $tipsAmount),
             ];
         })->values()->all();
     }
