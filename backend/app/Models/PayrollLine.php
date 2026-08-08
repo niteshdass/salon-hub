@@ -40,6 +40,23 @@ class PayrollLine extends Model
         ];
     }
 
+    /**
+     * What a line is worth, defined in exactly one place: salary plus
+     * commission. PayrollCalculator builds a fresh line through this, and a
+     * manual amount edit re-runs it, so the two can never disagree.
+     */
+    public static function totalFor(mixed $salary, mixed $commission): float
+    {
+        return round((float) $salary + (float) $commission, 2);
+    }
+
+    public function recomputeTotal(): static
+    {
+        $this->total_amount = static::totalFor($this->salary_amount, $this->commission_amount);
+
+        return $this;
+    }
+
     public function run(): BelongsTo
     {
         return $this->belongsTo(PayrollRun::class, 'payroll_run_id');

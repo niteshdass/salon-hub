@@ -6,6 +6,7 @@ use App\Enums\AppointmentStatus;
 use App\Enums\PayType;
 use App\Enums\UserRole;
 use App\Models\Appointment;
+use App\Models\PayrollLine;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonInterface;
@@ -67,7 +68,7 @@ class PayrollCalculator
                 'bookings' => (int) ($row->bookings ?? 0),
                 'salary_amount' => $salary,
                 'commission_amount' => $commission,
-                'total_amount' => round($salary + $commission, 2),
+                'total_amount' => PayrollLine::totalFor($salary, $commission),
             ];
         })->values()->all();
     }

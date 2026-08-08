@@ -41,6 +41,23 @@ class PayrollRun extends Model
         return $this->status === PayrollRunStatus::DRAFT;
     }
 
+    /**
+     * Recompute this run's totals from its lines. Called on create and again
+     * after every line edit, so the header always matches the rows under it.
+     * It lives here rather than on a controller because both the run and the
+     * line endpoints need it, and a controller must never call a controller.
+     */
+    public function syncTotals(): void
+    {
+        $lines = $this->lines()->get();
+
+        $this->update([
+            'total_salary' => round((float) $lines->sum('salary_amount'), 2),
+            'total_commission' => round((float) $lines->sum('commission_amount'), 2),
+            'total_amount' => round((float) $lines->sum('total_amount'), 2),
+        ]);
+    }
+
     public function lines(): HasMany
     {
         return $this->hasMany(PayrollLine::class);

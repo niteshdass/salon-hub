@@ -19,7 +19,6 @@ class PayrollLineController extends Controller
         UpdatePayrollLineRequest $request,
         PayrollRun $run,
         PayrollLine $line,
-        PayrollRunController $runs,
     ): JsonResponse {
         abort_unless($line->payroll_run_id === $run->id, 404);
 
@@ -29,12 +28,9 @@ class PayrollLineController extends Controller
             ], 422);
         }
 
-        $data = $request->validated();
-        $line->fill($data);
-        $line->total_amount = round((float) $line->salary_amount + (float) $line->commission_amount, 2);
-        $line->save();
+        $line->fill($request->validated())->recomputeTotal()->save();
 
-        $runs->syncTotals($run);
+        $run->syncTotals();
 
         return (new PayrollLineResource($line->fresh()))->response();
     }

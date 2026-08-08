@@ -48,7 +48,7 @@ class PayrollRunController extends Controller
                 $run->lines()->create($line);
             }
 
-            $this->syncTotals($run);
+            $run->syncTotals();
 
             return $run;
         });
@@ -65,21 +65,6 @@ class PayrollRunController extends Controller
     }
 
     /**
-     * Recompute the run's totals from its lines. Called on create and again
-     * after every line edit, so the header always matches the rows under it.
-     */
-    public function syncTotals(PayrollRun $run): void
-    {
-        $lines = $run->lines()->get();
-
-        $run->update([
-            'total_salary' => round((float) $lines->sum('salary_amount'), 2),
-            'total_commission' => round((float) $lines->sum('commission_amount'), 2),
-            'total_amount' => round((float) $lines->sum('total_amount'), 2),
-        ]);
-    }
-
-    /**
      * Lock the run and book it as a cost. The salary expense is what makes
      * staff pay show up in the P&L, and it is written here — once — so the
      * two can never drift apart.
@@ -93,7 +78,7 @@ class PayrollRunController extends Controller
         }
 
         DB::transaction(function () use ($request, $run) {
-            $this->syncTotals($run);
+            $run->syncTotals();
             $run->refresh();
 
             $run->update([
