@@ -16,17 +16,6 @@ use Illuminate\Support\Facades\Event;
 
 class PayrollFinalizeTest extends FinanceTestCase
 {
-    /** A hand-logged expense: no payroll run behind it. */
-    private function expense(Organization $org): Expense
-    {
-        return Expense::create([
-            'organization_id' => $org->id,
-            'category' => ExpenseCategory::SUPPLIES->value,
-            'expense_date' => '2026-07-10',
-            'amount' => 40,
-        ]);
-    }
-
     /** @return array{0: User, 1: PayrollRun, 2: User} owner, run, staff */
     private function draftRun(Organization $org, string $month = '2026-07-01'): array
     {
@@ -214,8 +203,8 @@ class PayrollFinalizeTest extends FinanceTestCase
 
         // The index is on a nullable column, so hand-logged expenses — which
         // carry no run — are still unlimited.
-        $this->expense($org);
-        $this->expense($org);
+        $this->makeExpense($org);
+        $this->makeExpense($org);
         $this->assertSame(3, Expense::count());
 
         $this->expectException(QueryException::class);

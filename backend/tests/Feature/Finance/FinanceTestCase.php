@@ -5,6 +5,7 @@ namespace Tests\Feature\Finance;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Expense;
 use App\Models\Organization;
 use App\Models\Service;
 use App\Models\StaffProfile;
@@ -72,6 +73,24 @@ abstract class FinanceTestCase extends TestCase
         ]);
 
         return $staff;
+    }
+
+    /**
+     * A hand-logged expense: no payroll run behind it, so nothing here is
+     * locked. Overrides: branch_id, category, expense_date, amount, note.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    protected function makeExpense(Organization $org, array $overrides = []): Expense
+    {
+        return Expense::create([
+            'organization_id' => $org->id,
+            'branch_id' => $overrides['branch_id'] ?? null,
+            'category' => $overrides['category'] ?? 'supplies',
+            'expense_date' => $overrides['expense_date'] ?? '2026-07-10',
+            'amount' => $overrides['amount'] ?? 50,
+            'note' => $overrides['note'] ?? null,
+        ]);
     }
 
     protected function makeService(Organization $org, float $price = 25): Service

@@ -4,7 +4,6 @@ namespace Tests\Feature\Finance;
 
 use App\Models\Branch;
 use App\Models\Expense;
-use App\Models\Organization;
 use App\Models\PayrollRun;
 
 class ExpenseTest extends FinanceTestCase
@@ -31,9 +30,9 @@ class ExpenseTest extends FinanceTestCase
     {
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
-        $this->expense($org, ['expense_date' => '2026-07-01', 'amount' => 100]);
-        $this->expense($org, ['expense_date' => '2026-07-20', 'amount' => 200]);
-        $this->expense($org, ['expense_date' => '2026-06-01', 'amount' => 300]);
+        $this->makeExpense($org, ['expense_date' => '2026-07-01', 'amount' => 100]);
+        $this->makeExpense($org, ['expense_date' => '2026-07-20', 'amount' => 200]);
+        $this->makeExpense($org, ['expense_date' => '2026-06-01', 'amount' => 300]);
 
         $res = $this->withToken($this->token($owner))
             ->getJson('/api/expenses?from=2026-07-01&to=2026-07-31');
@@ -71,8 +70,8 @@ class ExpenseTest extends FinanceTestCase
     {
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
-        $this->expense($org, ['category' => 'rent', 'expense_date' => '2026-07-02', 'amount' => 100]);
-        $this->expense($org, ['category' => 'supplies', 'expense_date' => '2026-07-03', 'amount' => 200]);
+        $this->makeExpense($org, ['category' => 'rent', 'expense_date' => '2026-07-02', 'amount' => 100]);
+        $this->makeExpense($org, ['category' => 'supplies', 'expense_date' => '2026-07-03', 'amount' => 200]);
 
         $res = $this->withToken($this->token($owner))
             ->getJson('/api/expenses?from=2026-07-01&to=2026-07-31&category=rent');
@@ -89,9 +88,9 @@ class ExpenseTest extends FinanceTestCase
         $owner = $this->makeUser($org, 'owner');
         $main = Branch::create(['organization_id' => $org->id, 'name' => 'Main']);
         $second = Branch::create(['organization_id' => $org->id, 'name' => 'Second']);
-        $this->expense($org, ['branch_id' => $main->id, 'expense_date' => '2026-07-02', 'amount' => 100]);
-        $this->expense($org, ['branch_id' => $second->id, 'expense_date' => '2026-07-03', 'amount' => 200]);
-        $this->expense($org, ['expense_date' => '2026-07-04', 'amount' => 300]);
+        $this->makeExpense($org, ['branch_id' => $main->id, 'expense_date' => '2026-07-02', 'amount' => 100]);
+        $this->makeExpense($org, ['branch_id' => $second->id, 'expense_date' => '2026-07-03', 'amount' => 200]);
+        $this->makeExpense($org, ['expense_date' => '2026-07-04', 'amount' => 300]);
 
         $res = $this->withToken($this->token($owner))
             ->getJson("/api/expenses?from=2026-07-01&to=2026-07-31&branch_id={$main->id}");
@@ -145,7 +144,7 @@ class ExpenseTest extends FinanceTestCase
     {
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
-        $expense = $this->expense($org, ['amount' => 100]);
+        $expense = $this->makeExpense($org, ['amount' => 100]);
         $token = $this->token($owner);
 
         $this->withToken($token)
@@ -160,7 +159,7 @@ class ExpenseTest extends FinanceTestCase
     public function test_manager_and_staff_cannot_touch_expenses(): void
     {
         $org = $this->makeOrg();
-        $expense = $this->expense($org);
+        $expense = $this->makeExpense($org);
 
         foreach (['manager', 'staff'] as $role) {
             $token = $this->token($this->makeUser($org, $role));
@@ -178,7 +177,7 @@ class ExpenseTest extends FinanceTestCase
     {
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
-        $expense = $this->expense($org, ['amount' => 100]);
+        $expense = $this->makeExpense($org, ['amount' => 100]);
         $run = PayrollRun::create(['organization_id' => $org->id, 'period_month' => '2026-07-01', 'status' => 'finalized']);
         $expense->forceFill(['payroll_run_id' => $run->id])->save();
 
@@ -194,7 +193,7 @@ class ExpenseTest extends FinanceTestCase
     {
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
-        $expense = $this->expense($org, ['amount' => 100]);
+        $expense = $this->makeExpense($org, ['amount' => 100]);
         $run = PayrollRun::create(['organization_id' => $org->id, 'period_month' => '2026-07-01', 'status' => 'finalized']);
         $expense->forceFill(['payroll_run_id' => $run->id])->save();
 
@@ -211,25 +210,10 @@ class ExpenseTest extends FinanceTestCase
         $org = $this->makeOrg();
         $other = $this->makeOrg('other');
         $owner = $this->makeUser($org, 'owner');
-        $theirs = $this->expense($other);
+        $theirs = $this->makeExpense($other);
 
         $this->withToken($this->token($owner))
             ->patchJson("/api/expenses/{$theirs->id}", ['amount' => 1])
             ->assertNotFound();
-    }
-
-    /**
-     * @param  array<string, mixed>  $overrides
-     */
-    private function expense(Organization $org, array $overrides = []): Expense
-    {
-        return Expense::create([
-            'organization_id' => $org->id,
-            'branch_id' => $overrides['branch_id'] ?? null,
-            'category' => $overrides['category'] ?? 'supplies',
-            'expense_date' => $overrides['expense_date'] ?? '2026-07-10',
-            'amount' => $overrides['amount'] ?? 50,
-            'note' => $overrides['note'] ?? null,
-        ]);
     }
 }
