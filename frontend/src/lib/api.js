@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ACCENT_STORAGE_KEY } from '@/lib/theme'
 
 // localStorage key used to persist the Bearer token.
 export const TOKEN_KEY = 'salonhub_token'
@@ -37,6 +38,10 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem(TOKEN_KEY)
+      // Drop the remembered accent too: the reload that follows re-runs
+      // main.js, which repaints from this key before any store exists — a
+      // stale entry would wear the previous tenant's colour on /login.
+      localStorage.removeItem(ACCENT_STORAGE_KEY)
       if (window.location.pathname !== '/login') {
         window.location.assign('/login')
       }
