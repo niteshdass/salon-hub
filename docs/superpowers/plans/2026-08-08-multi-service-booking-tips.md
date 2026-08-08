@@ -116,6 +116,8 @@ class AppointmentServiceLineTest extends TestCase
         $appointment = Appointment::create([
             'organization_id' => $org->id, 'branch_id' => $branch->id,
             'customer_id' => $customer->id, 'staff_id' => $staff->id,
+            // Still required and still cascading until Task 8 drops it.
+            'service_id' => $service->id,
             'booking_date' => '2026-09-01', 'start_time' => '10:00:00',
             'end_time' => '10:30:00', 'price' => 40, 'status' => 'pending',
         ]);
@@ -143,22 +145,30 @@ class AppointmentServiceLineTest extends TestCase
 
     public function test_a_line_survives_its_service_being_removed(): void
     {
-        ['appointment' => $appointment, 'service' => $service] = $this->scaffold();
+        ['org' => $org, 'appointment' => $appointment] = $this->scaffold();
+
+        // A service the appointment's own legacy service_id does not point at,
+        // so this deletion exercises the line's nullOnDelete rather than the
+        // cascade still hanging off appointments.service_id until Task 8.
+        $extra = Service::create([
+            'organization_id' => $org->id, 'name' => 'Blow Dry',
+            'duration' => 20, 'price' => 15, 'status' => 'active',
+        ]);
 
         $line = AppointmentService::create([
-            'appointment_id' => $appointment->id, 'service_id' => $service->id,
-            'name' => 'Haircut', 'price' => 40, 'duration' => 30, 'sort_order' => 0,
+            'appointment_id' => $appointment->id, 'service_id' => $extra->id,
+            'name' => 'Blow Dry', 'price' => 15, 'duration' => 20, 'sort_order' => 1,
         ]);
 
         // Bypasses ServiceController's refusal on purpose: the column's own
         // nullOnDelete is what guarantees history survives any future path.
-        DB::table('services')->where('id', $service->id)->delete();
+        DB::table('services')->where('id', $extra->id)->delete();
 
         $line->refresh();
 
         $this->assertNull($line->service_id);
-        $this->assertSame('Haircut', $line->name);
-        $this->assertSame('40.00', $line->price);
+        $this->assertSame('Blow Dry', $line->name);
+        $this->assertSame('15.00', $line->price);
     }
 
     public function test_deleting_the_appointment_takes_its_lines(): void
@@ -422,6 +432,8 @@ class AppointmentServiceWriterTest extends TestCase
         $this->appointment = Appointment::create([
             'organization_id' => $org->id, 'branch_id' => $branch->id,
             'customer_id' => $customer->id, 'staff_id' => $staff->id,
+            // Still required until Task 8 drops it; the writer ignores it.
+            'service_id' => $this->services['cut']->id,
             'booking_date' => '2026-09-01', 'start_time' => '10:00:00',
             'end_time' => '10:00:00', 'price' => 0, 'status' => 'pending',
         ]);
@@ -863,6 +875,7 @@ git commit -m "refactor: slot generation takes a duration, not a service"
 ### Task 5: Dashboard appointments accept `service_ids[]`
 
 **Files:**
+- Create: `backend/database/migrations/2026_08_09_100150_make_appointments_service_id_nullable.php`
 - Modify: `backend/app/Http/Requests/Appointment/StoreAppointmentRequest.php:31`
 - Modify: `backend/app/Http/Requests/Appointment/UpdateAppointmentRequest.php:48`
 - Modify: `backend/app/Http/Controllers/AppointmentController.php:60-130`
@@ -1029,7 +1042,43 @@ class MultiServiceBookingTest extends TestCase
 Run: `cd backend && php artisan test tests/Feature/Booking/MultiServiceBookingTest.php`
 Expected: FAIL — `service_ids` is not a known field; the first assertion fails on `service_id` being required.
 
-- [ ] **Step 3: Update the two form requests**
+- [ ] **Step 3: Let `appointments.service_id` go null**
+
+This task is where the appointment writers stop populating the legacy column, but Task 8 is where it is dropped — in between, a NOT NULL column nobody writes would fail every insert.
+
+`backend/database/migrations/2026_08_09_100150_make_appointments_service_id_nullable.php`:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Appointments are written from their line items now, so nothing sets
+     * this column any more. It survives, unwritten, only until the readers
+     * have all moved across and 2026_08_09_100200 drops it.
+     */
+    public function up(): void
+    {
+        Schema::table('appointments', function (Blueprint $table) {
+            $table->foreignId('service_id')->nullable()->change();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('appointments', function (Blueprint $table) {
+            $table->foreignId('service_id')->nullable(false)->change();
+        });
+    }
+};
+```
+
+- [ ] **Step 4: Update the two form requests**
 
 In `StoreAppointmentRequest` replace the `service_id` rule with:
 
@@ -1048,7 +1097,7 @@ In `UpdateAppointmentRequest` use the same rules but with `'sometimes'` in place
 
 Keep whatever `$tenantId` expression each file already uses for its other rules.
 
-- [ ] **Step 4: Update `AppointmentController`**
+- [ ] **Step 5: Update `AppointmentController`**
 
 Inject the writer and use it for both create and update:
 
@@ -1114,7 +1163,7 @@ Inject the writer and use it for both create and update:
 
 Change `private const RELATIONS` from `['customer', 'staff', 'service', 'branch']` to `['customer', 'staff', 'lines', 'branch']`.
 
-- [ ] **Step 5: Update `AppointmentResource`**
+- [ ] **Step 6: Update `AppointmentResource`**
 
 Replace the `service` key with:
 
@@ -1130,21 +1179,22 @@ Replace the `service` key with:
             'duration' => $this->whenLoaded('lines', fn () => (int) $this->lines->sum('duration'), 0),
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [ ] **Step 7: Run the test to verify it passes**
 
 Run: `cd backend && php artisan test tests/Feature/Booking/MultiServiceBookingTest.php`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 7: Update the existing dashboard tests**
+- [ ] **Step 8: Update the existing dashboard tests**
 
 Run: `cd backend && php artisan test tests/Feature/Crud/AppointmentCrudTest.php tests/Feature/Crud/AppointmentRangeTest.php tests/Feature/Dashboard tests/Feature/Authorization`
 
 Every failure is a test still posting `service_id` or asserting `data.service`. Change `'service_id' => $service->id` to `'service_ids' => [$service->id]` and `data.service.name` to `data.services.0.name`. Do not weaken any assertion.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add backend/app/Http/Requests/Appointment backend/app/Http/Controllers/AppointmentController.php \
+git add backend/database/migrations/2026_08_09_100150_make_appointments_service_id_nullable.php \
+        backend/app/Http/Requests/Appointment backend/app/Http/Controllers/AppointmentController.php \
         backend/app/Http/Resources/AppointmentResource.php \
         backend/tests/Feature/Booking/MultiServiceBookingTest.php backend/tests/Feature/Crud backend/tests/Feature/Dashboard
 git commit -m "feat: dashboard appointments accept multiple services"
