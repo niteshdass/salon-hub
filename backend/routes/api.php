@@ -11,6 +11,7 @@ use App\Http\Controllers\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Customer\BookingController as CustomerBookingController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HelloController;
 use App\Http\Controllers\InvoiceController;
@@ -138,6 +139,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
 
     Route::get('reports', ReportController::class);
+
+    Route::apiResource('expenses', ExpenseController::class)->except('show');
 
     Route::get('settings/organization', [OrganizationSettingController::class, 'show']);
     Route::put('settings/organization', [OrganizationSettingController::class, 'update']);
