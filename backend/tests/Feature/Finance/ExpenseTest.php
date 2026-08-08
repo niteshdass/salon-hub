@@ -4,6 +4,7 @@ namespace Tests\Feature\Finance;
 
 use App\Models\Expense;
 use App\Models\Organization;
+use App\Models\PayrollRun;
 
 class ExpenseTest extends FinanceTestCase
 {
@@ -105,7 +106,8 @@ class ExpenseTest extends FinanceTestCase
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
         $expense = $this->expense($org, ['amount' => 100]);
-        $expense->forceFill(['payroll_run_id' => 1])->save();
+        $run = PayrollRun::create(['organization_id' => $org->id, 'period_month' => '2026-07-01', 'status' => 'finalized']);
+        $expense->forceFill(['payroll_run_id' => $run->id])->save();
 
         $this->withToken($this->token($owner))
             ->patchJson("/api/expenses/{$expense->id}", ['amount' => 999])
@@ -120,7 +122,8 @@ class ExpenseTest extends FinanceTestCase
         $org = $this->makeOrg();
         $owner = $this->makeUser($org, 'owner');
         $expense = $this->expense($org, ['amount' => 100]);
-        $expense->forceFill(['payroll_run_id' => 1])->save();
+        $run = PayrollRun::create(['organization_id' => $org->id, 'period_month' => '2026-07-01', 'status' => 'finalized']);
+        $expense->forceFill(['payroll_run_id' => $run->id])->save();
 
         $this->withToken($this->token($owner))
             ->deleteJson("/api/expenses/{$expense->id}")
