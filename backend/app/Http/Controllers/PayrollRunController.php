@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ExpenseCategory;
+use App\Enums\PayrollRunStatus;
 use App\Http\Requests\Payroll\StorePayrollRunRequest;
 use App\Http\Resources\PayrollRunResource;
 use App\Models\PayrollRun;
 use App\Services\PayrollCalculator;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -73,5 +77,54 @@ class PayrollRunController extends Controller
             'total_commission' => round((float) $lines->sum('commission_amount'), 2),
             'total_amount' => round((float) $lines->sum('total_amount'), 2),
         ]);
+    }
+
+    /**
+     * Lock the run and book it as a cost. The salary expense is what makes
+     * staff pay show up in the P&L, and it is written here — once — so the
+     * two can never drift apart.
+     */
+    public function finalize(Request $request, PayrollRun $run): JsonResponse
+    {
+        $this->authorize('update', $run);
+
+        if (! $run->isDraft()) {
+            return response()->json(['message' => 'This payroll run is already finalized.'], 422);
+        }
+
+        DB::transaction(function () use ($request, $run) {
+            $this->syncTotals($run);
+            $run->refresh();
+
+            $run->update([
+                'status' => PayrollRunStatus::FINALIZED,
+                'finalized_at' => now(),
+                'finalized_by' => $request->user()->id,
+            ]);
+
+            $run->expense()->create([
+                'organization_id' => $run->organization_id,
+                'category' => ExpenseCategory::SALARY,
+                'expense_date' => $run->period_month->copy()->endOfMonth()->toDateString(),
+                'amount' => $run->total_amount,
+                'note' => 'Payroll — '.$run->period_month->format('F Y'),
+                'recorded_by' => $request->user()->id,
+            ]);
+        });
+
+        return (new PayrollRunResource($run->fresh()->load('lines')))->response();
+    }
+
+    /**
+     * Correcting a finalized month means deleting it and running it again.
+     * Lines and the salary expense go with it (both cascade).
+     */
+    public function destroy(PayrollRun $run): Response
+    {
+        $this->authorize('delete', $run);
+
+        $run->delete();
+
+        return response()->noContent();
     }
 }

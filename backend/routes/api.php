@@ -19,6 +19,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrganizationSettingController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PaymentSettingController;
+use App\Http\Controllers\PayrollLineController;
 use App\Http\Controllers\PayrollRunController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\DiscoveryController;
@@ -146,6 +147,9 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function () {
     Route::get('payroll/runs', [PayrollRunController::class, 'index']);
     Route::post('payroll/runs', [PayrollRunController::class, 'store']);
     Route::get('payroll/runs/{run}', [PayrollRunController::class, 'show']);
+    Route::delete('payroll/runs/{run}', [PayrollRunController::class, 'destroy']);
+    Route::post('payroll/runs/{run}/finalize', [PayrollRunController::class, 'finalize']);
+    Route::patch('payroll/runs/{run}/lines/{line}', [PayrollLineController::class, 'update']);
 
     Route::get('settings/organization', [OrganizationSettingController::class, 'show']);
     Route::put('settings/organization', [OrganizationSettingController::class, 'update']);
