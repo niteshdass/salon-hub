@@ -125,7 +125,20 @@ async function loadSalon() {
 const services = ref([])
 const servicesLoading = ref(false)
 const servicesError = ref('')
-const selectedService = ref(null)
+// One staff member performs the whole visit back-to-back, so the customer
+// picks a set of services rather than a single one.
+const selectedServices = ref([])
+
+const selectedServiceIds = computed(() => selectedServices.value.map((s) => s.id))
+const totalDuration = computed(() =>
+  selectedServices.value.reduce((sum, s) => sum + Number(s.duration || 0), 0),
+)
+const totalPrice = computed(() =>
+  selectedServices.value.reduce((sum, s) => sum + Number(s.price || 0), 0),
+)
+
+// Repeated params so Laravel reads `service_ids` as an array.
+const serviceQuery = () => selectedServiceIds.value.map((id) => `service_ids[]=${id}`).join('&')
 
 async function loadServices() {
   servicesLoading.value = true
@@ -140,17 +153,31 @@ async function loadServices() {
   }
 }
 
-function selectService(svc) {
-  const changed = selectedService.value?.id !== svc.id
-  selectedService.value = svc
-  if (changed) {
-    // Reset everything downstream when the service changes.
-    selectedStaff.value = null
-    staff.value = []
-    selectedSlot.value = ''
-    slots.value = []
-    slotsLoaded.value = false
+// Staff availability and open slots both depend on the whole selection, so
+// anything chosen downstream is stale the moment it changes.
+function resetDownstream() {
+  selectedStaff.value = null
+  staff.value = []
+  // null, not '': the staff/time steps haven't run yet for this selection,
+  // so there is no prior slot being "cleared" — unlike selectStaff/loadSlots,
+  // which reset a slot chosen against the staff member being replaced.
+  selectedSlot.value = null
+  slots.value = []
+  slotsLoaded.value = false
+}
+
+function toggleService(svc) {
+  const at = selectedServices.value.findIndex((s) => s.id === svc.id)
+  if (at === -1) {
+    selectedServices.value.push(svc)
+  } else {
+    selectedServices.value.splice(at, 1)
   }
+  resetDownstream()
+}
+
+function goToStaffStep() {
+  if (!selectedServices.value.length) return
   step.value = 2
   loadStaff()
 }
@@ -162,11 +189,11 @@ const staffError = ref('')
 const selectedStaff = ref(null)
 
 async function loadStaff() {
-  if (!selectedService.value) return
+  if (!selectedServices.value.length) return
   staffLoading.value = true
   staffError.value = ''
   try {
-    const { data } = await api.get(`${apiBase}/services/${selectedService.value.id}/staff`)
+    const { data } = await api.get(`${apiBase}/staff?${serviceQuery()}`)
     staff.value = data.data || []
   } catch (err) {
     staffError.value = parseApiError(err, 'Could not load staff.').message
@@ -250,14 +277,14 @@ function pickDate(cell) {
 }
 
 async function loadSlots() {
-  if (!selectedService.value || !selectedStaff.value || !selectedDate.value) return
+  if (!selectedServiceIds.value.length || !selectedStaff.value || !selectedDate.value) return
   slotsLoading.value = true
   slotsError.value = ''
   selectedSlot.value = ''
   try {
     const { data } = await api.get(`${apiBase}/slots`, {
       params: {
-        service_id: selectedService.value.id,
+        service_ids: selectedServiceIds.value,
         staff_id: selectedStaff.value.id,
         date: selectedDate.value,
       },
@@ -298,7 +325,9 @@ const bothMethods = computed(() => manualEnabled.value && gatewayEnabled.value)
 
 const depositAmount = computed(() => {
   const p = paymentPolicy.value
-  const price = Number(selectedService.value?.price || 0)
+  // Mirrors the backend: the deposit is a fraction of the whole visit's
+  // price (PaymentSetting::depositFor($totals['price'])), not one service.
+  const price = totalPrice.value
   if (!p || !depositRequired.value || !price) return 0
   const val = Number(p.deposit_value || 0)
   if (p.deposit_type === 'percent') return Math.round(price * val) / 100
@@ -361,7 +390,7 @@ async function submitBooking() {
   if (!account.value) who.email = customer.email.trim() || undefined
 
   const payload = {
-    service_id: selectedService.value.id,
+    service_ids: selectedServiceIds.value,
     staff_id: selectedStaff.value.id,
     date: selectedDate.value,
     start_time: selectedSlot.value,
@@ -410,7 +439,7 @@ async function submitBooking() {
 function goStep(n) {
   // Only allow jumping to a step the user has already satisfied.
   if (n === 1) step.value = 1
-  else if (n === 2 && selectedService.value) step.value = 2
+  else if (n === 2 && selectedServices.value.length) step.value = 2
   else if (n === 3 && selectedStaff.value) {
     step.value = 3
     if (!slotsLoaded.value) loadSlots()
@@ -423,7 +452,7 @@ function goBack() {
 
 function resetWizard() {
   step.value = 1
-  selectedService.value = null
+  selectedServices.value = []
   selectedStaff.value = null
   staff.value = []
   selectedSlot.value = ''
@@ -546,8 +575,10 @@ onMounted(async () => {
           <div class="px-6 py-9 sm:px-9 sm:py-11">
             <!-- ============ STEP 1: Service ============ -->
             <section v-if="step === 1">
-              <h2 class="font-display text-3xl text-white">Choose a service</h2>
-              <p class="mt-2 text-sm text-white/45">Pick the treatment you'd like to book.</p>
+              <h2 class="font-display text-3xl text-white">Choose your services</h2>
+              <p class="mt-2 text-sm text-white/45">
+                Pick everything you'd like this visit — one professional handles the whole thing, back-to-back.
+              </p>
 
               <div v-if="servicesLoading" class="py-16 text-center">
                 <span class="spinner" />
@@ -569,8 +600,8 @@ onMounted(async () => {
                   :key="svc.id"
                   type="button"
                   class="option flex w-full items-center justify-between gap-5 p-5 text-left"
-                  :class="selectedService?.id === svc.id ? 'option-on' : ''"
-                  @click="selectService(svc)"
+                  :class="selectedServiceIds.includes(svc.id) ? 'option-on' : ''"
+                  @click="toggleService(svc)"
                 >
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-3">
@@ -582,18 +613,39 @@ onMounted(async () => {
                   </div>
                   <div class="flex shrink-0 items-center gap-3">
                     <span v-if="formatPrice(svc.price)" class="font-display text-xl text-white">{{ formatPrice(svc.price) }}</span>
-                    <svg class="h-4 w-4 text-white/25" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <svg
+                      v-if="selectedServiceIds.includes(svc.id)"
+                      class="h-4 w-4 text-[var(--accent)]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke-width="2.5"
+                      stroke="currentColor"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <svg v-else class="h-4 w-4 text-white/25" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                     </svg>
                   </div>
                 </button>
+              </div>
+
+              <div
+                v-if="selectedServices.length"
+                class="sticky bottom-0 -mx-6 -mb-9 mt-8 flex items-center justify-between gap-4 border-t border-white/8 bg-[#131110]/95 px-6 py-5 backdrop-blur sm:-mx-9 sm:-mb-11 sm:px-9"
+              >
+                <p class="label text-white/60">
+                  {{ selectedServices.length }} {{ selectedServices.length === 1 ? 'service' : 'services' }}
+                  · {{ totalDuration }} min · {{ formatPrice(totalPrice) }}
+                </p>
+                <button type="button" class="btn-gold" @click="goToStaffStep">Continue →</button>
               </div>
             </section>
 
             <!-- ============ STEP 2: Staff ============ -->
             <section v-else-if="step === 2">
               <h2 class="font-display text-3xl text-white">Choose a professional</h2>
-              <p class="mt-2 text-sm text-white/45">Who would you like for your {{ selectedService?.name }}?</p>
+              <p class="mt-2 text-sm text-white/45">Who would you like for your visit?</p>
 
               <div v-if="staffLoading" class="py-16 text-center">
                 <span class="spinner" />
@@ -606,7 +658,7 @@ onMounted(async () => {
               </div>
 
               <p v-else-if="staff.length === 0" class="empty mt-7">
-                No one is available for this service right now. Try another service.
+                No one can do all of these — try removing a service.
               </p>
 
               <div v-else class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -647,7 +699,7 @@ onMounted(async () => {
             <!-- ============ STEP 3: Date & time ============ -->
             <section v-else-if="step === 3">
               <h2 class="font-display text-3xl text-white">Date &amp; time</h2>
-              <p class="mt-2 text-sm text-white/45">Select when you'd like your {{ selectedService?.name }}.</p>
+              <p class="mt-2 text-sm text-white/45">Select when you'd like your visit, {{ totalDuration }} min in total.</p>
 
               <!-- Calendar -->
               <div class="mt-9">
@@ -733,8 +785,8 @@ onMounted(async () => {
               <!-- Summary -->
               <dl class="summary mt-8">
                 <div>
-                  <dt>Service</dt>
-                  <dd>{{ selectedService?.name }}</dd>
+                  <dt>{{ selectedServices.length === 1 ? 'Service' : 'Services' }}</dt>
+                  <dd>{{ selectedServices.map((s) => s.name).join(', ') }}</dd>
                 </div>
                 <div>
                   <dt>Professional</dt>
@@ -874,8 +926,8 @@ onMounted(async () => {
                   </dd>
                 </div>
                 <div>
-                  <dt>Service</dt>
-                  <dd>{{ confirmation.service?.name }}</dd>
+                  <dt>{{ confirmation.services?.length === 1 ? 'Service' : 'Services' }}</dt>
+                  <dd>{{ (confirmation.services || []).map((s) => s.name).join(', ') }}</dd>
                 </div>
                 <div>
                   <dt>Professional</dt>
