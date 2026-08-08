@@ -3,28 +3,27 @@
 namespace App\Http\Requests\Staff;
 
 use App\Enums\PayType;
+use App\Http\Requests\Concerns\StripsOwnerOnlyFields;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 
 class StoreStaffRequest extends FormRequest
 {
+    use StripsOwnerOnlyFields;
+
     public function authorize(): bool
     {
         return $this->user()->can('create', User::class);
     }
 
     /**
-     * Pay is owner-only. A manager's request keeps working; the pay fields
-     * are simply removed before validation ever sees them.
+     * @return array<int, string>
      */
-    protected function prepareForValidation(): void
+    protected function ownerOnlyFields(): array
     {
-        if (! ($this->user()?->isOwner() ?? false)) {
-            $this->replace(Arr::except($this->all(), ['pay_type', 'monthly_salary', 'commission_rate']));
-        }
+        return ['pay_type', 'monthly_salary', 'commission_rate'];
     }
 
     /**
