@@ -130,7 +130,7 @@ async function loadExpenses() {
         category: expenseFilters.category || undefined,
       },
     })
-    expenses.value = data.data || []
+    expenses.value = data.data
   } catch (e) {
     error.value = parseApiError(e, 'Could not load expenses.').message
   }

@@ -64,6 +64,7 @@ function mockRuns({ list = [DRAFT_RUN_SUMMARY], detail = DRAFT_RUN_DETAIL } = {}
     .mockImplementation((url) => {
       if (url === '/payroll/runs') return Promise.resolve({ data: { data: list } })
       if (url === `/payroll/runs/${detail.id}`) return Promise.resolve({ data: { data: detail } })
+      if (url === '/expenses') return Promise.resolve({ data: { data: [] } })
       return Promise.resolve({ data: { data: null } })
     })
 }
