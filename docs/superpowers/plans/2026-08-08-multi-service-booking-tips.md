@@ -1493,6 +1493,10 @@ git commit -m "feat: customer portal and emails list every booked service"
 
 **Interfaces:**
 - Consumes: every task above — nothing may still read `appointments.service_id`.
+  **Task 12 must land before this one.** `ReportService::topServices()` selects and
+  groups by `appointments.service_id`; the moment this column is dropped that query
+  is a SQL error, so the reports break before Task 12 gets to fix them. Execute
+  Task 12, then Task 8.
 - Produces: `Service::appointments(): BelongsToMany` through `appointment_services`.
 
 - [ ] **Step 1: Prove nothing still reads the column**
