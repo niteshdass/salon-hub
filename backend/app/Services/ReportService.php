@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Enums\AppointmentStatus;
 use App\Enums\UserRole;
 use App\Models\Appointment;
+use App\Models\AppointmentService;
 use App\Models\Expense;
 use App\Models\Review;
-use App\Models\Service;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Carbon;
@@ -196,30 +196,43 @@ class ReportService
     }
 
     /**
-     * Completed bookings grouped by service, ranked by earned. Group-by-id +
-     * SUM is portable SQL; names are resolved with a tenant-scoped lookup.
+     * Completed visits grouped by the services they booked, ranked by earned.
+     *
+     * The unit here is a service *line*, not a visit: a customer who booked a
+     * cut and a colour contributes to both. `bookings` therefore counts lines,
+     * which is what "how much did this service earn me" needs. Revenue totals
+     * elsewhere stay on appointments.price, so the two still reconcile.
+     *
+     * Names come from the line snapshot, so a service since removed from the
+     * menu still reports under the name it was sold as.
      *
      * @return array<int, array<string, mixed>>
      */
     protected function topServices(string $from, string $to): array
     {
-        $rows = Appointment::query()
-            ->where('status', AppointmentStatus::COMPLETED->value)
-            ->whereDate('booking_date', '>=', $from)
-            ->whereDate('booking_date', '<=', $to)
-            ->selectRaw('service_id, COUNT(*) as bookings, SUM(price) as earned')
-            ->groupBy('service_id')
+        // AppointmentService carries no tenant scope of its own (it is only
+        // ever reached through its appointment), so the org filter is explicit.
+        $rows = AppointmentService::query()
+            ->join('appointments', 'appointments.id', '=', 'appointment_services.appointment_id')
+            ->where('appointments.organization_id', app(CurrentTenant::class)->id())
+            ->where('appointments.status', AppointmentStatus::COMPLETED->value)
+            ->whereDate('appointments.booking_date', '>=', $from)
+            ->whereDate('appointments.booking_date', '<=', $to)
+            // Grouped by the snapshot name, not service_id: a deleted service's
+            // lines all carry a null id and would otherwise collapse into one
+            // "Unknown" row instead of reporting under the name it sold as.
+            ->groupBy('appointment_services.name')
+            ->selectRaw('appointment_services.name as name, MAX(appointment_services.service_id) as service_id, COUNT(*) as bookings, SUM(appointment_services.price) as earned')
             ->get();
 
         $total = (float) $rows->sum('earned');
-        $names = Service::query()->pluck('name', 'id');
 
         return $rows
             ->sortByDesc(fn ($row) => (float) $row->earned)
             ->take(10)
             ->map(fn ($row) => [
-                'service_id' => (int) $row->service_id,
-                'name' => $names->get($row->service_id, 'Unknown'),
+                'service_id' => $row->service_id !== null ? (int) $row->service_id : null,
+                'name' => $row->name,
                 'bookings' => (int) $row->bookings,
                 'earned' => round((float) $row->earned, 2),
                 'share_pct' => $total > 0 ? round((float) $row->earned / $total * 100, 1) : 0.0,

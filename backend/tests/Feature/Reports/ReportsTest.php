@@ -93,8 +93,9 @@ class ReportsTest extends TestCase
         $service = $overrides['service'] ?? $this->makeService($org);
         $staff = $overrides['staff'] ?? $this->makeStaff($org);
         $customer = Customer::create(['organization_id' => $org->id, 'name' => 'Casey Customer']);
+        $price = $overrides['price'] ?? 25;
 
-        return Appointment::create([
+        $appointment = Appointment::create([
             'organization_id' => $org->id,
             'public_token' => (string) Str::uuid(),
             'branch_id' => $branch->id,
@@ -104,9 +105,21 @@ class ReportsTest extends TestCase
             'booking_date' => $overrides['date'] ?? '2026-07-15',
             'start_time' => $overrides['start_time'] ?? '10:00:00',
             'end_time' => '10:30:00',
-            'price' => $overrides['price'] ?? 25,
+            'price' => $price,
             'status' => $overrides['status'] ?? 'completed',
         ]);
+
+        // Real bookings always carry a line (see AppointmentServiceWriter); a
+        // fixture with none would never see the shape topServices() now reads.
+        $appointment->lines()->create([
+            'service_id' => $service->id,
+            'name' => $service->name,
+            'price' => $price,
+            'duration' => $service->duration,
+            'sort_order' => 0,
+        ]);
+
+        return $appointment;
     }
 
     public function test_owner_can_load_reports(): void
@@ -336,6 +349,41 @@ class ReportsTest extends TestCase
         $this->assertSame(80.0, (float) $rows[0]['earned']);
         $this->assertSame('Cut', $rows[1]['name']);
         $this->assertSame(2, $rows[1]['bookings']);
+    }
+
+    public function test_a_multi_service_visit_is_attributed_to_every_service_it_booked(): void
+    {
+        $org = $this->makeOrg();
+        $owner = $this->makeUser($org, 'owner');
+        // No `makeCompletedAppointment` helper exists in this file; build the
+        // fixture with the same `makeAppointment` pattern every other test uses.
+        $appointment = $this->makeAppointment($org, ['date' => '2026-06-10', 'price' => 55, 'status' => 'completed']);
+        // makeAppointment already attached one line for its default service;
+        // replace it with the real multi-service booking this test needs.
+        $appointment->lines()->delete();
+        $appointment->lines()->create([
+            'service_id' => null, 'name' => 'Haircut',
+            'price' => 40, 'duration' => 30, 'sort_order' => 0,
+        ]);
+        $appointment->lines()->create([
+            'service_id' => null, 'name' => 'Blow Dry',
+            'price' => 15, 'duration' => 20, 'sort_order' => 1,
+        ]);
+
+        $rows = $this->withToken($this->token($owner))
+            ->getJson('/api/reports?from=2026-06-01&to=2026-06-30')
+            ->assertOk()
+            ->json('data.top_services');
+
+        $names = array_column($rows, 'name');
+
+        $this->assertContains('Haircut', $names);
+        $this->assertContains('Blow Dry', $names);
+        // Cast like every other money assertion in this file: PHP's JSON
+        // encoder drops the trailing .0 from a whole-number float, so a
+        // strict compare against 40.0/15.0 without the cast is brittle.
+        $this->assertSame(40.0, (float) collect($rows)->firstWhere('name', 'Haircut')['earned']);
+        $this->assertSame(15.0, (float) collect($rows)->firstWhere('name', 'Blow Dry')['earned']);
     }
 
     public function test_staff_performance_with_rating_in_range(): void
