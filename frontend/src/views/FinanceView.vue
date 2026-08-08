@@ -16,10 +16,18 @@ const TABS = [
 ]
 const tab = ref('payroll')
 
+// One banner per tab. A single shared ref meant whichever load finished last
+// owned it: onMounted runs loadRuns() then loadExpenses(), and the second
+// call's reset wiped a payroll failure before anyone could read it.
+const tabError = reactive({ payroll: '', expenses: '', profit: '' })
+const error = computed(() => tabError[tab.value])
+
 const runs = ref([])
 const activeRun = ref(null)
 const loading = ref(false)
-const error = ref('')
+// Covers all three payroll mutations at once: while any is in flight none of
+// the others should be clickable either.
+const saving = ref(false)
 const months = monthOptions(12)
 const selectedMonth = ref(months[0].value)
 
@@ -30,72 +38,88 @@ function money(value) {
 
 async function loadRuns() {
   loading.value = true
-  error.value = ''
+  tabError.payroll = ''
   try {
     const { data } = await api.get('/payroll/runs')
     runs.value = data.data
     if (runs.value.length && !activeRun.value) await openRun(runs.value[0].id)
   } catch (e) {
-    error.value = parseApiError(e, 'Could not load payroll.').message
+    tabError.payroll = parseApiError(e, 'Could not load payroll.').message
   } finally {
     loading.value = false
   }
 }
 
 async function openRun(id) {
-  error.value = ''
+  tabError.payroll = ''
   try {
     const { data } = await api.get(`/payroll/runs/${id}`)
     activeRun.value = data.data
   } catch (e) {
-    error.value = parseApiError(e, 'Could not load this payroll run.').message
+    tabError.payroll = parseApiError(e, 'Could not load this payroll run.').message
   }
 }
 
 async function createRun() {
-  error.value = ''
+  if (saving.value) return
+  saving.value = true
+  tabError.payroll = ''
   try {
     const { data } = await api.post('/payroll/runs', { period_month: selectedMonth.value })
     activeRun.value = data.data
     await loadRuns()
   } catch (e) {
-    error.value = parseApiError(e, 'Could not open payroll.').message
+    tabError.payroll = parseApiError(e, 'Could not open payroll.').message
+  } finally {
+    saving.value = false
   }
 }
 
 // Saves one edited amount and refreshes the run so the header total matches.
 async function saveLine(line, field, value) {
-  error.value = ''
+  tabError.payroll = ''
   try {
     await api.patch(`/payroll/runs/${activeRun.value.id}/lines/${line.id}`, { [field]: Number(value || 0) })
     await openRun(activeRun.value.id)
     await loadRuns()
   } catch (e) {
-    error.value = parseApiError(e, 'Could not save that amount.').message
+    tabError.payroll = parseApiError(e, 'Could not save that amount.').message
   }
 }
 
 async function finalizeRun() {
+  if (saving.value) return
   if (!window.confirm(`Finalize ${activeRun.value.period_label} for ${money(activeRun.value.total_amount)}? This locks the run and books it as an expense.`)) return
-  error.value = ''
+  saving.value = true
+  tabError.payroll = ''
   try {
     const { data } = await api.post(`/payroll/runs/${activeRun.value.id}/finalize`)
     activeRun.value = data.data
     await loadRuns()
+    // The run just booked a salary expense, which moves both the log and the
+    // net profit. Neither may keep showing the pre-finalize picture.
+    await refreshMoneyViews()
   } catch (e) {
-    error.value = parseApiError(e, 'Could not finalize this run.').message
+    tabError.payroll = parseApiError(e, 'Could not finalize this run.').message
+  } finally {
+    saving.value = false
   }
 }
 
 async function deleteRun() {
+  if (saving.value) return
   if (!window.confirm(`Delete payroll for ${activeRun.value.period_label}? Its salary expense goes with it.`)) return
-  error.value = ''
+  saving.value = true
+  tabError.payroll = ''
   try {
     await api.delete(`/payroll/runs/${activeRun.value.id}`)
     activeRun.value = null
     await loadRuns()
+    await refreshMoneyViews()
   } catch (e) {
-    error.value = parseApiError(e, 'Could not delete this run.').message
+    tabError.payroll = parseApiError(e, 'Could not delete this run.').message
+  } finally {
+    saving.value = false
   }
 }
 
@@ -103,12 +127,27 @@ const EXPENSE_CATEGORIES = [
   'rent', 'utilities', 'supplies', 'salary', 'marketing', 'equipment', 'maintenance', 'other',
 ]
 
+// `salary` is payroll's reserved category: a finalized run books one, and the
+// expense's payroll_run_id is what keeps the P&L from counting staff pay
+// twice. An owner hand-logging "Salaries — July" beside that run defeats it,
+// so salary can be filtered for but not entered.
+const LOGGABLE_CATEGORIES = EXPENSE_CATEGORIES.filter((c) => c !== 'salary')
+
 const expenses = ref([])
 const expenseFilters = reactive({ from: '', to: '', category: '' })
 const expenseModalOpen = ref(false)
 const editingExpenseId = ref(null)
 const expenseForm = reactive({ category: 'supplies', expense_date: '', amount: '', note: '' })
 const expenseErrors = ref({})
+const savingExpense = ref(false)
+
+// A row logged as `salary` before that category was withdrawn stays editable
+// rather than having its category silently blanked when the modal opens.
+const modalCategories = computed(() =>
+  LOGGABLE_CATEGORIES.includes(expenseForm.category)
+    ? LOGGABLE_CATEGORIES
+    : [...LOGGABLE_CATEGORIES, expenseForm.category]
+)
 
 function startOfMonth() {
   const now = new Date()
@@ -121,7 +160,7 @@ function today() {
 }
 
 async function loadExpenses() {
-  error.value = ''
+  tabError.expenses = ''
   try {
     const { data } = await api.get('/expenses', {
       params: {
@@ -132,12 +171,25 @@ async function loadExpenses() {
     })
     expenses.value = data.data
   } catch (e) {
-    error.value = parseApiError(e, 'Could not load expenses.').message
+    tabError.expenses = parseApiError(e, 'Could not load expenses.').message
   }
+}
+
+/**
+ * Anything that moves money re-reads the log and throws away the cached
+ * profit, so the Profit tab recomputes on its next visit instead of showing
+ * the figure from before the change.
+ */
+async function refreshMoneyViews() {
+  profit.value = null
+  await loadExpenses()
 }
 
 function openExpenseModal(expense = null) {
   expenseErrors.value = {}
+  // A leftover banner from an earlier failure has nothing to say about the
+  // form now on screen.
+  tabError.expenses = ''
   editingExpenseId.value = expense?.id ?? null
   Object.assign(expenseForm, {
     category: expense?.category ?? 'supplies',
@@ -149,6 +201,8 @@ function openExpenseModal(expense = null) {
 }
 
 async function saveExpense() {
+  if (savingExpense.value) return
+  savingExpense.value = true
   expenseErrors.value = {}
   const payload = {
     category: expenseForm.category,
@@ -163,13 +217,15 @@ async function saveExpense() {
       await api.post('/expenses', payload)
     }
     expenseModalOpen.value = false
-    await loadExpenses()
+    await refreshMoneyViews()
   } catch (e) {
     // A 422 carries per-field errors; anything else (including the "this came
     // from payroll" refusal) only has a sentence, so show it in the banner.
     const parsed = parseApiError(e, 'Could not save this expense.')
     expenseErrors.value = parsed.errors
-    if (!Object.keys(parsed.errors).length) error.value = parsed.message
+    if (!Object.keys(parsed.errors).length) tabError.expenses = parsed.message
+  } finally {
+    savingExpense.value = false
   }
 }
 
@@ -177,10 +233,17 @@ async function deleteExpense(expense) {
   if (!window.confirm('Delete this expense?')) return
   try {
     await api.delete(`/expenses/${expense.id}`)
-    await loadExpenses()
+    await refreshMoneyViews()
   } catch (e) {
-    error.value = parseApiError(e, 'Could not delete this expense.').message
+    tabError.expenses = parseApiError(e, 'Could not delete this expense.').message
   }
+}
+
+/** From a locked expense row to the run that owns it. */
+async function openRunFromExpense(expense) {
+  if (!expense.payroll_run_id) return
+  tab.value = 'payroll'
+  await openRun(expense.payroll_run_id)
 }
 
 const expenseTotal = computed(() =>
@@ -191,17 +254,19 @@ const profit = ref(null)
 const profitRange = reactive({ from: startOfMonth(), to: today() })
 
 async function loadProfit() {
-  error.value = ''
+  tabError.profit = ''
   try {
     const { data } = await api.get('/reports', { params: { from: profitRange.from, to: profitRange.to } })
     profit.value = data.data.profit
   } catch (e) {
-    error.value = parseApiError(e, 'Could not load profit.').message
+    tabError.profit = parseApiError(e, 'Could not load profit.').message
   }
 }
 
 // Load it when the tab is first opened rather than on mount — the reports
-// endpoint is the heaviest call on this screen.
+// endpoint is the heaviest call on this screen. refreshMoneyViews() nulls the
+// cache whenever a cost changes, so this re-runs instead of showing a figure
+// that predates the change.
 watch(tab, (value) => {
   if (value === 'profit' && !profit.value) loadProfit()
 })
@@ -241,7 +306,11 @@ onMounted(async () => {
             <option v-for="m in months" :key="m.value" :value="m.value">{{ m.label }}</option>
           </select>
         </div>
-        <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700" @click="createRun">
+        <button
+          :disabled="saving"
+          class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          @click="createRun"
+        >
           Open payroll
         </button>
       </div>
@@ -277,12 +346,17 @@ onMounted(async () => {
             <span class="text-sm font-semibold text-slate-900">{{ money(activeRun.total_amount) }}</span>
             <button
               v-if="activeRun.status === 'draft'"
-              class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              :disabled="saving"
+              class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               @click="finalizeRun"
             >
               Finalize
             </button>
-            <button class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50" @click="deleteRun">
+            <button
+              :disabled="saving"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              @click="deleteRun"
+            >
               Delete
             </button>
           </div>
@@ -387,7 +461,21 @@ onMounted(async () => {
               <td class="px-4 py-2 text-slate-500">{{ expense.note || '—' }}</td>
               <td class="px-4 py-2 text-right">{{ money(expense.amount) }}</td>
               <td class="px-4 py-2 text-right">
-                <span v-if="expense.is_locked" class="text-xs text-slate-400">From payroll</span>
+                <button
+                  v-if="expense.is_locked"
+                  class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-700 hover:underline"
+                  title="Open the payroll run that booked this expense"
+                  @click="openRunFromExpense(expense)"
+                >
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path
+                      fill-rule="evenodd"
+                      d="M10 1a4 4 0 0 0-4 4v3H5.5A1.5 1.5 0 0 0 4 9.5v7A1.5 1.5 0 0 0 5.5 18h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 14.5 8H14V5a4 4 0 0 0-4-4Zm2.5 7V5a2.5 2.5 0 0 0-5 0v3h5Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  From payroll
+                </button>
                 <template v-else>
                   <button class="text-sm text-indigo-600 hover:underline" @click="openExpenseModal(expense)">Edit</button>
                   <button class="ml-3 text-sm text-rose-600 hover:underline" @click="deleteExpense(expense)">Delete</button>
@@ -471,7 +559,7 @@ onMounted(async () => {
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">Category</label>
           <select v-model="expenseForm.category" class="w-full rounded-lg border border-slate-300 px-3 py-2.5">
-            <option v-for="c in EXPENSE_CATEGORIES" :key="c" :value="c">{{ c }}</option>
+            <option v-for="c in modalCategories" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
         <div>
@@ -491,7 +579,13 @@ onMounted(async () => {
       </div>
       <template #footer>
         <button class="rounded-lg border border-slate-300 px-4 py-2 text-sm" @click="expenseModalOpen = false">Cancel</button>
-        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" @click="saveExpense">Save</button>
+        <button
+          :disabled="savingExpense"
+          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          @click="saveExpense"
+        >
+          Save
+        </button>
       </template>
     </Modal>
   </div>

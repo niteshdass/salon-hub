@@ -206,6 +206,74 @@ describe('FinanceView — Payroll tab', () => {
     expect(wrapper.text()).toContain('No payroll yet')
   })
 
+  it('disables Finalize, Delete and Open payroll while a finalize is in flight, and re-enables afterwards', async () => {
+    loginAsOwner()
+    mockRuns()
+    let release
+    vi.mocked(api.post).mockImplementation(
+      () => new Promise((resolve) => { release = () => resolve({ data: { data: FINALIZED_RUN_DETAIL } }) }),
+    )
+    const wrapper = mountFinanceView()
+    await flushPromises()
+
+    const byText = (label) => wrapper.findAll('button').find((b) => b.text() === label)
+    expect(byText('Finalize').attributes('disabled')).toBeUndefined()
+
+    await byText('Finalize').trigger('click')
+
+    expect(byText('Finalize').attributes('disabled')).toBeDefined()
+    expect(byText('Delete').attributes('disabled')).toBeDefined()
+    expect(byText('Open payroll').attributes('disabled')).toBeDefined()
+
+    release()
+    await flushPromises()
+
+    expect(byText('Delete').attributes('disabled')).toBeUndefined()
+    expect(byText('Open payroll').attributes('disabled')).toBeUndefined()
+  })
+
+  it('sends only one finalize request when Finalize is double-clicked', async () => {
+    loginAsOwner()
+    mockRuns()
+    // Never settles: the button must stay dead for the whole round trip, which
+    // is exactly the window a double-click lands in.
+    vi.mocked(api.post).mockImplementation(() => new Promise(() => {}))
+    const wrapper = mountFinanceView()
+    await flushPromises()
+
+    const finalize = wrapper.findAll('button').find((b) => b.text() === 'Finalize')
+
+    // Two clicks in the same tick, before Vue has flushed :disabled onto the
+    // element — the shape a real double-click takes. Only the handler's own
+    // re-entry guard can refuse the second one.
+    finalize.element.click()
+    finalize.element.click()
+    await flushPromises()
+
+    // And once the disabled attribute has landed, a later click is refused too.
+    await finalize.trigger('click')
+
+    expect(api.post).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a payroll load failure on screen when the expense load that follows it succeeds', async () => {
+    loginAsOwner()
+    // onMounted loads payroll and then expenses. A single shared banner meant
+    // the second, successful load wiped the first one's failure before anyone
+    // could read it.
+    vi.mocked(api.get).mockReset().mockImplementation((url) => {
+      if (url === '/payroll/runs') {
+        return Promise.reject({ response: { status: 500, data: { message: 'Payroll is down' } } })
+      }
+      if (url === '/expenses') return Promise.resolve({ data: { data: [] } })
+      return Promise.resolve({ data: { data: null } })
+    })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+
+    expect(wrapper.find('.text-rose-700').text()).toBe('Payroll is down')
+  })
+
   it('renders exactly parseApiError(...).message in the banner, when loading fails', async () => {
     loginAsOwner()
     vi.mocked(api.get).mockReset().mockRejectedValue({
@@ -309,7 +377,7 @@ describe('FinanceView — Expenses tab', () => {
     expect(wrapper.text()).toContain('$3,050.00')
   })
 
-  it('shows a lock label with no Edit/Delete for a payroll-generated expense, and both controls for a manual one', async () => {
+  it('shows a locked label with a lock icon and no Edit/Delete for a payroll-generated expense, and both controls for a manual one', async () => {
     loginAsOwner()
     mockExpensesAndEmptyRuns()
     const wrapper = mountFinanceView()
@@ -323,7 +391,109 @@ describe('FinanceView — Expenses tab', () => {
     expect(ownRow.text()).toContain('Edit')
     expect(ownRow.text()).toContain('Delete')
     expect(payrollRow.text()).toContain('From payroll')
-    expect(payrollRow.findAll('button')).toHaveLength(0)
+    expect(payrollRow.find('svg').exists()).toBe(true)
+
+    const controls = payrollRow.findAll('button').map((b) => b.text())
+    expect(controls).not.toContain('Edit')
+    expect(controls).not.toContain('Delete')
+  })
+
+  it('links a locked row to its payroll run, switching to the Payroll tab and opening that run', async () => {
+    loginAsOwner()
+    vi.mocked(api.get)
+      .mockReset()
+      .mockImplementation((url) => {
+        if (url === '/payroll/runs') return Promise.resolve({ data: { data: [] } })
+        if (url === '/payroll/runs/5') return Promise.resolve({ data: { data: FINALIZED_RUN_DETAIL } })
+        if (url === '/expenses') return Promise.resolve({ data: { data: [OWN_EXPENSE, PAYROLL_EXPENSE] } })
+        return Promise.resolve({ data: { data: null } })
+      })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    const payrollRow = wrapper.findAll('tbody tr').find((r) => r.text().includes('From payroll'))
+    const link = payrollRow.findAll('button').find((b) => b.text().includes('From payroll'))
+    expect(link).toBeTruthy()
+
+    await link.trigger('click')
+    await flushPromises()
+
+    expect(api.get).toHaveBeenCalledWith('/payroll/runs/5')
+    // On the Payroll tab now, with run 5 open — the answer to "so what do I
+    // edit instead?".
+    expect(wrapper.text()).toContain('Open payroll')
+    expect(wrapper.text()).toContain('August 2026')
+    expect(wrapper.text()).toContain('Ruma')
+  })
+
+  it('offers salary as a filter but never as a category to log by hand', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([])
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    const selects = wrapper.findAll('select')
+    const filterValues = selects[selects.length - 1].findAll('option').map((o) => o.element.value)
+    expect(filterValues).toContain('salary')
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Add expense').trigger('click')
+    await flushPromises()
+
+    const body = new DOMWrapper(document.body)
+    const modalValues = body.find('select').findAll('option').map((o) => o.element.value)
+    // `salary` belongs to payroll: a hand-logged one alongside a finalized run
+    // is exactly the double-count payroll_run_id exists to prevent.
+    expect(modalValues).not.toContain('salary')
+    expect(modalValues).toContain('rent')
+    expect(modalValues).toContain('supplies')
+  })
+
+  it('clears a stale page banner when the expense modal is opened', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([OWN_EXPENSE])
+    vi.mocked(api.delete).mockRejectedValue({
+      response: { status: 500, data: { message: 'Could not reach the server' } },
+    })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Delete').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.text-rose-700').text()).toBe('Could not reach the server')
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Add expense').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.text-rose-700').exists()).toBe(false)
+  })
+
+  it('disables Save while the expense save is in flight, and sends only one request on a double-click', async () => {
+    loginAsOwner()
+    mockExpensesAndEmptyRuns([])
+    vi.mocked(api.post).mockImplementation(() => new Promise(() => {}))
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openExpensesTab(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Add expense').trigger('click')
+    await flushPromises()
+
+    const body = new DOMWrapper(document.body)
+    const save = () => body.findAll('button').find((b) => b.text() === 'Save')
+    expect(save().attributes('disabled')).toBeUndefined()
+
+    // Same tick, before :disabled has been flushed: the handler guard holds.
+    save().element.click()
+    save().element.click()
+    await flushPromises()
+
+    expect(save().attributes('disabled')).toBeDefined()
+
+    await save().trigger('click')
+    expect(api.post).toHaveBeenCalledTimes(1)
   })
 
   it('filters by category, refetching with the chosen value', async () => {
@@ -520,12 +690,37 @@ async function openProfitTab(wrapper) {
   await flushPromises()
 }
 
+async function clickTab(wrapper, label) {
+  await wrapper.findAll('button').find((b) => b.text() === label).trigger('click')
+  await flushPromises()
+}
+
+function callsTo(url) {
+  return api.get.mock.calls.filter(([called]) => called === url).length
+}
+
+// Every tab live at once: a draft run to finalize or delete, one manual
+// expense to edit or delete, and a profit block — the state the cross-tab
+// staleness bugs actually live in.
+function mockEverything() {
+  vi.mocked(api.get)
+    .mockReset()
+    .mockImplementation((url) => {
+      if (url === '/payroll/runs') return Promise.resolve({ data: { data: [DRAFT_RUN_SUMMARY] } })
+      if (url === '/payroll/runs/5') return Promise.resolve({ data: { data: DRAFT_RUN_DETAIL } })
+      if (url === '/expenses') return Promise.resolve({ data: { data: [OWN_EXPENSE] } })
+      if (url === '/reports') return Promise.resolve({ data: { data: { profit: PROFIT_DATA } } })
+      return Promise.resolve({ data: { data: null } })
+    })
+}
+
 describe('FinanceView — Profit tab', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(api.post).mockReset()
     vi.mocked(api.patch).mockReset()
     vi.mocked(api.delete).mockReset()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -655,6 +850,88 @@ describe('FinanceView — Profit tab', () => {
     await openProfitTab(wrapper)
 
     expect(api.get.mock.calls.filter(([url]) => url === '/reports').length).toBe(1)
+  })
+
+  it('drops the cached profit when an expense changes, so the next visit refetches', async () => {
+    loginAsOwner()
+    mockEverything()
+    vi.mocked(api.post).mockResolvedValue({ data: { data: OWN_EXPENSE } })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+    expect(callsTo('/reports')).toBe(1)
+
+    await clickTab(wrapper, 'Expenses')
+    await wrapper.findAll('button').find((b) => b.text() === 'Add expense').trigger('click')
+    await flushPromises()
+    const body = new DOMWrapper(document.body)
+    await body.find('input[type="number"]').setValue('5000')
+    await body.findAll('button').find((b) => b.text() === 'Save').trigger('click')
+    await flushPromises()
+
+    await openProfitTab(wrapper)
+
+    // 5,000 of rent has to move the net profit an owner is looking at.
+    expect(callsTo('/reports')).toBe(2)
+  })
+
+  it('drops the cached profit when an expense is deleted', async () => {
+    loginAsOwner()
+    mockEverything()
+    vi.mocked(api.delete).mockResolvedValue({})
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+    expect(callsTo('/reports')).toBe(1)
+
+    await clickTab(wrapper, 'Expenses')
+    await wrapper.findAll('button').find((b) => b.text() === 'Delete').trigger('click')
+    await flushPromises()
+
+    await openProfitTab(wrapper)
+
+    expect(callsTo('/reports')).toBe(2)
+  })
+
+  it('refreshes the expense list and drops the cached profit after a run is finalized', async () => {
+    loginAsOwner()
+    mockEverything()
+    vi.mocked(api.post).mockResolvedValue({ data: { data: FINALIZED_RUN_DETAIL } })
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+    expect(callsTo('/reports')).toBe(1)
+
+    await clickTab(wrapper, 'Payroll')
+    const expenseCallsBefore = callsTo('/expenses')
+    await wrapper.findAll('button').find((b) => b.text() === 'Finalize').trigger('click')
+    await flushPromises()
+
+    // The run just booked a salary expense; the log has to show it.
+    expect(callsTo('/expenses')).toBeGreaterThan(expenseCallsBefore)
+
+    await openProfitTab(wrapper)
+    expect(callsTo('/reports')).toBe(2)
+  })
+
+  it('refreshes the expense list and drops the cached profit after a run is deleted', async () => {
+    loginAsOwner()
+    mockEverything()
+    vi.mocked(api.delete).mockResolvedValue({})
+    const wrapper = mountFinanceView()
+    await flushPromises()
+    await openProfitTab(wrapper)
+    expect(callsTo('/reports')).toBe(1)
+
+    await clickTab(wrapper, 'Payroll')
+    const expenseCallsBefore = callsTo('/expenses')
+    await wrapper.findAll('button').find((b) => b.text() === 'Delete').trigger('click')
+    await flushPromises()
+
+    expect(callsTo('/expenses')).toBeGreaterThan(expenseCallsBefore)
+
+    await openProfitTab(wrapper)
+    expect(callsTo('/reports')).toBe(2)
   })
 
   it('renders exactly parseApiError(...).message in the banner when the reports call fails', async () => {
