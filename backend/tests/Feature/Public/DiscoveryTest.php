@@ -5,11 +5,13 @@ namespace Tests\Feature\Public;
 use App\Models\Appointment;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Gallery;
 use App\Models\Organization;
 use App\Models\Review;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -204,6 +206,62 @@ class DiscoveryTest extends TestCase
             ['Hair cut', 'Hair spa', 'Facial'],
             $response->json('data.0.services'),
         );
+    }
+
+    public function test_a_card_falls_back_to_the_first_gallery_photo_for_its_cover(): void
+    {
+        $org = $this->salon('chastity-hyde');
+        // Out of order on purpose: sort_order decides, not insertion.
+        $this->photo($org, 'gallery/second.jpg', 2);
+        $this->photo($org, 'gallery/first.jpg', 1);
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $this->assertSame(
+            Storage::disk('public')->url('gallery/first.jpg'),
+            $response->json('data.0.cover_image_url'),
+        );
+    }
+
+    public function test_a_salon_with_a_cover_image_keeps_it_over_its_gallery(): void
+    {
+        $org = $this->salon('chastity-hyde', ['cover_image' => 'covers/chosen.jpg']);
+        $this->photo($org, 'gallery/first.jpg', 1);
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $this->assertSame(
+            Storage::disk('public')->url('covers/chosen.jpg'),
+            $response->json('data.0.cover_image_url'),
+        );
+    }
+
+    public function test_a_salon_with_neither_a_cover_nor_a_photo_has_no_cover_url(): void
+    {
+        $this->salon('chastity-hyde');
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $this->assertNull($response->json('data.0.cover_image_url'));
+    }
+
+    /**
+     * One salon's gallery must never supply another salon's cover — the
+     * lookup fetches photos for a whole page of salons in one query.
+     */
+    public function test_one_salons_gallery_never_covers_another(): void
+    {
+        $withPhoto = $this->salon('aaa-salon');
+        $this->salon('bbb-salon');
+        $this->photo($withPhoto, 'gallery/first.jpg', 1);
+
+        $response = $this->getJson('/api/discover/salons');
+
+        $this->assertSame(
+            Storage::disk('public')->url('gallery/first.jpg'),
+            $response->json('data.0.cover_image_url'),
+        );
+        $this->assertNull($response->json('data.1.cover_image_url'));
     }
 
     public function test_a_salon_with_two_published_reviews_shows_no_rating(): void
@@ -403,6 +461,16 @@ class DiscoveryTest extends TestCase
             array_column($page2->json('data'), 'slug'),
         );
         $this->assertSame($slugs, array_unique($slugs));
+    }
+
+    /** One photo in a salon's gallery. */
+    private function photo(Organization $org, string $image, int $sortOrder): Gallery
+    {
+        return Gallery::create([
+            'organization_id' => $org->id,
+            'image' => $image,
+            'sort_order' => $sortOrder,
+        ]);
     }
 
     /**

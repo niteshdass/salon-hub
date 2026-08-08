@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Public;
 use App\Enums\ServiceStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
+use App\Models\Gallery;
 use App\Models\Organization;
 use App\Models\Review;
 use App\Models\Service;
@@ -109,13 +110,14 @@ class DiscoveryController extends Controller
         $cities = $this->citiesFor($ids);
         $services = $this->servicesFor($ids);
         $ratings = $this->ratingsFor($ids);
+        $gallery = $this->galleryCoversFor($ids);
 
         return response()->json([
             'data' => $salons->map(fn (Organization $salon) => [
                 'slug' => $salon->slug,
                 'name' => $salon->name,
                 'city' => $cities[$salon->id] ?? null,
-                'cover_image_url' => $this->url($salon->cover_image),
+                'cover_image_url' => $this->url($salon->cover_image ?: ($gallery[$salon->id] ?? null)),
                 'logo_url' => $this->url($salon->logo),
                 'currency' => $salon->currency,
                 'price_from' => $salon->price_from !== null
@@ -150,6 +152,31 @@ class DiscoveryController extends Controller
             ->whereIn('organization_id', $organizationIds)
             ->orderByDesc('id')
             ->pluck('city', 'organization_id')
+            ->all();
+    }
+
+    /**
+     * The first gallery photo of each salon, keyed by organization id. Most
+     * salons finish setup with photos but no cover image, and a card with an
+     * empty band reads as broken — the gallery already holds a picture of the
+     * place, so the card borrows it.
+     *
+     * @param  array<int, int>  $organizationIds
+     * @return array<int, string>
+     */
+    protected function galleryCoversFor(array $organizationIds): array
+    {
+        if (! $organizationIds) {
+            return [];
+        }
+
+        // Reversed so the lowest sort_order (then lowest id) is plucked last
+        // and wins the key — the same photo the salon's own site leads with.
+        return Gallery::query()
+            ->whereIn('organization_id', $organizationIds)
+            ->orderByDesc('sort_order')
+            ->orderByDesc('id')
+            ->pluck('image', 'organization_id')
             ->all();
     }
 
