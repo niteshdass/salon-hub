@@ -992,7 +992,10 @@ class MultiServiceBookingTest extends TestCase
                 'start_time' => '10:40',
                 'service_ids' => [$this->env['cut']->id],
             ]))
-            ->assertStatus(409);
+            // 422, not 409: this is the existing shared conflictResponse(),
+            // which every other dashboard conflict test already asserts.
+            // Changing that status is not this branch's job.
+            ->assertStatus(422);
     }
 
     public function test_editing_the_service_set_recomputes_the_total(): void
