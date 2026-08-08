@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import api, { TOKEN_KEY } from '@/lib/api'
+import { useThemeStore } from '@/stores/theme'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem(TOKEN_KEY) || null)
@@ -32,6 +33,9 @@ export const useAuthStore = defineStore('auth', () => {
     organization.value = data.organization
     sessionMessage.value = ''
     localStorage.setItem(TOKEN_KEY, data.token)
+
+    // The whole admin surface accents itself with the salon's colour.
+    useThemeStore().setAccent(data.organization?.theme_color)
   }
 
   function clearSession() {
@@ -39,6 +43,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     organization.value = null
     localStorage.removeItem(TOKEN_KEY)
+
+    useThemeStore().reset()
   }
 
   // Drop the session AND record why, for the sign-in page to show. Used when
@@ -83,6 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
     const { data } = await api.get('/auth/me')
     user.value = data.user
     organization.value = data.organization
+    useThemeStore().setAccent(data.organization?.theme_color)
     return data
   }
 
@@ -109,6 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
     canManageOperations,
     emailVerified,
     setSession,
+    clearSession,
     endSession,
     takeSessionMessage,
     register,

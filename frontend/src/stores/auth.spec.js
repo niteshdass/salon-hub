@@ -17,6 +17,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
 
 import api, { TOKEN_KEY } from '@/lib/api'
 import { useAuthStore } from './auth'
+import { useThemeStore } from '@/stores/theme'
+import { BRAND_ACCENT } from '@/lib/theme'
 
 describe('useAuthStore', () => {
   beforeEach(() => {
@@ -116,5 +118,35 @@ describe('useAuthStore', () => {
     // stays valid on the backend until it expires — the server call is the
     // effect under test here, not a side detail.
     expect(api.post).toHaveBeenCalledWith('/auth/logout')
+  })
+})
+
+describe('auth store — accent handover', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
+
+  it('adopts the salon accent when a session starts', () => {
+    useAuthStore().setSession({
+      token: 't',
+      user: { id: 1, role: 'staff' },
+      organization: { id: 9, theme_color: '#0f766e' },
+    })
+
+    expect(useThemeStore().accent).toBe('#0f766e')
+  })
+
+  it('drops back to the brand when the session ends', () => {
+    const auth = useAuthStore()
+    auth.setSession({
+      token: 't',
+      user: { id: 1, role: 'staff' },
+      organization: { id: 9, theme_color: '#0f766e' },
+    })
+
+    auth.clearSession()
+
+    expect(useThemeStore().accent).toBe(BRAND_ACCENT)
   })
 })

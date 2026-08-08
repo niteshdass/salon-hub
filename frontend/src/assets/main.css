@@ -21,6 +21,24 @@
   --color-brand-500: #c65d3b;
   --color-brand-600: #a8482c;
   --color-brand-700: #863824;
+
+  /*
+   * The tenant accent. Every shade is a color-mix over --color-accent, so
+   * overriding that one property at runtime moves the whole ramp. brand-*
+   * above stays SalonHub's own identity — marketing must not repaint per
+   * salon. --color-accent-fg is the text colour that sits ON the accent and
+   * is computed in lib/theme.js, because CSS cannot pick it.
+   */
+  --color-accent: #c65d3b;
+  --color-accent-fg: #ffffff;
+  --color-accent-50: color-mix(in oklch, var(--color-accent) 8%, white);
+  --color-accent-100: color-mix(in oklch, var(--color-accent) 18%, white);
+  --color-accent-200: color-mix(in oklch, var(--color-accent) 35%, white);
+  --color-accent-300: color-mix(in oklch, var(--color-accent) 55%, white);
+  --color-accent-400: color-mix(in oklch, var(--color-accent) 78%, white);
+  --color-accent-500: var(--color-accent);
+  --color-accent-600: color-mix(in oklch, var(--color-accent) 82%, black);
+  --color-accent-700: color-mix(in oklch, var(--color-accent) 65%, black);
 }
 
 body {
