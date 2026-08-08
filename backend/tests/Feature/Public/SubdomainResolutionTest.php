@@ -117,17 +117,18 @@ class SubdomainResolutionTest extends TestCase
         $rivalService = $this->makeService($rival, 'Rival Buzzcut');
 
         // The rival's service id, asked for on the queen's host. The tenant
-        // scope must make it invisible rather than schedulable.
+        // scope must reject it without revealing whether the id exists
+        // elsewhere, so a cross-tenant id is a 422 validation failure.
         $this->getJson($this->on(
             'beauty-queen.salonhub.com',
-            '/api/public-site/services/'.$rivalService->id.'/staff'
-        ))->assertStatus(404);
+            '/api/public-site/staff?service_ids[]='.$rivalService->id
+        ))->assertStatus(422);
 
         // ...and the salon's own service on its own host still resolves, so
-        // the 404 above is isolation and not a broken route.
+        // the rejection above is isolation and not a broken route.
         $this->getJson($this->on(
             'rival-cuts.salonhub.com',
-            '/api/public-site/services/'.$rivalService->id.'/staff'
+            '/api/public-site/staff?service_ids[]='.$rivalService->id
         ))->assertOk();
     }
 
@@ -334,7 +335,7 @@ class SubdomainResolutionTest extends TestCase
         $this->getJson('/api/public/beauty-queen/services')
             ->assertOk()
             ->assertJsonPath('data.0.name', 'Queen Balayage');
-        $this->getJson('/api/public/beauty-queen/services/'.$service->id.'/staff')
+        $this->getJson('/api/public/beauty-queen/staff?service_ids[]='.$service->id)
             ->assertOk();
     }
 

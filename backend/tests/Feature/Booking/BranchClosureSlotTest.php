@@ -78,7 +78,7 @@ class BranchClosureSlotTest extends TestCase
     private function slots(string $slug, array $ctx, string $date): array
     {
         return $this->getJson(
-            "/api/public/{$slug}/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}&branch_id={$ctx['branch']->id}"
+            "/api/public/{$slug}/slots?service_ids[]={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}&branch_id={$ctx['branch']->id}"
         )->json('data.slots');
     }
 

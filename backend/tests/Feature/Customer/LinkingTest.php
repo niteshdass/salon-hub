@@ -160,7 +160,7 @@ class LinkingTest extends TestCase
         $ctx = $this->scaffoldBookableOrg('mixedcase-salon');
 
         $response = $this->postJson('/api/public/mixedcase-salon/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',
@@ -192,7 +192,7 @@ class LinkingTest extends TestCase
         $ctx = $this->scaffoldBookableOrg('signedin-salon');
 
         $this->withToken($token)->postJson('/api/public/signedin-salon/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',
@@ -222,7 +222,7 @@ class LinkingTest extends TestCase
         $ctx = $this->scaffoldBookableOrg('nameless-salon');
 
         $this->withToken($token)->postJson('/api/public/nameless-salon/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',
@@ -244,7 +244,7 @@ class LinkingTest extends TestCase
         $ctx = $this->scaffoldBookableOrg('anon-salon');
 
         $this->postJson('/api/public/anon-salon/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',
@@ -273,7 +273,7 @@ class LinkingTest extends TestCase
         $token = $this->signIn('jane@x.test');
 
         $this->withToken($token)->postJson('/api/public/shared-salon/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',

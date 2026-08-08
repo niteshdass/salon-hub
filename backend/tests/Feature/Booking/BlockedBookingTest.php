@@ -90,7 +90,7 @@ class BlockedBookingTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/public/alpha/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $date,
             'start_time' => '11:00',
@@ -115,7 +115,7 @@ class BlockedBookingTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/public/bravo/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $date,
             'start_time' => '11:00',
@@ -133,7 +133,7 @@ class BlockedBookingTest extends TestCase
 
         // Book an allowed 11:00 slot first.
         $booking = $this->postJson('/api/public/charlie/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $date,
             'start_time' => '11:00',

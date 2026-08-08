@@ -80,7 +80,7 @@ class PublicGatewayBookingTest extends TestCase
     private function payload(array $ctx, array $overrides = []): array
     {
         return array_merge([
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',

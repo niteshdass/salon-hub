@@ -23,6 +23,71 @@ class PublicBookingTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected Organization $org;
+
+    protected Branch $branch;
+
+    /**
+     * A second ACTIVE org (with a branch), used by the multi-service tests
+     * below via makeStaff()/makeService() so each test doesn't repeat the
+     * org/branch setup that scaffold() bundles for the single-service tests.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->org = Organization::create([
+            'uuid' => (string) Str::uuid(),
+            'name' => 'Multi Service Salon',
+            'slug' => 'multi-service',
+            'email' => 'owner@multi-service.test',
+            'subscription_plan' => 'free',
+            'status' => 'active',
+        ]);
+
+        $this->branch = Branch::create([
+            'organization_id' => $this->org->id,
+            'name' => 'Main',
+            'city' => 'Metropolis',
+            'address' => '1 High Street',
+            'phone' => '+1 555 0000',
+        ]);
+    }
+
+    /** A staff member on $this->org, working every day 09:00-17:00. */
+    private function makeStaff(string $name): User
+    {
+        $staff = User::create([
+            'organization_id' => $this->org->id,
+            'name' => $name,
+            'email' => strtolower($name).'@multi-service.test',
+            'password' => 'secret1234',
+            'role' => 'staff',
+            'status' => 'active',
+        ]);
+
+        StaffProfile::create([
+            'user_id' => $staff->id,
+            'designation' => 'Stylist',
+            'working_days_json' => [1, 2, 3, 4, 5, 6, 7],
+            'working_hours_json' => ['start' => '09:00', 'end' => '17:00'],
+        ]);
+
+        return $staff;
+    }
+
+    /** An active service on $this->org. */
+    private function makeService(string $name, int $duration, float $price): Service
+    {
+        return Service::create([
+            'organization_id' => $this->org->id,
+            'name' => $name,
+            'duration' => $duration,
+            'price' => $price,
+            'status' => 'active',
+        ]);
+    }
+
     /**
      * Build an ACTIVE org with a branch, one active 30-min service, and a
      * staff member (with a profile) assigned to that service.
@@ -123,7 +188,7 @@ class PublicBookingTest extends TestCase
     {
         $ctx = $this->scaffold('charlie');
 
-        $response = $this->getJson("/api/public/charlie/services/{$ctx['service']->id}/staff");
+        $response = $this->getJson("/api/public/charlie/staff?service_ids[]={$ctx['service']->id}");
         $response->assertOk();
 
         $response->assertJsonPath('data.0.id', $ctx['staff']->id);
@@ -149,7 +214,7 @@ class PublicBookingTest extends TestCase
             'branch_id' => $ctx['branch']->id,
             'customer_id' => $customer->id,
             'staff_id' => $ctx['staff']->id,
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'booking_date' => $date,
             'start_time' => '10:00:00',
             'end_time' => '10:30:00',
@@ -157,7 +222,7 @@ class PublicBookingTest extends TestCase
         ]);
 
         $response = $this->getJson(
-            "/api/public/delta/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
+            "/api/public/delta/slots?service_ids[]={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
         );
         $response->assertOk();
         $response->assertJsonPath('data.date', $date);
@@ -180,7 +245,7 @@ class PublicBookingTest extends TestCase
         $ctx['branch']->update(['opening_hours_json' => ['mon' => ['10:00', '12:00']]]);
 
         $response = $this->getJson(
-            "/api/public/india/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
+            "/api/public/india/slots?service_ids[]={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
         );
         $response->assertOk();
 
@@ -197,7 +262,7 @@ class PublicBookingTest extends TestCase
         $ctx['branch']->update(['opening_hours_json' => ['mon' => null, 'tue' => ['09:00', '17:00']]]);
 
         $response = $this->getJson(
-            "/api/public/juliet/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
+            "/api/public/juliet/slots?service_ids[]={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
         );
         $response->assertOk();
         $this->assertSame([], $response->json('data.slots'));
@@ -211,7 +276,7 @@ class PublicBookingTest extends TestCase
 
         // 09:00 is within staff hours but before the branch opens.
         $response = $this->postJson('/api/public/kilo/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $date,
             'start_time' => '09:00',
@@ -230,7 +295,7 @@ class PublicBookingTest extends TestCase
         $date = $this->nextMonday();
 
         $response = $this->getJson(
-            "/api/public/echo/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
+            "/api/public/echo/slots?service_ids[]={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$date}"
         );
         $response->assertOk();
         $this->assertSame([], $response->json('data.slots'));
@@ -242,7 +307,7 @@ class PublicBookingTest extends TestCase
         $date = $this->nextMonday();
 
         $payload = [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $date,
             'start_time' => '11:00',
@@ -284,7 +349,7 @@ class PublicBookingTest extends TestCase
         $ctx = $this->scaffold('golf');
 
         $this->postJson('/api/public/golf/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',
@@ -308,7 +373,7 @@ class PublicBookingTest extends TestCase
         $ctx = $this->scaffold('hotel');
 
         $this->postJson('/api/public/hotel/book', [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',
@@ -323,7 +388,7 @@ class PublicBookingTest extends TestCase
     private function bookSlot(string $slug, array $ctx, string $start = '11:00'): array
     {
         $response = $this->postJson("/api/public/{$slug}/book", [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => $start,
@@ -406,7 +471,7 @@ class PublicBookingTest extends TestCase
             'branch_id' => $ctx['branch']->id,
             'customer_id' => $blocker->id,
             'staff_id' => $ctx['staff']->id,
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'booking_date' => $date,
             'start_time' => '14:00:00',
             'end_time' => '14:30:00',
@@ -444,7 +509,7 @@ class PublicBookingTest extends TestCase
 
         // The freed 11:00 slot is bookable again.
         $slots = $this->getJson(
-            "/api/public/romeo/slots?service_id={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$this->nextMonday()}"
+            "/api/public/romeo/slots?service_ids[]={$ctx['service']->id}&staff_id={$ctx['staff']->id}&date={$this->nextMonday()}"
         )->json('data.slots');
         $this->assertContains('11:00', $slots);
     }
@@ -480,7 +545,7 @@ class PublicBookingTest extends TestCase
     private function bookWithEmail(string $slug, array $ctx, string $email): array
     {
         return $this->postJson("/api/public/{$slug}/book", [
-            'service_id' => $ctx['service']->id,
+            'service_ids' => [$ctx['service']->id],
             'staff_id' => $ctx['staff']->id,
             'date' => $this->nextMonday(),
             'start_time' => '11:00',
@@ -561,5 +626,81 @@ class PublicBookingTest extends TestCase
         $this->assertTrue($ids->contains($b['service']->id));
         $this->assertFalse($ids->contains($a['service']->id));
         $this->assertCount(1, $ids);
+    }
+
+    public function test_the_staff_list_only_offers_people_who_can_do_every_service(): void
+    {
+        // Alex does both; Sam only cuts.
+        $alex = $this->makeStaff('Alex');
+        $sam = $this->makeStaff('Sam');
+        $cut = $this->makeService('Haircut', 30, 40);
+        $colour = $this->makeService('Colour', 60, 90);
+
+        $alex->services()->sync([$cut->id, $colour->id]);
+        $sam->services()->sync([$cut->id]);
+
+        $names = $this->getJson("/api/public/{$this->org->slug}/staff?service_ids[]={$cut->id}&service_ids[]={$colour->id}")
+            ->assertOk()
+            ->json('data.*.name');
+
+        $this->assertSame(['Alex'], $names);
+    }
+
+    public function test_an_unconfigured_salon_still_offers_every_active_staff_member(): void
+    {
+        // No service anywhere has a staff assignment, so the salon must stay
+        // bookable rather than showing an empty stylist step.
+        $this->makeStaff('Alex');
+        $this->makeStaff('Sam');
+        $cut = $this->makeService('Haircut', 30, 40);
+        $colour = $this->makeService('Colour', 60, 90);
+
+        $names = $this->getJson("/api/public/{$this->org->slug}/staff?service_ids[]={$cut->id}&service_ids[]={$colour->id}")
+            ->assertOk()
+            ->json('data.*.name');
+
+        $this->assertSame(['Alex', 'Sam'], $names);
+    }
+
+    public function test_slots_are_sized_by_the_summed_duration(): void
+    {
+        $staff = $this->makeStaff('Alex');
+        $cut = $this->makeService('Haircut', 30, 40);
+        $colour = $this->makeService('Colour', 60, 90);
+        $staff->services()->sync([$cut->id, $colour->id]);
+
+        $date = now()->addWeek()->format('Y-m-d');
+
+        $single = $this->getJson("/api/public/{$this->org->slug}/slots?service_ids[]={$cut->id}&staff_id={$staff->id}&date={$date}")
+            ->assertOk()->json('data.slots');
+        $both = $this->getJson("/api/public/{$this->org->slug}/slots?service_ids[]={$cut->id}&service_ids[]={$colour->id}&staff_id={$staff->id}&date={$date}")
+            ->assertOk()->json('data.slots');
+
+        // A 90-minute visit cannot start as late in the day as a 30-minute one.
+        $this->assertLessThan(count($single), count($both));
+    }
+
+    public function test_a_public_multi_service_booking_stores_every_line(): void
+    {
+        $staff = $this->makeStaff('Alex');
+        $cut = $this->makeService('Haircut', 30, 40);
+        $dry = $this->makeService('Blow Dry', 20, 15);
+        $staff->services()->sync([$cut->id, $dry->id]);
+
+        $date = now()->addWeek()->format('Y-m-d');
+        $slot = $this->getJson("/api/public/{$this->org->slug}/slots?service_ids[]={$cut->id}&service_ids[]={$dry->id}&staff_id={$staff->id}&date={$date}")
+            ->json('data.slots.0');
+
+        $response = $this->postJson("/api/public/{$this->org->slug}/book", [
+            'service_ids' => [$cut->id, $dry->id],
+            'staff_id' => $staff->id,
+            'date' => $date,
+            'start_time' => $slot,
+            'customer' => ['name' => 'Casey', 'phone' => '+15550100'],
+        ])->assertCreated();
+
+        $response->assertJsonPath('data.price', '55.00');
+        $this->assertSame(['Haircut', 'Blow Dry'], $response->json('data.services.*.name'));
+        $this->assertDatabaseCount('appointment_services', 2);
     }
 }

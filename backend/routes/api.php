@@ -172,7 +172,9 @@ Route::prefix('public/{org}')->middleware('public.tenant')->group(function () {
     Route::get('/', [BookingController::class, 'organization']);
     Route::get('site', SiteController::class);
     Route::get('services', [BookingController::class, 'services']);
-    Route::get('services/{service}/staff', [BookingController::class, 'staffForService']);
+    // Staff who can perform every selected service. A visit is done by one
+    // person back-to-back, so the list is an intersection, not a union.
+    Route::get('staff', [BookingController::class, 'staffForServices']);
     Route::get('slots', [BookingController::class, 'slots']);
     Route::post('book', [BookingController::class, 'book']);
 
@@ -216,9 +218,9 @@ Route::prefix('public-site')->middleware('public.tenant')->group(function () {
     Route::get('/', [BookingController::class, 'organization']);
     Route::get('site', SiteController::class);
     Route::get('services', [BookingController::class, 'services']);
-    // A distinct action from the path-scoped one: this URI has no {org}
-    // parameter, and Laravel passes route parameters positionally.
-    Route::get('services/{service}/staff', [BookingController::class, 'staffForServiceOnHost']);
+    // Staff who can perform every selected service. A visit is done by one
+    // person back-to-back, so the list is an intersection, not a union.
+    Route::get('staff', [BookingController::class, 'staffForServices']);
     Route::get('slots', [BookingController::class, 'slots']);
     Route::post('book', [BookingController::class, 'book']);
 });

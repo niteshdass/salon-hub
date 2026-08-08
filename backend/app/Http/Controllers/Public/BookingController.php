@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Actions\AppointmentServiceWriter;
 use App\Enums\AppointmentStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentSource;
@@ -43,7 +44,10 @@ use Illuminate\Validation\Rule;
  */
 class BookingController extends Controller
 {
-    public function __construct(protected AppointmentScheduler $scheduler) {}
+    public function __construct(
+        protected AppointmentScheduler $scheduler,
+        protected AppointmentServiceWriter $writer,
+    ) {}
 
     /**
      * Public profile of the salon plus its bookable branches.
@@ -132,7 +136,9 @@ class BookingController extends Controller
                 'cus_name' => $customer?->name ?? 'Customer',
                 'cus_email' => $customer?->email ?? 'customer@example.com',
                 'cus_phone' => $customer?->phone ?? '0000000000',
-                'product_name' => $appointment->service?->name ?? 'Salon service',
+                // appointments.service_id is no longer written, so the visit's
+                // menu names live only on its lines now.
+                'product_name' => $appointment->lines->pluck('name')->join(', ') ?: 'Salon service',
             ]);
         } catch (\Throwable $e) {
             report($e);
@@ -155,44 +161,38 @@ class BookingController extends Controller
     }
 
     /**
-     * Staff who can perform the given service, path-scoped:
-     * `/public/{org}/services/{service}/staff`.
+     * Staff who can perform *every* requested service. When no service in the
+     * salon has any staff assignment (assignment is optional), fall back to
+     * every active staff member so the salon is still bookable.
      */
-    public function staffForService(string $org, Service $service): JsonResponse
+    public function staffForServices(Request $request): JsonResponse
     {
-        return $this->staffPayload($service);
-    }
+        $tenantId = app(CurrentTenant::class)->id();
 
-    /**
-     * The same action on a salon's own subdomain, where the URI carries no
-     * {org} segment: `/public/services/{service}/staff`.
-     *
-     * A second method rather than one method with an optional first argument.
-     * Laravel hands route parameters to a controller positionally, so the two
-     * URIs cannot share one signature — and the Service must stay a typed
-     * parameter, because implicit route binding is driven off the method
-     * signature. Losing the typehint would leave a raw id here, and with it
-     * the tenant global scope that turns another salon's service id into a
-     * 404 (SubstituteBindings runs after public.tenant).
-     */
-    public function staffForServiceOnHost(Service $service): JsonResponse
-    {
-        return $this->staffPayload($service);
-    }
+        $validated = $request->validate([
+            'service_ids' => ['required', 'array', 'min:1'],
+            'service_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('services', 'id')->where('organization_id', $tenantId),
+            ],
+        ]);
 
-    /**
-     * Staff who can perform the given service. When no service in the salon
-     * has any staff assignment (assignment is optional), fall back to every
-     * active staff member so the salon is still bookable.
-     */
-    protected function staffPayload(Service $service): JsonResponse
-    {
-        $staff = $service->staff()->with('staffProfile')->get();
+        $serviceIds = $validated['service_ids'];
 
-        if ($staff->isEmpty() && ! Service::has('staff')->exists()) {
-            $staff = User::where('organization_id', app(CurrentTenant::class)->id())
+        if (! Service::has('staff')->exists()) {
+            $staff = User::where('organization_id', $tenantId)
                 ->where('role', UserRole::STAFF->value)
                 ->where('status', 'active')
+                ->with('staffProfile')
+                ->get();
+        } else {
+            // One row per (staff, service) match; a staff member qualifies
+            // only when they match all of them.
+            $staff = User::where('organization_id', $tenantId)
+                ->where('role', UserRole::STAFF->value)
+                ->where('status', 'active')
+                ->whereHas('services', fn ($q) => $q->whereIn('services.id', $serviceIds), '=', count($serviceIds))
                 ->with('staffProfile')
                 ->get();
         }
@@ -215,8 +215,10 @@ class BookingController extends Controller
         $tenantId = app(CurrentTenant::class)->id();
 
         $validated = $request->validate([
-            'service_id' => [
-                'required',
+            'service_ids' => ['required', 'array', 'min:1'],
+            'service_ids.*' => [
+                'integer',
+                'distinct',
                 Rule::exists('services', 'id')->where('organization_id', $tenantId),
             ],
             'staff_id' => [
@@ -232,7 +234,7 @@ class BookingController extends Controller
             ],
         ]);
 
-        $service = Service::findOrFail($validated['service_id']);
+        $totals = $this->writer->totalsFor($validated['service_ids']);
         $staff = User::where('organization_id', $tenantId)
             ->where('role', UserRole::STAFF->value)
             ->findOrFail($validated['staff_id']);
@@ -241,7 +243,7 @@ class BookingController extends Controller
         return response()->json([
             'data' => [
                 'date' => $validated['date'],
-                'slots' => $slotGenerator->generate($service->duration, $staff, $validated['date'], $branch),
+                'slots' => $slotGenerator->generate($totals['duration'], $staff, $validated['date'], $branch),
             ],
         ]);
     }
@@ -264,7 +266,9 @@ class BookingController extends Controller
     {
         $data = $request->validated();
 
-        $service = Service::findOrFail($data['service_id']);
+        // The whole visit's duration and price drive the block this booking
+        // occupies and what its deposit is a fraction of.
+        $totals = $this->writer->totalsFor($data['service_ids']);
         $staff = User::findOrFail($data['staff_id']);
         $branch = $this->resolveBranch($data['branch_id'] ?? null);
         if (! $branch) {
@@ -272,12 +276,12 @@ class BookingController extends Controller
         }
 
         $startTime = $this->scheduler->normalizeTime($data['start_time']);
-        $endTime = $this->scheduler->deriveEndTime($data['start_time'], $service->duration);
+        $endTime = $this->scheduler->deriveEndTime($data['start_time'], $totals['duration']);
 
         // The requested start must still be an open slot: this re-checks the
         // staff + branch hours, existing conflicts and past times in one gate,
         // closing the gap between viewing a slot and submitting the booking.
-        if (! in_array(substr($startTime, 0, 5), $slotGenerator->generate($service->duration, $staff, $data['date'], $branch), true)) {
+        if (! in_array(substr($startTime, 0, 5), $slotGenerator->generate($totals['duration'], $staff, $data['date'], $branch), true)) {
             return response()->json(['message' => 'Sorry, that time slot is no longer available.'], 422);
         }
 
@@ -319,7 +323,7 @@ class BookingController extends Controller
         }
 
         $branchId = $branch->id;
-        $depositAmount = $collectDeposit ? $settings->depositFor((float) $service->price) : null;
+        $depositAmount = $collectDeposit ? $settings->depositFor($totals['price']) : null;
         // A gateway payment is keyed by an unguessable transaction id echoed
         // back on the callback; generated up front so it can seed the session.
         $tranId = ($collectDeposit && $method === 'gateway') ? 'SH'.strtoupper(Str::random(18)) : null;
@@ -329,22 +333,25 @@ class BookingController extends Controller
         // dashboard — matching typed emails is only the anonymous fallback.
         $account = CustomerAccount::current();
 
-        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime, $collectDeposit, $method, $depositAmount, $reference, $tranId, $account) {
+        $appointment = DB::transaction(function () use ($data, $branchId, $startTime, $endTime, $collectDeposit, $method, $depositAmount, $reference, $tranId, $account) {
             $customer = $this->resolveCustomer($data['customer'], $account);
 
             $appointment = Appointment::create([
                 'branch_id' => $branchId,
                 'customer_id' => $customer->id,
                 'staff_id' => $data['staff_id'],
-                'service_id' => $data['service_id'],
                 'booking_date' => $data['date'],
                 'start_time' => $startTime,
                 'end_time' => $endTime,
-                // Freeze what this booking owes at today's menu price.
-                'price' => $service->price,
+                'price' => 0,
                 'status' => AppointmentStatus::PENDING->value,
                 'notes' => null,
             ]);
+
+            // Freezes each line at today's menu price and writes back the
+            // appointment's own total and end time — before any payment row,
+            // since the deposit is a fraction of that total.
+            $this->writer->sync($appointment, $data['service_ids']);
 
             if ($collectDeposit && $method === 'manual') {
                 // Pending: the salon still has to confirm the transfer arrived.
@@ -371,7 +378,7 @@ class BookingController extends Controller
             return $appointment;
         });
 
-        $appointment->load(['service', 'staff', 'branch', 'customer', 'payments']);
+        $appointment->load(['lines', 'staff', 'branch', 'customer', 'payments']);
 
         $notifier->sendForNewBooking($appointment);
 
@@ -461,7 +468,7 @@ class BookingController extends Controller
     public function manage(string $org, string $token): JsonResponse
     {
         $appointment = $this->findByToken($token)
-            ->load(['service', 'staff', 'branch', 'customer']);
+            ->load(['lines', 'staff', 'branch', 'customer']);
 
         return response()->json(['data' => $this->bookingPayload($appointment)]);
     }
@@ -503,7 +510,7 @@ class BookingController extends Controller
             'end_time' => $endTime,
         ]);
 
-        $fresh = $appointment->fresh()->load(['service', 'staff', 'branch', 'customer']);
+        $fresh = $appointment->fresh()->load(['lines', 'staff', 'branch', 'customer']);
         $notifier->sendForReschedule($fresh);
 
         return response()->json(['data' => $this->bookingPayload($fresh)]);
@@ -523,7 +530,7 @@ class BookingController extends Controller
 
         $appointment->update(['status' => AppointmentStatus::CANCELLED->value]);
 
-        $fresh = $appointment->fresh()->load(['service', 'staff', 'branch', 'customer']);
+        $fresh = $appointment->fresh()->load(['lines', 'staff', 'branch', 'customer']);
         $notifier->sendForCancellation($fresh);
 
         return response()->json(['data' => $this->bookingPayload($fresh)]);
@@ -571,7 +578,7 @@ class BookingController extends Controller
     protected function bookingPayload(Appointment $appointment): array
     {
         $tenant = app(CurrentTenant::class)->get();
-        $appointment->loadMissing('payments');
+        $appointment->loadMissing(['payments', 'lines']);
 
         $settings = PaymentSetting::query()->first();
         $depositRequired = (bool) $settings?->depositCollectable();
@@ -599,6 +606,7 @@ class BookingController extends Controller
             'date' => $appointment->booking_date->format('Y-m-d'),
             'start_time' => substr($appointment->start_time, 0, 5),
             'end_time' => substr($appointment->end_time, 0, 5),
+            'price' => $appointment->price,
             'status' => $appointment->status instanceof \BackedEnum
                 ? $appointment->status->value
                 : $appointment->status,
@@ -610,12 +618,12 @@ class BookingController extends Controller
                 'comment' => $review->comment,
                 'created_at' => $review->created_at,
             ] : null,
-            'service' => $appointment->service ? [
-                'id' => $appointment->service->id,
-                'name' => $appointment->service->name,
-                'duration' => $appointment->service->duration,
-                'price' => $appointment->service->price,
-            ] : null,
+            'services' => $appointment->lines->map(fn ($line) => [
+                'id' => $line->service_id,
+                'name' => $line->name,
+                'price' => $line->price,
+                'duration' => $line->duration,
+            ])->values(),
             'staff' => $appointment->staff ? [
                 'id' => $appointment->staff->id,
                 'name' => $appointment->staff->name,
