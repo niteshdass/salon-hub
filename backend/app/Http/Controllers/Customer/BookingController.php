@@ -165,7 +165,14 @@ class BookingController extends Controller
 
         return [
             'id' => $a->id,
-            'salon' => ['id' => $a->organization?->id, 'name' => $a->organization?->name, 'slug' => $a->organization?->slug],
+            'salon' => [
+                'id' => $a->organization?->id,
+                'name' => $a->organization?->name,
+                'slug' => $a->organization?->slug,
+                // Per booking, not per account: one customer can hold
+                // appointments at salons that price in different currencies.
+                'currency' => $a->organization?->currency,
+            ],
             'service' => $a->service?->name,
             'staff' => $a->staff?->name,
             'branch' => $a->branch?->name,

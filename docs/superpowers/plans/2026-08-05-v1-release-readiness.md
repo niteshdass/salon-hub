@@ -841,14 +841,14 @@ import LegalPage from '@/components/legal/LegalPage.vue'
     </p>
 
     <h2>9. Contact</h2>
-    <p>Questions about these terms: <a href="mailto:hello@salonhub.com">hello@salonhub.com</a>.</p>
+    <p>Questions about these terms: <a href="mailto:wpulse2024@gmail.com">wpulse2024@gmail.com</a>.</p>
   </LegalPage>
 </template>
 ```
 
-Create `frontend/src/views/legal/PrivacyView.vue` with the same structure and these sections: **What we collect** (salon account details; customer name, phone, email and booking notes entered by the salon; payment transaction references, never card numbers); **Why we collect it** (operate the booking service, send booking confirmations and reminders, support); **Who we share it with** (the salon that owns the record; email delivery provider; SMS/WhatsApp provider when reminders are enabled; payment gateway when a deposit is taken — no one else, and never sold); **How long we keep it** (for the life of the salon's account, deleted within 30 days of closure); **Your rights** (access, correction, deletion — contact the salon that holds your booking, or `hello@salonhub.com`); **Cookies** (a single first-party token in local storage to keep you signed in; no advertising or third-party tracking cookies); **Contact**.
+Create `frontend/src/views/legal/PrivacyView.vue` with the same structure and these sections: **What we collect** (salon account details; customer name, phone, email and booking notes entered by the salon; payment transaction references, never card numbers); **Why we collect it** (operate the booking service, send booking confirmations and reminders, support); **Who we share it with** (the salon that owns the record; email delivery provider; SMS/WhatsApp provider when reminders are enabled; payment gateway when a deposit is taken — no one else, and never sold); **How long we keep it** (for the life of the salon's account, deleted within 30 days of closure); **Your rights** (access, correction, deletion — contact the salon that holds your booking, or `wpulse2024@gmail.com`); **Cookies** (a single first-party token in local storage to keep you signed in; no advertising or third-party tracking cookies); **Contact**.
 
-Create `frontend/src/views/legal/RefundView.vue` with sections: **Deposits** (a deposit is taken by the salon through the salon's own gateway; SalonHub never holds the funds); **Cancelling a booking** (a customer may cancel a changeable booking from the manage-booking link or their account; whether the deposit is refunded is the salon's policy, shown at booking time); **How refunds are issued** (the salon issues the refund from the dashboard; funds return to the original payment method, typically within 5–10 business days depending on the bank); **Disputes** (contact the salon first; if unresolved, `hello@salonhub.com`); **SalonHub subscription** (the Free plan carries no charge, so there is nothing to refund).
+Create `frontend/src/views/legal/RefundView.vue` with sections: **Deposits** (a deposit is taken by the salon through the salon's own gateway; SalonHub never holds the funds); **Cancelling a booking** (a customer may cancel a changeable booking from the manage-booking link or their account; whether the deposit is refunded is the salon's policy, shown at booking time); **How refunds are issued** (the salon issues the refund from the dashboard; funds return to the original payment method, typically within 5–10 business days depending on the bank); **Disputes** (contact the salon first; if unresolved, `wpulse2024@gmail.com`); **SalonHub subscription** (the Free plan carries no charge, so there is nothing to refund).
 
 - [ ] **Step 3: Register the routes**
 
@@ -1227,7 +1227,7 @@ MAIL_FROM_ADDRESS="bookings@salonhub.com"
 MAIL_FROM_NAME="SalonHub"
 
 # Where the marketing contact form delivers.
-CONTACT_EMAIL="hello@salonhub.com"
+CONTACT_EMAIL="wpulse2024@gmail.com"
 
 # Origins allowed to call the API. Salon subdomains match by pattern from
 # APP_DOMAIN and need no entry here.

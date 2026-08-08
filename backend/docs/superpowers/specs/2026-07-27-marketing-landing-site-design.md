@@ -106,7 +106,7 @@ platform-level public routes).
   `message` (required, string, max 5000) via a `StoreContactRequest` FormRequest.
 - Sends a `ContactMessageMail` Mailable to the platform contact address, read
   from config (`config('mail.contact_address')`, backed by a `CONTACT_EMAIL`
-  env var, default `hello@salonhub.com`). In local dev `MAIL_MAILER=log`, so it
+  env var, default `wpulse2024@gmail.com`). In local dev `MAIL_MAILER=log`, so it
   lands in `storage/logs/laravel.log`.
 - Returns `200` with a generic success message on success, `422` on validation
   failure, `429` when throttled.
@@ -141,7 +141,7 @@ New backend files:
 7. **FaqSection** — accordion; local open/close state; ~5 static Q&As.
 8. **ContactSection** — contact form (name / email / message) posting to
    `POST /api/contact`, with inline success/error state; beside it a plain
-   "or email us at hello@salonhub.com" mailto link.
+   "or email us at wpulse2024@gmail.com" mailto link.
 9. **MarketingFooter** — wordmark, nav links, copyright, social/mailto.
 
 Dashboard: `SubdomainBanner.vue` (in `src/components/`).

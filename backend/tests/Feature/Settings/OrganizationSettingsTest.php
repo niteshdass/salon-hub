@@ -138,6 +138,26 @@ class OrganizationSettingsTest extends TestCase
         $this->assertSame('https://alpha.test', $settings->website);
     }
 
+    public function test_a_branding_only_save_does_not_have_to_resend_the_salon_name(): void
+    {
+        $s = $this->scaffold();
+
+        // The onboarding "Make it yours" step has no name field on it — it
+        // sends the branding it owns and nothing else. Requiring 'name'
+        // unconditionally made that save fail with "The name field is
+        // required." about a field the owner could not see.
+        $response = $this->actingAsRole($s, 'owner')->putJson('/api/settings/organization', [
+            'theme_color' => '#be123c',
+            'about' => 'We have cut hair on this street since 1998.',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.theme_color', '#be123c');
+
+        // The omitted name must be left alone, not blanked.
+        $this->assertSame('Alpha', $s['org']->fresh()->name);
+    }
+
     public function test_the_slug_cannot_be_changed_through_this_endpoint(): void
     {
         $s = $this->scaffold();

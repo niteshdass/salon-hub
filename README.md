@@ -88,6 +88,9 @@ request, in two independent jobs:
 
 - [`CLAUDE.md`](CLAUDE.md) — the product brief: vision, tenant model, MVP
   feature scope and roadmap.
+- [`docs/configuration.md`](docs/configuration.md) — every env key and
+  per-salon setting behind email, SMS/WhatsApp reminders, payments and error
+  monitoring, for local development and production.
 - [`backend/docs/deploy/README.md`](backend/docs/deploy/README.md) — the
   production deployment runbook (nginx, the queue worker, the scheduler
   cron, backups and the restore drill).

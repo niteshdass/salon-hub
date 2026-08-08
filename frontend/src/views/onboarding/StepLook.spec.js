@@ -8,7 +8,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
-    default: { get: vi.fn(), post: vi.fn(), put: vi.fn() },
+    default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
   }
 })
 
@@ -55,7 +55,17 @@ describe('StepLook', () => {
     vi.mocked(api.get).mockReset().mockResolvedValue(ORGANIZATION_SETTINGS)
     vi.mocked(api.post).mockReset()
     vi.mocked(api.put).mockReset()
+    vi.mocked(api.delete).mockReset()
   })
+
+  async function chooseLogo(wrapper, name = 'logo.png') {
+    const fileInput = wrapper.find('input[type="file"]')
+    const file = new File(['logo-bytes'], name, { type: 'image/png' })
+    Object.defineProperty(fileInput.element, 'files', { value: [file], configurable: true })
+    await fileInput.trigger('change')
+    await flushPromises()
+    return file
+  }
 
   it('uploads a chosen logo as multipart form data under the "image" field and shows it in the preview', async () => {
     vi.mocked(api.post).mockResolvedValue({
@@ -82,6 +92,69 @@ describe('StepLook', () => {
     const preview = wrapper.find('img')
     expect(preview.exists()).toBe(true)
     expect(preview.attributes('src')).toBe('https://cdn.test/organizations/9/logo.png')
+  })
+
+  it('shows the uploaded logo as a thumbnail beside the upload control, not only in the page preview', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { data: { logo_url: 'https://cdn.test/organizations/9/logo.png' } },
+    })
+
+    const wrapper = mountStepLook()
+    await flushPromises()
+
+    // Before any upload there is nothing to show but the empty slot.
+    expect(wrapper.find('[data-test="logo-thumbnail"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="logo-empty"]').exists()).toBe(true)
+
+    await chooseLogo(wrapper)
+
+    const thumbnail = wrapper.find('[data-test="logo-thumbnail"]')
+    expect(thumbnail.exists()).toBe(true)
+    expect(thumbnail.attributes('src')).toBe('https://cdn.test/organizations/9/logo.png')
+    expect(wrapper.find('[data-test="logo-empty"]').exists()).toBe(false)
+  })
+
+  it('keeps the file input in the tab order so the upload control can be reached by keyboard', async () => {
+    const wrapper = mountStepLook()
+    await flushPromises()
+
+    const fileInput = wrapper.find('input[type="file"]')
+    // 'hidden' (display:none) would take the input out of the tab order and
+    // leave the styled label unreachable without a mouse; 'sr-only' keeps it
+    // focusable and the label renders its focus ring off it via 'peer'.
+    expect(fileInput.classes()).toContain('sr-only')
+    expect(fileInput.classes()).not.toContain('hidden')
+
+    // The label must point at the input by id, or clicking it does nothing.
+    const id = fileInput.attributes('id')
+    expect(id).toBeTruthy()
+    expect(wrapper.find(`label[for="${id}"]`).exists()).toBe(true)
+  })
+
+  it('removes an uploaded logo and drops it from the thumbnail and the preview', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { data: { logo_url: 'https://cdn.test/organizations/9/logo.png' } },
+    })
+    vi.mocked(api.delete).mockResolvedValue({ data: { data: { logo_url: null } } })
+
+    const wrapper = mountStepLook()
+    await flushPromises()
+    await chooseLogo(wrapper)
+
+    await wrapper.find('[data-test="logo-remove"]').trigger('click')
+    await flushPromises()
+
+    expect(api.delete).toHaveBeenCalledWith('/settings/organization/logo')
+    expect(wrapper.find('[data-test="logo-thumbnail"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="logo-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="logo-remove"]').exists()).toBe(false)
+  })
+
+  it('does not offer to remove a logo that was never uploaded', async () => {
+    const wrapper = mountStepLook()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="logo-remove"]').exists()).toBe(false)
   })
 
   it('saves the theme colour the owner picked, but advances without marking the step done since a colour alone does not satisfy the server\'s "look" rule', async () => {

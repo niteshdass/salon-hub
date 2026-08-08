@@ -16,10 +16,13 @@ const api = axios.create({
   },
 })
 
-// Attach the Bearer token (when present) to every outgoing request.
+// Attach the staff Bearer token (when present) to every outgoing request. A
+// caller that set its own Authorization keeps it: the public booking page
+// sends a *customer* token on an endpoint that is otherwise anonymous, and a
+// salon owner browsing their own booking site must not overwrite it.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY)
-  if (token) {
+  if (token && !config.headers?.Authorization) {
     config.headers = config.headers || {}
     config.headers.Authorization = `Bearer ${token}`
   }

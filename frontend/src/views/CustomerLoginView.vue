@@ -36,40 +36,213 @@ async function submitCode() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-    <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <h1 class="text-lg font-semibold text-slate-900">Sign in to your bookings</h1>
-      <p class="mt-1 text-sm text-slate-500">No password. We email you a code.</p>
+  <!--
+    Signing in is the same dark room as the booking wizard: a customer arriving
+    from a salon's site should not blink at a white page. No tenant is resolved
+    here, so the accent is the house brass.
+  -->
+  <div class="customer-auth flex min-h-screen items-center justify-center px-6">
+    <div class="panel w-full max-w-md p-8 sm:p-10">
+      <p class="rule-label text-[var(--accent)]">My bookings</p>
+      <h1 class="mt-5 font-display text-3xl leading-tight text-white">Sign in to your bookings</h1>
+      <p class="mt-2 text-sm text-white/45">No password. We email you a code.</p>
 
-      <p v-if="notice" class="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{{ notice }}</p>
-      <p v-if="error" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{{ error }}</p>
+      <p v-if="notice" class="alert-ok mt-6">{{ notice }}</p>
+      <p v-if="error" class="alert-error mt-6">{{ error }}</p>
 
-      <form v-if="step === 'email'" class="mt-5 space-y-4" @submit.prevent="sendCode">
-        <div>
-          <label class="block text-sm font-medium text-slate-700">Email</label>
-          <input v-model="email" type="email" required autocomplete="email"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" />
-        </div>
-        <button type="submit" :disabled="auth.loading"
-          class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+      <form v-if="step === 'email'" class="mt-8" @submit.prevent="sendCode">
+        <label class="field-label">Email</label>
+        <input v-model="email" type="email" required autocomplete="email" placeholder="you@example.com" class="field" />
+        <button type="submit" :disabled="auth.loading" class="btn-gold mt-6 w-full">
+          <span v-if="auth.loading" class="spinner spinner-sm" />
           {{ auth.loading ? 'Sending…' : 'Send code' }}
         </button>
       </form>
 
-      <form v-else class="mt-5 space-y-4" @submit.prevent="submitCode">
-        <div>
-          <label class="block text-sm font-medium text-slate-700">6-digit code</label>
-          <input v-model="code" inputmode="numeric" maxlength="6" required autocomplete="one-time-code"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-lg tracking-widest focus:border-indigo-500 focus:outline-none" />
-        </div>
-        <button type="submit" :disabled="auth.loading"
-          class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+      <form v-else class="mt-8" @submit.prevent="submitCode">
+        <label class="field-label">6-digit code</label>
+        <input
+          v-model="code"
+          inputmode="numeric"
+          maxlength="6"
+          required
+          autocomplete="one-time-code"
+          placeholder="000000"
+          class="field field-code"
+        />
+        <button type="submit" :disabled="auth.loading" class="btn-gold mt-6 w-full">
+          <span v-if="auth.loading" class="spinner spinner-sm" />
           {{ auth.loading ? 'Verifying…' : 'Sign in' }}
         </button>
-        <button type="button" class="w-full text-center text-sm text-slate-500 hover:text-slate-900" @click="sendCode">
-          Resend code
-        </button>
+        <button type="button" class="btn-text mt-6 w-full text-center" @click="sendCode">Resend code</button>
       </form>
     </div>
   </div>
 </template>
+
+<style scoped>
+.customer-auth {
+  --accent: #c8a45d;
+  background: #080706;
+  color: #fff;
+  font-family: var(--font-body);
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
+.rule-label {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.rule-label::before {
+  content: '';
+  width: 1.75rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.panel {
+  background: #131110;
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: var(--accent);
+  color: #0a0908;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.95rem 1.9rem;
+  transition:
+    background-color 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.btn-gold:hover:not(:disabled) {
+  background: #fff;
+}
+
+.btn-gold:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-text {
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+  transition: color 0.3s ease;
+}
+
+.btn-text:hover {
+  color: #fff;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.field {
+  width: 100%;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: #0a0908;
+  padding: 0.9rem 1rem;
+  color: #fff;
+  outline: none;
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.field::placeholder {
+  color: rgb(255 255 255 / 0.25);
+}
+
+.field:focus {
+  border-color: var(--accent);
+  background: #0e0d0c;
+}
+
+/* Chrome paints autofilled inputs pale blue; keep the room dark. */
+.field:-webkit-autofill,
+.field:-webkit-autofill:hover,
+.field:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  -webkit-box-shadow: 0 0 0 60rem #0a0908 inset;
+  caret-color: #fff;
+}
+
+/* A one-time code reads as digits, not prose. */
+.field-code {
+  text-align: center;
+  font-size: 1.5rem;
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-code::placeholder {
+  letter-spacing: 0.5em;
+}
+
+.alert-error {
+  border: 1px solid rgb(242 160 160 / 0.35);
+  background: rgb(242 160 160 / 0.07);
+  padding: 0.9rem 1.1rem;
+  font-size: 0.9rem;
+  color: #f2a0a0;
+}
+
+.alert-ok {
+  border: 1px solid rgb(143 191 154 / 0.35);
+  background: rgb(143 191 154 / 0.07);
+  padding: 0.9rem 1.1rem;
+  font-size: 0.9rem;
+  color: #8fbf9a;
+}
+
+.spinner {
+  display: inline-block;
+  height: 1.5rem;
+  width: 1.5rem;
+  border: 1px solid rgb(255 255 255 / 0.15);
+  border-top-color: var(--accent);
+  border-radius: 9999px;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner-sm {
+  height: 0.9rem;
+  width: 0.9rem;
+  border-top-color: #0a0908;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

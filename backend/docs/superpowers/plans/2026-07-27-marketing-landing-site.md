@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- No secrets in source. Contact address comes from `config('mail.contact_address')`, backed by env `CONTACT_EMAIL`, default `hello@salonhub.com`. No other hardcoding.
+- No secrets in source. Contact address comes from `config('mail.contact_address')`, backed by env `CONTACT_EMAIL`, default `wpulse2024@gmail.com`. No other hardcoding.
 - `POST /api/contact` MUST be rate-limited (`throttle:5,1`) and MUST NOT be tenant-scoped (registered outside both the `auth` and tenant middleware groups, alongside other platform-level public routes).
 - Do NOT regress existing staff routes (`/dashboard`, `/appointments`, `/calendar`, `/branches`, `/services`, `/staff`, `/customers`, `/reports`, `/reviews`, `/gallery`, `/settings`) or customer-account routes (`/account`, `/account/login`) when restructuring the router.
 - Frontend aesthetic: **modern SaaS with a warm beauty-industry accent** (terracotta/rose). No generic AI-slop defaults — no Inter/Arial/Roboto, no purple-on-white. Commit to the direction. Distinctive display font + clean body font (values in Task 2).
@@ -132,7 +132,7 @@ In `backend/config/mail.php`, immediately after the `'from' => [ ... ],` block (
     |
     */
 
-    'contact_address' => env('CONTACT_EMAIL', 'hello@salonhub.com'),
+    'contact_address' => env('CONTACT_EMAIL', 'wpulse2024@gmail.com'),
 ```
 
 - [ ] **Step 4: Create the FormRequest**
@@ -456,13 +456,13 @@ Root `<section id="faq">`. Heading: **"Questions, answered."** Accordion with lo
 
 Root `<section id="contact">`. Heading: **"Talk to us."** Two-column layout:
 - **Left — contact form:** fields `name`, `email`, `message` (textarea). On submit, POST to the backend via the shared axios client. Import: `import api from '@/lib/api'` and call `await api.post('/contact', { name, email, message })`. Manage `sending`, `success`, `errors` refs. On success: hide the form, show **"Thanks — we'll be in touch soon."** On `422`: map `error.response.data.errors` to inline field errors. On `429`: show **"Too many messages — please try again shortly."** On any other error: show **"Couldn't send just now — please email us directly."**
-- **Right — mailto fallback:** plain text **"Prefer email? Reach us at"** with a `<a href="mailto:hello@salonhub.com">hello@salonhub.com</a>` link. This always works regardless of endpoint state.
+- **Right — mailto fallback:** plain text **"Prefer email? Reach us at"** with a `<a href="mailto:wpulse2024@gmail.com">wpulse2024@gmail.com</a>` link. This always works regardless of endpoint state.
 
 Note: `@/lib/api` is the existing axios instance (baseURL `/api`), so `api.post('/contact', …)` hits `POST /api/contact`.
 
 - [ ] **Step 9: MarketingFooter.vue**
 
-Root `<footer>`. Wordmark "SalonHub" (font-display) + one-line tagline **"Booking software for modern salons."** Nav links (anchors to `#features`, `#pricing`, `#faq`, `#contact`; RouterLinks to `/login`, `/register`). A `mailto:hello@salonhub.com` link. Copyright line: **"© 2026 SalonHub. All rights reserved."**
+Root `<footer>`. Wordmark "SalonHub" (font-display) + one-line tagline **"Booking software for modern salons."** Nav links (anchors to `#features`, `#pricing`, `#faq`, `#contact`; RouterLinks to `/login`, `/register`). A `mailto:wpulse2024@gmail.com` link. Copyright line: **"© 2026 SalonHub. All rights reserved."**
 
 - [ ] **Step 10: LandingView.vue**
 

@@ -96,8 +96,16 @@ class LinkingTest extends TestCase
 
     private function verify(string $email): void
     {
+        $this->signIn($email);
+    }
+
+    /** Verify an email and return the issued customer API token. */
+    private function signIn(string $email): string
+    {
         $code = $this->loginCodeFor($email);
-        $this->postJson('/api/customer/auth/verify-code', ['email' => $email, 'code' => $code])->assertOk();
+        $response = $this->postJson('/api/customer/auth/verify-code', ['email' => $email, 'code' => $code])->assertOk();
+
+        return $response->json('token');
     }
 
     /** A fixed, deterministic future Monday (ISO weekday 1), staff works every day. */
@@ -169,5 +177,120 @@ class LinkingTest extends TestCase
         // Fresh-attach linked the new customer row to the existing verified
         // account despite the mixed-case input — this is the bug fix.
         $this->assertSame($account->id, $customer->customer_account_id);
+    }
+
+    /**
+     * The signed-in customer IS the booker. Matching emails is a fallback for
+     * anonymous bookings; when a customer token is on the request their account
+     * owns the booking outright, whatever address the form carried.
+     */
+    public function test_booking_while_signed_in_links_to_the_account_despite_a_different_email(): void
+    {
+        $token = $this->signIn('jane@x.test');
+        $account = CustomerAccount::where('email', 'jane@x.test')->first();
+
+        $ctx = $this->scaffoldBookableOrg('signedin-salon');
+
+        $this->withToken($token)->postJson('/api/public/signedin-salon/book', [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+            // A different address than the account's — the session wins.
+            'customer' => ['name' => 'Jane', 'phone' => '555-1111', 'email' => 'typo@elsewhere.test'],
+        ])->assertCreated();
+
+        $customer = Customer::where('phone', '555-1111')->first();
+        $this->assertSame($account->id, $customer->customer_account_id);
+
+        // And it reaches the dashboard, which is the whole point.
+        $this->withToken($token)->getJson('/api/customer/bookings')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.upcoming');
+    }
+
+    /**
+     * A signed-in booker never re-types their name: the account supplies it, so
+     * the wizard can drop the field entirely.
+     */
+    public function test_signed_in_booking_needs_no_name_and_takes_it_from_the_account(): void
+    {
+        $token = $this->signIn('jane@x.test');
+        $account = CustomerAccount::where('email', 'jane@x.test')->first();
+        $account->forceFill(['name' => 'Jane Doe'])->save();
+
+        $ctx = $this->scaffoldBookableOrg('nameless-salon');
+
+        $this->withToken($token)->postJson('/api/public/nameless-salon/book', [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+            'customer' => ['phone' => '555-2222'],
+        ])->assertCreated();
+
+        $customer = Customer::where('phone', '555-2222')->first();
+        $this->assertSame('Jane Doe', $customer->name);
+        $this->assertSame('jane@x.test', $customer->email);
+        $this->assertSame($account->id, $customer->customer_account_id);
+
+        // The account learns the phone it booked with, for next time.
+        $this->assertSame('555-2222', $account->fresh()->phone);
+    }
+
+    /** An anonymous booking still has to carry a name — nobody supplies one. */
+    public function test_anonymous_booking_still_requires_a_name(): void
+    {
+        $ctx = $this->scaffoldBookableOrg('anon-salon');
+
+        $this->postJson('/api/public/anon-salon/book', [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+            'customer' => ['phone' => '555-3333'],
+        ])->assertStatus(422)->assertJsonValidationErrors('customer.name');
+    }
+
+    /**
+     * Phone is the salon's key for a customer row, and two people can share one
+     * (a family phone, a recycled number). A signed-in booker may not take over
+     * a row another account already owns.
+     */
+    public function test_signed_in_booking_does_not_steal_a_row_owned_by_another_account(): void
+    {
+        $ctx = $this->scaffoldBookableOrg('shared-salon');
+
+        $owner = CustomerAccount::create(['name' => 'Owner', 'email' => 'owner@x.test']);
+        $existing = Customer::create([
+            'organization_id' => $ctx['org']->id,
+            'name' => 'Owner',
+            'phone' => '555-9999',
+            'email' => 'owner@x.test',
+            'customer_account_id' => $owner->id,
+        ]);
+
+        $token = $this->signIn('jane@x.test');
+
+        $this->withToken($token)->postJson('/api/public/shared-salon/book', [
+            'service_id' => $ctx['service']->id,
+            'staff_id' => $ctx['staff']->id,
+            'date' => $this->nextMonday(),
+            'start_time' => '11:00',
+            'customer' => ['name' => 'Jane', 'phone' => '555-9999'],
+        ])->assertCreated();
+
+        $this->assertSame($owner->id, $existing->fresh()->customer_account_id);
+
+        // Jane gets her own row on that phone, and her booking still reaches
+        // her dashboard rather than disappearing into the other account's.
+        $jane = CustomerAccount::where('email', 'jane@x.test')->first();
+        $mine = Customer::where('phone', '555-9999')->where('customer_account_id', $jane->id)->first();
+        $this->assertNotNull($mine);
+        $this->assertNotSame($existing->id, $mine->id);
+
+        $this->withToken($token)->getJson('/api/customer/bookings')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.upcoming');
     }
 }

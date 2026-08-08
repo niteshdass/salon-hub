@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Public;
 
 use App\Enums\UserRole;
+use App\Models\CustomerAccount;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -45,8 +46,16 @@ class PublicBookingRequest extends FormRequest
             'date' => ['required', 'date', 'after_or_equal:today'],
             'start_time' => ['required', 'date_format:H:i,H:i:s'],
             'customer' => ['required', 'array'],
-            'customer.name' => ['required', 'string', 'max:255'],
+            // A signed-in booker never re-types their identity: the account
+            // supplies the name, so the wizard drops the field. Anonymous
+            // bookings still have to carry one — nobody else can supply it.
+            'customer.name' => [
+                $this->bookingAccount()?->name ? 'nullable' : 'required',
+                'string',
+                'max:255',
+            ],
             'customer.phone' => ['required', 'string', 'max:50'],
+            // Ignored when signed in: the account's own address wins there.
             'customer.email' => ['nullable', 'email', 'max:255'],
 
             // How the deposit is paid: 'manual' (bank/wallet transfer, needs a
@@ -60,5 +69,11 @@ class PublicBookingRequest extends FormRequest
             // salon's deposit policy, enforced in the controller.
             'payment_reference' => ['nullable', 'string', 'max:255'],
         ];
+    }
+
+    /** The customer account booking this, when the visitor is signed in. */
+    protected function bookingAccount(): ?CustomerAccount
+    {
+        return CustomerAccount::current();
     }
 }

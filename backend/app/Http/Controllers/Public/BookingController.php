@@ -18,6 +18,7 @@ use App\Models\CustomerAccount;
 use App\Models\PaymentSetting;
 use App\Models\Review;
 use App\Models\Service;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\AppointmentScheduler;
 use App\Services\BookingNotifier;
@@ -28,6 +29,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -54,6 +56,15 @@ class BookingController extends Controller
             'data' => [
                 'name' => $tenant->name,
                 'slug' => $tenant->slug,
+                // Prices on the wizard are the salon's, not the visitor's, and
+                // the booking page wears the same cover as the salon's site.
+                'currency' => $tenant->currency,
+                'cover_image_url' => $tenant->cover_image
+                    ? Storage::disk('public')->url($tenant->cover_image)
+                    : null,
+                'theme_color' => Setting::query()
+                    ->where('organization_id', $tenant->id)
+                    ->value('theme_color'),
                 'branches' => Branch::query()->get()->map(fn (Branch $branch) => [
                     'id' => $branch->id,
                     'name' => $branch->name,
@@ -313,27 +324,13 @@ class BookingController extends Controller
         // back on the callback; generated up front so it can seed the session.
         $tranId = ($collectDeposit && $method === 'gateway') ? 'SH'.strtoupper(Str::random(18)) : null;
 
-        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime, $collectDeposit, $method, $depositAmount, $reference, $tranId) {
-            // Find-or-create by phone within the tenant. When the customer
-            // already exists we keep their stored name/email (no overwrite).
-            $customer = Customer::firstOrCreate(
-                ['phone' => $data['customer']['phone']],
-                [
-                    'name' => $data['customer']['name'],
-                    'email' => $data['customer']['email'] ?? null,
-                ],
-            );
+        // A signed-in visitor books as themselves. Identity then comes from the
+        // account rather than the form, which is what puts the booking on their
+        // dashboard — matching typed emails is only the anonymous fallback.
+        $account = CustomerAccount::current();
 
-            // If this customer's email belongs to a verified platform account,
-            // link the row now so the booking shows on their dashboard without
-            // waiting for a re-login.
-            if ($customer->email && ! $customer->customer_account_id) {
-                $accountId = CustomerAccount::whereNotNull('email_verified_at')
-                    ->where('email', $customer->email)->value('id');
-                if ($accountId) {
-                    $customer->forceFill(['customer_account_id' => $accountId])->save();
-                }
-            }
+        $appointment = DB::transaction(function () use ($data, $service, $branchId, $startTime, $endTime, $collectDeposit, $method, $depositAmount, $reference, $tranId, $account) {
+            $customer = $this->resolveCustomer($data['customer'], $account);
 
             $appointment = Appointment::create([
                 'branch_id' => $branchId,
@@ -387,6 +384,74 @@ class BookingController extends Controller
         }
 
         return response()->json(['data' => $payload], 201);
+    }
+
+    /**
+     * The salon's customer row this booking belongs to.
+     *
+     * Anonymous: find-or-create by phone within the tenant, keeping an existing
+     * row's stored name/email, then link it to a verified platform account if
+     * the email matches one.
+     *
+     * Signed in: the account's own name and email are used, and the row is
+     * claimed for the account. A phone already owned by a *different* account
+     * is left alone and a new row is created instead — phones get shared and
+     * recycled, so a stranger's booking must neither take over a salon's
+     * existing customer nor vanish from the booker's own dashboard.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    protected function resolveCustomer(array $input, ?CustomerAccount $account): Customer
+    {
+        $phone = $input['phone'];
+
+        if (! $account) {
+            $customer = Customer::firstOrCreate(
+                ['phone' => $phone],
+                ['name' => $input['name'], 'email' => $input['email'] ?? null],
+            );
+
+            if ($customer->email && ! $customer->customer_account_id) {
+                $accountId = CustomerAccount::whereNotNull('email_verified_at')
+                    ->where('email', $customer->email)->value('id');
+                if ($accountId) {
+                    $customer->forceFill(['customer_account_id' => $accountId])->save();
+                }
+            }
+
+            return $customer;
+        }
+
+        $name = $account->name ?: ($input['name'] ?? null);
+
+        $customer = Customer::where('phone', $phone)
+            ->where(fn ($query) => $query
+                ->whereNull('customer_account_id')
+                ->orWhere('customer_account_id', $account->id))
+            ->first();
+
+        $customer ??= Customer::create([
+            'phone' => $phone,
+            'name' => $name,
+            'email' => $account->email,
+        ]);
+
+        if (! $customer->customer_account_id) {
+            $customer->forceFill(['customer_account_id' => $account->id])->save();
+        }
+
+        // The account learns what it booked with, so the next wizard can
+        // prefill and a nameless account stops asking.
+        $backfill = array_filter([
+            'name' => blank($account->name) ? $name : null,
+            'phone' => blank($account->phone) ? $phone : null,
+        ]);
+
+        if ($backfill) {
+            $account->forceFill($backfill)->save();
+        }
+
+        return $customer;
     }
 
     /**
@@ -515,7 +580,14 @@ class BookingController extends Controller
         return [
             'id' => $appointment->id,
             'public_token' => $appointment->public_token,
-            'salon' => ['name' => $tenant?->name, 'slug' => $tenant?->slug],
+            'salon' => [
+                'name' => $tenant?->name,
+                'slug' => $tenant?->slug,
+                // The manage page wears the salon's accent, same as the wizard.
+                'theme_color' => $tenant
+                    ? Setting::query()->where('organization_id', $tenant->id)->value('theme_color')
+                    : null,
+            ],
             'payment' => [
                 'deposit_required' => $depositRequired,
                 'amount_paid' => $appointment->amountPaid(),

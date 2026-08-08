@@ -16,12 +16,18 @@ class UpdateOrganizationRequest extends FormRequest
      * The slug is deliberately absent: it is the public booking URL and
      * the tenant key, so it is not editable here.
      *
+     * Every field is optional-if-absent: the controller only writes the
+     * keys it is given, so a screen that owns part of the profile (the
+     * onboarding branding step, which has no name field on it) can send
+     * just its part. 'name' keeps 'required' for when it *is* sent, so the
+     * full profile form still cannot blank it.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'country' => ['nullable', 'string', 'size:2'],

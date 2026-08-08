@@ -13,9 +13,13 @@ const THEMES = ['#4f46e5', '#0f766e', '#be123c', '#b45309', '#7c3aed', '#0369a1'
 const about = ref('')
 const themeColor = ref(THEMES[0])
 const logoUrl = ref(null)
+const logoInput = ref(null)
 const saving = ref(false)
 const uploading = ref(false)
+const removing = ref(false)
 const error = ref('')
+
+const logoBusy = computed(() => uploading.value || removing.value)
 
 const salonName = computed(() => authStore.organization?.name ?? 'Your salon')
 
@@ -46,6 +50,22 @@ async function uploadLogo(event) {
     error.value = parseApiError(err).message
   } finally {
     uploading.value = false
+    // Clear the input's value or picking the same file again after a
+    // failed upload fires no 'change' event and looks like a dead button.
+    if (logoInput.value) logoInput.value.value = ''
+  }
+}
+
+async function removeLogo() {
+  removing.value = true
+  error.value = ''
+  try {
+    await api.delete('/settings/organization/logo')
+    logoUrl.value = null
+  } catch (err) {
+    error.value = parseApiError(err).message
+  } finally {
+    removing.value = false
   }
 }
 
@@ -88,9 +108,57 @@ async function save() {
     <div class="grid gap-5 sm:grid-cols-2">
       <div class="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Your logo</label>
-          <input type="file" accept="image/*" class="block w-full text-sm text-slate-600" @change="uploadLogo" />
-          <p v-if="uploading" class="mt-1 text-sm text-slate-500">Uploading…</p>
+          <span class="mb-2 block text-sm font-medium text-slate-700">Your logo</span>
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200"
+            >
+              <img
+                v-if="logoUrl"
+                :src="logoUrl"
+                alt="Your logo"
+                data-test="logo-thumbnail"
+                class="h-full w-full object-cover"
+              />
+              <span v-else data-test="logo-empty" class="px-1 text-center text-[11px] leading-tight text-slate-400">
+                No logo
+              </span>
+            </div>
+
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- sr-only, not hidden: the input stays in the tab order so
+                     the styled label is reachable by keyboard, and 'peer'
+                     paints its focus ring onto the label. -->
+                <input
+                  id="onboarding-logo"
+                  ref="logoInput"
+                  type="file"
+                  accept="image/*"
+                  class="peer sr-only"
+                  :disabled="logoBusy"
+                  @change="uploadLogo"
+                />
+                <label
+                  for="onboarding-logo"
+                  class="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
+                >
+                  {{ uploading ? 'Uploading…' : logoUrl ? 'Change logo' : 'Upload logo' }}
+                </label>
+                <button
+                  v-if="logoUrl"
+                  type="button"
+                  data-test="logo-remove"
+                  :disabled="logoBusy"
+                  class="rounded-lg px-2 py-2 text-sm font-medium text-rose-600 transition hover:text-rose-700 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 disabled:opacity-60"
+                  @click="removeLogo"
+                >
+                  {{ removing ? 'Removing…' : 'Remove' }}
+                </button>
+              </div>
+              <p class="mt-1.5 text-xs text-slate-500">PNG or JPG. A square image looks best.</p>
+            </div>
+          </div>
         </div>
 
         <div>

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/lib/api'
+import { customerToken, fetchCustomerIdentity } from '@/lib/customerApi'
 import { parseApiError } from '@/lib/errors'
 import { publicApiBase } from '@/lib/tenantHost'
 
@@ -37,6 +38,18 @@ function formatDate(dateStr) {
   })
 }
 
+// Short form for the "Available — Fri, Aug 14" heading over the time chips.
+function formatDateShort(dateStr) {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return dateStr
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 // Render "09:00" (24h) as "9:00 AM".
 function formatTime(t) {
   if (!t) return ''
@@ -50,7 +63,16 @@ function formatTime(t) {
 function formatPrice(value) {
   if (value === null || value === undefined || value === '') return ''
   const num = Number(value)
-  return Number.isNaN(num) ? value : num.toFixed(2)
+  if (Number.isNaN(num)) return value
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: salon.value?.currency || 'USD',
+      maximumFractionDigits: 2,
+    }).format(num)
+  } catch {
+    return num.toFixed(2)
+  }
 }
 
 function initials(name) {
@@ -73,6 +95,13 @@ const loadingSalon = ref(true)
 const salonError = ref('')
 
 const primaryBranch = computed(() => salon.value?.branches?.[0] || null)
+
+// The wizard is the salon site's dark room by another door: an untouched
+// salon keeps the brass rather than the API's indigo placeholder.
+const accent = computed(() => {
+  const chosen = salon.value?.theme_color
+  return !chosen || chosen.toLowerCase() === '#6366f1' ? '#c8a45d' : chosen
+})
 
 async function loadSalon() {
   loadingSalon.value = true
@@ -120,6 +149,7 @@ function selectService(svc) {
     staff.value = []
     selectedSlot.value = ''
     slots.value = []
+    slotsLoaded.value = false
   }
   step.value = 2
   loadStaff()
@@ -145,15 +175,17 @@ async function loadStaff() {
   }
 }
 
+// Choosing is not committing: the customer picks a face, then presses
+// Continue. Times are fetched on the choice so step 3 opens already filled.
 function selectStaff(member) {
   const changed = selectedStaff.value?.id !== member.id
   selectedStaff.value = member
   if (changed) {
     selectedSlot.value = ''
     slots.value = []
+    slotsLoaded.value = false
+    loadSlots()
   }
-  step.value = 3
-  loadSlots()
 }
 
 /* ------------------------------ Step 3: Date & time ------------------------------ */
@@ -163,6 +195,59 @@ const slotsLoading = ref(false)
 const slotsError = ref('')
 const slotsLoaded = ref(false)
 const selectedSlot = ref('')
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+// First of the month currently drawn in the calendar, as [year, monthIndex].
+const calendar = reactive((() => {
+  const now = new Date()
+  return { year: now.getFullYear(), month: now.getMonth() }
+})())
+
+const calendarLabel = computed(() =>
+  new Date(calendar.year, calendar.month, 1).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  }),
+)
+
+function dateStr(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+// Leading blanks so the first day lands under its weekday, then the days
+// themselves. A day before today is shown but cannot be picked.
+const calendarDays = computed(() => {
+  const first = new Date(calendar.year, calendar.month, 1)
+  const total = new Date(calendar.year, calendar.month + 1, 0).getDate()
+  const cells = Array.from({ length: first.getDay() }, () => null)
+  const today = todayStr()
+
+  for (let day = 1; day <= total; day += 1) {
+    const value = dateStr(calendar.year, calendar.month, day)
+    cells.push({ day, value, past: value < today })
+  }
+
+  return cells
+})
+
+// Nothing to go back to once the calendar reaches the current month.
+const canGoBackAMonth = computed(() => {
+  const now = new Date()
+  return calendar.year > now.getFullYear() || (calendar.year === now.getFullYear() && calendar.month > now.getMonth())
+})
+
+function shiftMonth(delta) {
+  if (delta < 0 && !canGoBackAMonth.value) return
+  const next = new Date(calendar.year, calendar.month + delta, 1)
+  calendar.year = next.getFullYear()
+  calendar.month = next.getMonth()
+}
+
+function pickDate(cell) {
+  if (!cell || cell.past) return
+  selectedDate.value = cell.value
+}
 
 async function loadSlots() {
   if (!selectedService.value || !selectedStaff.value || !selectedDate.value) return
@@ -187,14 +272,13 @@ async function loadSlots() {
   }
 }
 
-// Reload slots whenever the date changes while on the time step.
+// Reload slots whenever the date changes while on (or past) the time step.
 watch(selectedDate, () => {
   if (step.value >= 3) loadSlots()
 })
 
 function selectSlot(slot) {
   selectedSlot.value = slot
-  step.value = 4
 }
 
 /* ------------------------------ Deposit ------------------------------ */
@@ -239,6 +323,10 @@ const paymentReference = ref('')
 
 /* ------------------------------ Step 4: Details + booking ------------------------------ */
 const customer = reactive({ name: '', phone: '', email: '' })
+// The signed-in customer, when one is. Their account supplies the identity, so
+// the form only asks for what it does not already know.
+const account = ref(null)
+const needsName = computed(() => !account.value?.name)
 const booking = ref(false)
 const bookingMessage = ref('')
 const bookingErrors = ref({})
@@ -266,16 +354,18 @@ async function submitBooking() {
   bookingMessage.value = ''
   bookingErrors.value = {}
 
+  // Signed in: the server takes the name and email off the account, so only
+  // send what the form still asked for.
+  const who = { phone: customer.phone.trim() }
+  if (needsName.value) who.name = customer.name.trim()
+  if (!account.value) who.email = customer.email.trim() || undefined
+
   const payload = {
     service_id: selectedService.value.id,
     staff_id: selectedStaff.value.id,
     date: selectedDate.value,
     start_time: selectedSlot.value,
-    customer: {
-      name: customer.name.trim(),
-      phone: customer.phone.trim(),
-      email: customer.email.trim() || undefined,
-    },
+    customer: who,
   }
   if (depositRequired.value) {
     payload.payment_method = depositMethod.value
@@ -289,7 +379,10 @@ async function submitBooking() {
   }
 
   try {
-    const { data } = await api.post(`${apiBase}/book`, payload)
+    // The booking endpoint is anonymous, but a customer token on it makes the
+    // booking the account's — which is what lands it on their dashboard.
+    const headers = account.value ? { Authorization: `Bearer ${customerToken()}` } : {}
+    const { data } = await api.post(`${apiBase}/book`, payload, { headers })
     // Online deposit: hand off to the gateway's hosted checkout. It returns the
     // customer to the manage page (with a ?payment= outcome) when done.
     if (data.data?.gateway_url) {
@@ -338,7 +431,7 @@ function resetWizard() {
   slotsLoaded.value = false
   selectedDate.value = todayStr()
   customer.name = ''
-  customer.phone = ''
+  customer.phone = account.value?.phone || ''
   customer.email = ''
   paymentReference.value = ''
   confirmation.value = null
@@ -347,82 +440,88 @@ function resetWizard() {
 }
 
 onMounted(async () => {
+  // Resolved alongside the salon, not gated behind it: a stale token simply
+  // resolves to null and the wizard books as a guest.
+  fetchCustomerIdentity().then((found) => {
+    account.value = found
+    if (found?.phone && !customer.phone) customer.phone = found.phone
+  })
+
   await loadSalon()
   if (salon.value) loadServices()
 })
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50">
+  <div class="booking" :style="{ '--accent': accent }">
     <!-- Loading the salon -->
-    <div v-if="loadingSalon" class="flex min-h-screen items-center justify-center px-4">
+    <div v-if="loadingSalon" class="flex min-h-screen items-center justify-center px-6">
       <div class="text-center">
-        <svg class="mx-auto h-7 w-7 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-        <p class="mt-3 text-sm text-slate-500">Loading…</p>
+        <span class="spinner" />
+        <p class="label mt-4 text-white/40">Loading</p>
       </div>
     </div>
 
     <!-- Salon not found -->
-    <div v-else-if="notFound" class="flex min-h-screen items-center justify-center px-4">
-      <div class="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-          <svg class="h-7 w-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h1 class="mt-4 text-lg font-semibold text-slate-900">Salon not found</h1>
-        <p class="mt-1 text-sm text-slate-500">
+    <div v-else-if="notFound" class="flex min-h-screen items-center justify-center px-6">
+      <div class="panel w-full max-w-md p-10 text-center">
+        <h1 class="font-display text-3xl text-white">Salon not found</h1>
+        <p class="mt-3 text-sm leading-relaxed text-white/45">
           We couldn't find a salon at this link. Please double-check the address and try again.
         </p>
       </div>
     </div>
 
     <!-- Hard load error -->
-    <div v-else-if="salonError" class="flex min-h-screen items-center justify-center px-4">
-      <div class="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-        <h1 class="text-lg font-semibold text-slate-900">Something went wrong</h1>
-        <p class="mt-1 text-sm text-slate-500">{{ salonError }}</p>
-        <button
-          type="button"
-          class="mt-5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700"
-          @click="loadSalon"
-        >
-          Try again
-        </button>
+    <div v-else-if="salonError" class="flex min-h-screen items-center justify-center px-6">
+      <div class="panel w-full max-w-md p-10 text-center">
+        <h1 class="font-display text-3xl text-white">Something went wrong</h1>
+        <p class="mt-3 text-sm text-white/45">{{ salonError }}</p>
+        <button type="button" class="btn-gold mt-7" @click="loadSalon">Try again</button>
       </div>
     </div>
 
     <!-- Booking wizard -->
-    <div v-else>
-      <!-- Hero -->
-      <header class="bg-gradient-to-b from-indigo-600 to-indigo-700 px-4 py-10 text-center text-white sm:py-14">
-        <p class="text-xs font-medium uppercase tracking-widest text-indigo-200">Book an appointment</p>
-        <h1 class="mt-2 text-2xl font-bold sm:text-3xl">{{ salon.name }}</h1>
-        <p v-if="primaryBranch" class="mt-2 text-sm text-indigo-100">
-          <span class="font-medium">{{ primaryBranch.name }}</span>
+    <div v-else class="relative min-h-screen">
+      <!-- Hero: the salon's own cover, dimmed to a backdrop -->
+      <div class="absolute inset-x-0 top-0 -z-10 h-[19rem] overflow-hidden">
+        <img
+          v-if="salon.cover_image_url"
+          :src="salon.cover_image_url"
+          alt=""
+          class="h-full w-full object-cover opacity-45"
+        />
+        <div v-else class="h-full w-full bg-[radial-gradient(110%_100%_at_50%_0%,#2a241d_0%,#080706_70%)]" />
+        <div class="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(8,7,6,0.55)_0%,rgba(8,7,6,0.86)_60%,#080706_100%)]" />
+      </div>
+
+      <RouterLink :to="`/salon/${slug}`" class="label absolute top-7 left-6 z-10 text-white/55 transition hover:text-white lg:left-10">
+        ← Back to salon
+      </RouterLink>
+
+      <header class="px-6 pt-24 pb-14 text-center">
+        <p class="rule-label justify-center text-[var(--accent)]">Book an appointment</p>
+        <h1 class="mt-5 font-display text-[clamp(2.2rem,6vw,3.4rem)] leading-tight text-white">{{ salon.name }}</h1>
+        <p v-if="primaryBranch" class="mt-3 text-sm text-white/45">
+          {{ primaryBranch.name }}
           <template v-if="primaryBranch.city"> · {{ primaryBranch.city }}</template>
           <template v-if="primaryBranch.address"> · {{ primaryBranch.address }}</template>
         </p>
       </header>
 
-      <main class="mx-auto -mt-6 w-full max-w-2xl px-4 pb-16">
-        <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
+      <main class="mx-auto w-full max-w-3xl px-6 pb-20">
+        <div class="panel">
           <!-- Stepper -->
-          <ol v-if="step <= 4" class="mb-6 flex items-center gap-2">
-            <li v-for="(label, i) in STEPS" :key="label" class="flex flex-1 items-center gap-2">
+          <ol v-if="step <= 4" class="flex items-center gap-3 border-b border-white/8 px-6 py-5 sm:px-9">
+            <li v-for="(label, i) in STEPS" :key="label" class="flex flex-1 items-center gap-3">
               <button
                 type="button"
-                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition"
-                :class="[
-                  step > i + 1
-                    ? 'bg-indigo-600 text-white'
-                    : step === i + 1
-                      ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
-                      : 'bg-slate-100 text-slate-400',
-                ]"
+                class="flex h-8 w-8 shrink-0 items-center justify-center border text-xs font-semibold transition"
+                :class="step > i + 1
+                  ? 'border-[var(--accent)] bg-[var(--accent)] text-[#0a0908]'
+                  : step === i + 1
+                    ? 'border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-white/15 text-white/30'"
                 @click="goStep(i + 1)"
               >
                 <svg v-if="step > i + 1" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
@@ -431,429 +530,795 @@ onMounted(async () => {
                 <span v-else>{{ i + 1 }}</span>
               </button>
               <span
-                class="hidden text-xs font-medium sm:block"
-                :class="step === i + 1 ? 'text-slate-900' : 'text-slate-400'"
+                class="hidden whitespace-nowrap text-sm sm:block"
+                :class="step === i + 1 ? 'text-white' : step > i + 1 ? 'text-[var(--accent)]' : 'text-white/35'"
               >
                 {{ label }}
               </span>
               <span
                 v-if="i < STEPS.length - 1"
-                class="h-px flex-1 rounded"
-                :class="step > i + 1 ? 'bg-indigo-600' : 'bg-slate-200'"
-              ></span>
+                class="h-px flex-1"
+                :class="step > i + 1 ? 'bg-[var(--accent)]/50' : 'bg-white/10'"
+              />
             </li>
           </ol>
 
-          <!-- ============ STEP 1: Service ============ -->
-          <section v-if="step === 1">
-            <h2 class="text-lg font-semibold text-slate-900">Choose a service</h2>
-            <p class="mt-1 text-sm text-slate-500">Pick the treatment you'd like to book.</p>
+          <div class="px-6 py-9 sm:px-9 sm:py-11">
+            <!-- ============ STEP 1: Service ============ -->
+            <section v-if="step === 1">
+              <h2 class="font-display text-3xl text-white">Choose a service</h2>
+              <p class="mt-2 text-sm text-white/45">Pick the treatment you'd like to book.</p>
 
-            <div v-if="servicesLoading" class="py-12 text-center">
-              <svg class="mx-auto h-6 w-6 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <p class="mt-3 text-sm text-slate-500">Loading services…</p>
-            </div>
-
-            <div v-else-if="servicesError" class="mt-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {{ servicesError }}
-              <button type="button" class="ml-2 font-medium underline" @click="loadServices">Retry</button>
-            </div>
-
-            <p v-else-if="services.length === 0" class="mt-6 rounded-lg bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-              This salon has no bookable services right now.
-            </p>
-
-            <div v-else class="mt-5 space-y-3">
-              <button
-                v-for="svc in services"
-                :key="svc.id"
-                type="button"
-                class="flex w-full items-center justify-between gap-4 rounded-xl border p-4 text-left transition"
-                :class="selectedService?.id === svc.id
-                  ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
-                  : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50'"
-                @click="selectService(svc)"
-              >
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="font-semibold text-slate-900">{{ svc.name }}</span>
-                    <span v-if="svc.category" class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                      {{ svc.category.name }}
-                    </span>
-                  </div>
-                  <p v-if="svc.description" class="mt-1 line-clamp-2 text-sm text-slate-500">{{ svc.description }}</p>
-                  <p class="mt-1 text-xs text-slate-400">{{ svc.duration }} min</p>
-                </div>
-                <div class="shrink-0 text-right">
-                  <span v-if="formatPrice(svc.price)" class="text-base font-semibold text-slate-900">{{ formatPrice(svc.price) }}</span>
-                  <svg class="ml-auto mt-1 h-5 w-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </div>
-              </button>
-            </div>
-          </section>
-
-          <!-- ============ STEP 2: Staff ============ -->
-          <section v-else-if="step === 2">
-            <h2 class="text-lg font-semibold text-slate-900">Choose a professional</h2>
-            <p class="mt-1 text-sm text-slate-500">Who would you like for your {{ selectedService?.name }}?</p>
-
-            <div v-if="staffLoading" class="py-12 text-center">
-              <svg class="mx-auto h-6 w-6 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <p class="mt-3 text-sm text-slate-500">Loading team…</p>
-            </div>
-
-            <div v-else-if="staffError" class="mt-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {{ staffError }}
-              <button type="button" class="ml-2 font-medium underline" @click="loadStaff">Retry</button>
-            </div>
-
-            <p v-else-if="staff.length === 0" class="mt-6 rounded-lg bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-              No one is available for this service right now. Try another service.
-            </p>
-
-            <div v-else class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button
-                v-for="member in staff"
-                :key="member.id"
-                type="button"
-                class="flex items-center gap-3 rounded-xl border p-4 text-left transition"
-                :class="selectedStaff?.id === member.id
-                  ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
-                  : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50'"
-                @click="selectStaff(member)"
-              >
-                <img
-                  v-if="member.profile_image"
-                  :src="member.profile_image"
-                  :alt="member.name"
-                  class="h-11 w-11 shrink-0 rounded-full object-cover"
-                />
-                <div
-                  v-else
-                  class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700"
-                >
-                  {{ initials(member.name) }}
-                </div>
-                <div class="min-w-0">
-                  <p class="truncate font-semibold text-slate-900">{{ member.name }}</p>
-                  <p v-if="member.designation" class="truncate text-xs text-slate-500">{{ member.designation }}</p>
-                </div>
-              </button>
-            </div>
-
-            <div class="mt-6">
-              <button type="button" class="text-sm font-medium text-slate-500 transition hover:text-slate-700" @click="goBack">
-                ← Back
-              </button>
-            </div>
-          </section>
-
-          <!-- ============ STEP 3: Date & time ============ -->
-          <section v-else-if="step === 3">
-            <h2 class="text-lg font-semibold text-slate-900">Pick a date &amp; time</h2>
-            <p class="mt-1 text-sm text-slate-500">Available times for {{ selectedStaff?.name }}.</p>
-
-            <div class="mt-5">
-              <label class="mb-1 block text-sm font-medium text-slate-700">Date</label>
-              <input
-                v-model="selectedDate"
-                type="date"
-                :min="todayStr()"
-                class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 sm:w-auto"
-              />
-            </div>
-
-            <div v-if="slotsLoading" class="py-10 text-center">
-              <svg class="mx-auto h-6 w-6 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <p class="mt-3 text-sm text-slate-500">Finding open times…</p>
-            </div>
-
-            <div v-else-if="slotsError" class="mt-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {{ slotsError }}
-              <button type="button" class="ml-2 font-medium underline" @click="loadSlots">Retry</button>
-            </div>
-
-            <p v-else-if="slots.length === 0" class="mt-5 rounded-lg bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-              No open times on this day, try another date.
-            </p>
-
-            <div v-else class="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              <button
-                v-for="slot in slots"
-                :key="slot"
-                type="button"
-                class="rounded-lg border px-2 py-2.5 text-sm font-medium transition"
-                :class="selectedSlot === slot
-                  ? 'border-indigo-500 bg-indigo-600 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'"
-                @click="selectSlot(slot)"
-              >
-                {{ formatTime(slot) }}
-              </button>
-            </div>
-
-            <div class="mt-6">
-              <button type="button" class="text-sm font-medium text-slate-500 transition hover:text-slate-700" @click="goBack">
-                ← Back
-              </button>
-            </div>
-          </section>
-
-          <!-- ============ STEP 4: Details ============ -->
-          <section v-else-if="step === 4">
-            <h2 class="text-lg font-semibold text-slate-900">Your details</h2>
-            <p class="mt-1 text-sm text-slate-500">Almost done — tell us who's coming in.</p>
-
-            <!-- Summary -->
-            <dl class="mt-5 space-y-2 rounded-xl bg-slate-50 p-4 text-sm">
-              <div class="flex justify-between gap-4">
-                <dt class="text-slate-500">Service</dt>
-                <dd class="text-right font-medium text-slate-900">{{ selectedService?.name }}</dd>
+              <div v-if="servicesLoading" class="py-16 text-center">
+                <span class="spinner" />
+                <p class="label mt-4 text-white/40">Loading services</p>
               </div>
-              <div class="flex justify-between gap-4">
-                <dt class="text-slate-500">Professional</dt>
-                <dd class="text-right font-medium text-slate-900">{{ selectedStaff?.name }}</dd>
-              </div>
-              <div class="flex justify-between gap-4">
-                <dt class="text-slate-500">When</dt>
-                <dd class="text-right font-medium text-slate-900">
-                  {{ formatDate(selectedDate) }} · {{ formatTime(selectedSlot) }}
-                </dd>
-              </div>
-              <div v-if="depositRequired && depositAmount" class="flex justify-between gap-4 border-t border-slate-200 pt-2">
-                <dt class="text-slate-500">Deposit to confirm</dt>
-                <dd class="text-right font-semibold text-indigo-700">{{ formatPrice(depositAmount) }}</dd>
-              </div>
-            </dl>
 
-            <!-- Deposit payment -->
-            <div
-              v-if="depositRequired"
-              class="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4"
-            >
-              <h3 class="text-sm font-semibold text-indigo-900">Pay your deposit</h3>
-              <p class="mt-1 text-sm text-indigo-800">
-                A <span class="font-semibold">{{ formatPrice(depositAmount) }}</span> deposit secures this booking.
+              <div v-else-if="servicesError" class="alert-error mt-7">
+                {{ servicesError }}
+                <button type="button" class="ml-2 underline" @click="loadServices">Retry</button>
+              </div>
+
+              <p v-else-if="services.length === 0" class="empty mt-7">
+                This salon has no bookable services right now.
               </p>
 
-              <!-- Method chooser: only when the salon offers both. -->
-              <div v-if="bothMethods" class="mt-3 grid gap-2 sm:grid-cols-2">
-                <label
-                  :class="[
-                    'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition',
-                    depositMethod === 'gateway'
-                      ? 'border-indigo-500 bg-white text-indigo-900 shadow-sm'
-                      : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300',
-                  ]"
+              <div v-else class="mt-8 space-y-3">
+                <button
+                  v-for="svc in services"
+                  :key="svc.id"
+                  type="button"
+                  class="option flex w-full items-center justify-between gap-5 p-5 text-left"
+                  :class="selectedService?.id === svc.id ? 'option-on' : ''"
+                  @click="selectService(svc)"
                 >
-                  <input v-model="depositMethod" type="radio" value="gateway" class="text-indigo-600" />
-                  Pay online
-                </label>
-                <label
-                  :class="[
-                    'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition',
-                    depositMethod === 'manual'
-                      ? 'border-indigo-500 bg-white text-indigo-900 shadow-sm'
-                      : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:border-indigo-300',
-                  ]"
-                >
-                  <input v-model="depositMethod" type="radio" value="manual" class="text-indigo-600" />
-                  Bank / wallet transfer
-                </label>
-              </div>
-
-              <!-- Online gateway -->
-              <div v-if="depositMethod === 'gateway'" class="mt-3 rounded-lg bg-white/70 px-3 py-3 text-sm text-indigo-800">
-                You'll be sent to a secure page to pay
-                <span class="font-semibold">{{ formatPrice(depositAmount) }}</span>
-                by card or mobile banking. Your booking is confirmed as soon as the payment succeeds.
-              </div>
-
-              <!-- Manual transfer -->
-              <div v-if="depositMethod === 'manual'" class="mt-3">
-                <p class="text-sm text-indigo-800">
-                  Send <span class="font-semibold">{{ formatPrice(depositAmount) }}</span>, then enter the
-                  transaction reference below.
-                </p>
-
-                <dl class="mt-3 space-y-1 text-sm">
-                  <div v-if="paymentPolicy?.manual?.account_number" class="flex justify-between gap-4">
-                    <dt class="text-indigo-700">Send to</dt>
-                    <dd class="text-right font-medium text-indigo-900">{{ paymentPolicy.manual.account_number }}</dd>
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                      <span class="font-display text-lg text-white">{{ svc.name }}</span>
+                      <span v-if="svc.category" class="chip">{{ svc.category.name }}</span>
+                    </div>
+                    <p v-if="svc.description" class="mt-1.5 line-clamp-2 text-sm text-white/40">{{ svc.description }}</p>
+                    <p class="mt-1.5 text-sm text-white/35">{{ svc.duration }} min</p>
                   </div>
-                </dl>
-                <p v-if="paymentPolicy?.manual?.instructions" class="mt-2 whitespace-pre-line text-xs text-indigo-700">
-                  {{ paymentPolicy.manual.instructions }}
-                </p>
+                  <div class="flex shrink-0 items-center gap-3">
+                    <span v-if="formatPrice(svc.price)" class="font-display text-xl text-white">{{ formatPrice(svc.price) }}</span>
+                    <svg class="h-4 w-4 text-white/25" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+            </section>
 
-                <div class="mt-3">
-                  <label class="mb-1 block text-sm font-medium text-indigo-900">
-                    Transaction reference <span class="text-rose-500">*</span>
-                  </label>
-                  <input
-                    v-model="paymentReference"
-                    type="text"
-                    placeholder="e.g. TXN123456"
-                    class="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                  />
-                  <p v-if="bookingErrors['payment_reference']" class="mt-1 text-sm text-rose-600">
-                    {{ bookingErrors['payment_reference'][0] }}
-                  </p>
-                  <p class="mt-1 text-xs text-indigo-600">
-                    Your deposit is held as pending until the salon confirms it arrived.
-                  </p>
+            <!-- ============ STEP 2: Staff ============ -->
+            <section v-else-if="step === 2">
+              <h2 class="font-display text-3xl text-white">Choose a professional</h2>
+              <p class="mt-2 text-sm text-white/45">Who would you like for your {{ selectedService?.name }}?</p>
+
+              <div v-if="staffLoading" class="py-16 text-center">
+                <span class="spinner" />
+                <p class="label mt-4 text-white/40">Loading team</p>
+              </div>
+
+              <div v-else-if="staffError" class="alert-error mt-7">
+                {{ staffError }}
+                <button type="button" class="ml-2 underline" @click="loadStaff">Retry</button>
+              </div>
+
+              <p v-else-if="staff.length === 0" class="empty mt-7">
+                No one is available for this service right now. Try another service.
+              </p>
+
+              <div v-else class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <button
+                  v-for="member in staff"
+                  :key="member.id"
+                  type="button"
+                  class="option group overflow-hidden text-left"
+                  :class="selectedStaff?.id === member.id ? 'option-on' : ''"
+                  @click="selectStaff(member)"
+                >
+                  <div class="relative aspect-4/3 overflow-hidden bg-[#0a0908]">
+                    <img
+                      v-if="member.profile_image"
+                      :src="member.profile_image"
+                      :alt="member.name"
+                      class="h-full w-full object-cover grayscale transition duration-700 group-hover:grayscale-0"
+                    />
+                    <div v-else class="flex h-full w-full items-center justify-center font-display text-5xl text-white/15">
+                      {{ initials(member.name) }}
+                    </div>
+                  </div>
+                  <div class="p-5">
+                    <p class="truncate font-display text-lg text-white">{{ member.name }}</p>
+                    <p v-if="member.designation" class="label mt-1 truncate text-white/40">{{ member.designation }}</p>
+                  </div>
+                </button>
+              </div>
+
+              <div class="mt-10 flex items-center justify-between gap-4">
+                <button type="button" class="btn-text" @click="goBack">← Back</button>
+                <button type="button" class="btn-gold" :disabled="!selectedStaff" @click="goStep(3)">
+                  Continue →
+                </button>
+              </div>
+            </section>
+
+            <!-- ============ STEP 3: Date & time ============ -->
+            <section v-else-if="step === 3">
+              <h2 class="font-display text-3xl text-white">Date &amp; time</h2>
+              <p class="mt-2 text-sm text-white/45">Select when you'd like your {{ selectedService?.name }}.</p>
+
+              <!-- Calendar -->
+              <div class="mt-9">
+                <div class="flex items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    class="cal-nav"
+                    :disabled="!canGoBackAMonth"
+                    aria-label="Previous month"
+                    @click="shiftMonth(-1)"
+                  >
+                    ‹
+                  </button>
+                  <p class="text-base text-white">{{ calendarLabel }}</p>
+                  <button type="button" class="cal-nav" aria-label="Next month" @click="shiftMonth(1)">›</button>
+                </div>
+
+                <div class="mt-7 grid grid-cols-7 gap-y-2 text-center">
+                  <span v-for="day in WEEKDAYS" :key="day" class="label pb-3 text-white/30">{{ day }}</span>
+                  <template v-for="(cell, i) in calendarDays" :key="i">
+                    <span v-if="!cell" />
+                    <button
+                      v-else
+                      type="button"
+                      class="cal-day"
+                      :class="[
+                        cell.value === selectedDate ? 'cal-day-on' : '',
+                        cell.past ? 'cal-day-off' : '',
+                      ]"
+                      :disabled="cell.past"
+                      @click="pickDate(cell)"
+                    >
+                      {{ cell.day }}
+                    </button>
+                  </template>
                 </div>
               </div>
-            </div>
 
-            <div
-              v-if="bookingMessage"
-              class="mt-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
-            >
-              {{ bookingMessage }}
-            </div>
-
-            <form class="mt-5 space-y-4" @submit.prevent="submitBooking">
-              <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700">Full name <span class="text-rose-500">*</span></label>
-                <input
-                  v-model="customer.name"
-                  type="text"
-                  required
-                  placeholder="Jane Doe"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                />
-                <p v-if="bookingErrors['customer.name']" class="mt-1 text-sm text-rose-600">{{ bookingErrors['customer.name'][0] }}</p>
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700">Phone <span class="text-rose-500">*</span></label>
-                <input
-                  v-model="customer.phone"
-                  type="tel"
-                  required
-                  placeholder="+1 555 000 1234"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                />
-                <p v-if="bookingErrors['customer.phone']" class="mt-1 text-sm text-rose-600">{{ bookingErrors['customer.phone'][0] }}</p>
-              </div>
-              <div>
-                <label class="mb-1 block text-sm font-medium text-slate-700">Email <span class="text-slate-400">(optional)</span></label>
-                <input
-                  v-model="customer.email"
-                  type="email"
-                  placeholder="jane@example.com"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                />
-                <p v-if="bookingErrors['customer.email']" class="mt-1 text-sm text-rose-600">{{ bookingErrors['customer.email'][0] }}</p>
+              <!-- Times -->
+              <div v-if="slotsLoading" class="py-14 text-center">
+                <span class="spinner" />
+                <p class="label mt-4 text-white/40">Finding open times</p>
               </div>
 
-              <div class="flex items-center justify-between gap-3 pt-2">
-                <button type="button" class="text-sm font-medium text-slate-500 transition hover:text-slate-700" @click="goBack">
-                  ← Back
+              <div v-else-if="slotsError" class="alert-error mt-9">
+                {{ slotsError }}
+                <button type="button" class="ml-2 underline" @click="loadSlots">Retry</button>
+              </div>
+
+              <p v-else-if="slots.length === 0" class="empty mt-9">
+                No open times on this day, try another date.
+              </p>
+
+              <div v-else class="mt-11">
+                <p class="rule-label text-white/35">Available — {{ formatDateShort(selectedDate) }}</p>
+                <div class="mt-5 grid grid-cols-3 gap-2.5 sm:grid-cols-6">
+                  <button
+                    v-for="slot in slots"
+                    :key="slot"
+                    type="button"
+                    class="slot"
+                    :class="selectedSlot === slot ? 'slot-on' : ''"
+                    @click="selectSlot(slot)"
+                  >
+                    {{ formatTime(slot) }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-10 flex items-center justify-between gap-4">
+                <button type="button" class="btn-text" @click="goBack">← Back</button>
+                <button type="button" class="btn-gold" :disabled="!selectedSlot" @click="goStep(4)">
+                  Continue →
                 </button>
-                <button
-                  type="submit"
-                  :disabled="booking"
-                  class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <svg v-if="booking" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </div>
+            </section>
+
+            <!-- ============ STEP 4: Details ============ -->
+            <section v-else-if="step === 4">
+              <h2 class="font-display text-3xl text-white">Your details</h2>
+              <p class="mt-2 text-sm text-white/45">Almost done — tell us who's coming in.</p>
+
+              <!-- Summary -->
+              <dl class="summary mt-8">
+                <div>
+                  <dt>Service</dt>
+                  <dd>{{ selectedService?.name }}</dd>
+                </div>
+                <div>
+                  <dt>Professional</dt>
+                  <dd>{{ selectedStaff?.name }}</dd>
+                </div>
+                <div>
+                  <dt>When</dt>
+                  <dd>{{ formatDate(selectedDate) }} · {{ formatTime(selectedSlot) }}</dd>
+                </div>
+                <div v-if="depositRequired && depositAmount" class="summary-total">
+                  <dt>Deposit to confirm</dt>
+                  <dd class="dd-accent">{{ formatPrice(depositAmount) }}</dd>
+                </div>
+              </dl>
+
+              <!-- Deposit payment -->
+              <div v-if="depositRequired" class="mt-7 border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-6">
+                <h3 class="rule-label text-[var(--accent)]">Pay your deposit</h3>
+                <p class="mt-4 text-sm text-white/65">
+                  A <span class="text-white">{{ formatPrice(depositAmount) }}</span> deposit secures this booking.
+                </p>
+
+                <!-- Method chooser: only when the salon offers both. -->
+                <div v-if="bothMethods" class="mt-5 grid gap-3 sm:grid-cols-2">
+                  <label class="method" :class="depositMethod === 'gateway' ? 'method-on' : ''">
+                    <input v-model="depositMethod" type="radio" value="gateway" class="accent-[var(--accent)]" />
+                    Pay online
+                  </label>
+                  <label class="method" :class="depositMethod === 'manual' ? 'method-on' : ''">
+                    <input v-model="depositMethod" type="radio" value="manual" class="accent-[var(--accent)]" />
+                    Bank / wallet transfer
+                  </label>
+                </div>
+
+                <!-- Online gateway -->
+                <p v-if="depositMethod === 'gateway'" class="mt-5 border border-white/8 bg-[#0a0908] p-4 text-sm leading-relaxed text-white/55">
+                  You'll be sent to a secure page to pay
+                  <span class="text-white">{{ formatPrice(depositAmount) }}</span>
+                  by card or mobile banking. Your booking is confirmed as soon as the payment succeeds.
+                </p>
+
+                <!-- Manual transfer -->
+                <div v-if="depositMethod === 'manual'" class="mt-5">
+                  <p class="text-sm text-white/55">
+                    Send <span class="text-white">{{ formatPrice(depositAmount) }}</span>, then enter the
+                    transaction reference below.
+                  </p>
+
+                  <dl v-if="paymentPolicy?.manual?.account_number" class="summary mt-4">
+                    <div>
+                      <dt>Send to</dt>
+                      <dd>{{ paymentPolicy.manual.account_number }}</dd>
+                    </div>
+                  </dl>
+                  <p v-if="paymentPolicy?.manual?.instructions" class="mt-3 text-sm leading-relaxed whitespace-pre-line text-white/40">
+                    {{ paymentPolicy.manual.instructions }}
+                  </p>
+
+                  <div class="mt-5">
+                    <label class="field-label">Transaction reference <span class="text-[var(--accent)]">*</span></label>
+                    <input v-model="paymentReference" type="text" placeholder="e.g. TXN123456" class="field" />
+                    <p v-if="bookingErrors['payment_reference']" class="field-error">
+                      {{ bookingErrors['payment_reference'][0] }}
+                    </p>
+                    <p class="mt-2 text-sm text-white/35">
+                      Your deposit is held as pending until the salon confirms it arrived.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="bookingMessage" class="alert-error mt-7">{{ bookingMessage }}</div>
+
+              <form class="mt-8 space-y-6" @submit.prevent="submitBooking">
+                <!-- Signed in: the account is the identity, so the form does
+                     not ask for it again. It only says who is booking. -->
+                <div v-if="account" class="identity">
+                  <span class="identity-label">Booking as</span>
+                  <span class="identity-name">{{ account.name || account.email }}</span>
+                  <span v-if="account.name" class="identity-email">{{ account.email }}</span>
+                </div>
+
+                <div v-if="needsName">
+                  <label class="field-label">Full name <span class="text-[var(--accent)]">*</span></label>
+                  <input v-model="customer.name" type="text" required placeholder="Jane Doe" class="field" />
+                  <p v-if="bookingErrors['customer.name']" class="field-error">{{ bookingErrors['customer.name'][0] }}</p>
+                </div>
+                <div>
+                  <label class="field-label">Phone <span class="text-[var(--accent)]">*</span></label>
+                  <input v-model="customer.phone" type="tel" required placeholder="+1 555 000 1234" class="field" />
+                  <p v-if="bookingErrors['customer.phone']" class="field-error">{{ bookingErrors['customer.phone'][0] }}</p>
+                </div>
+                <div v-if="!account">
+                  <label class="field-label">Email <span class="text-white/30">(optional)</span></label>
+                  <input v-model="customer.email" type="email" placeholder="jane@example.com" class="field" />
+                  <p v-if="bookingErrors['customer.email']" class="field-error">{{ bookingErrors['customer.email'][0] }}</p>
+                </div>
+
+                <div class="flex items-center justify-between gap-4 pt-2">
+                  <button type="button" class="btn-text" @click="goBack">← Back</button>
+                  <button type="submit" :disabled="booking" class="btn-gold">
+                    <span v-if="booking" class="spinner spinner-sm" />
+                    {{ submitLabel }}
+                    <svg v-if="!booking" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <!-- ============ STEP 5: Success ============ -->
+            <section v-else-if="step === 5 && confirmation" class="py-4 text-center">
+              <div class="relative mx-auto h-16 w-16">
+                <div class="flex h-full w-full items-center justify-center border border-[var(--accent)]">
+                  <svg class="h-7 w-7 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
-                  {{ submitLabel }}
-                </button>
+                </div>
+                <span class="absolute -top-1.5 -right-1.5 h-3 w-3 bg-[var(--accent)]" />
               </div>
-            </form>
-          </section>
 
-          <!-- ============ STEP 5: Success ============ -->
-          <section v-else-if="step === 5 && confirmation" class="py-4 text-center">
-            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-              <svg class="h-9 w-9 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-            </div>
-            <h2 class="mt-4 text-xl font-bold text-slate-900">Booking confirmed</h2>
-            <p class="mt-1 text-sm text-slate-500">We've saved your appointment. See you soon, {{ confirmation.customer?.name }}!</p>
+              <h2 class="mt-7 font-display text-3xl text-white">Booking confirmed</h2>
+              <p class="mt-2 text-sm text-white/45">
+                We've saved your appointment. See you soon, <span class="text-white">{{ confirmation.customer?.name }}</span>.
+              </p>
 
-            <dl class="mx-auto mt-6 max-w-sm space-y-2 rounded-xl bg-slate-50 p-5 text-left text-sm">
-              <div class="flex justify-between gap-4">
-                <dt class="text-slate-500">Date</dt>
-                <dd class="text-right font-medium text-slate-900">{{ formatDate(confirmation.date) }}</dd>
-              </div>
-              <div class="flex justify-between gap-4">
-                <dt class="text-slate-500">Time</dt>
-                <dd class="text-right font-medium text-slate-900">
-                  {{ formatTime(confirmation.start_time) }}<template v-if="confirmation.end_time"> – {{ formatTime(confirmation.end_time) }}</template>
-                </dd>
-              </div>
-              <div class="flex justify-between gap-4">
-                <dt class="text-slate-500">Service</dt>
-                <dd class="text-right font-medium text-slate-900">{{ confirmation.service?.name }}</dd>
-              </div>
-              <div class="flex justify-between gap-4">
-                <dt class="text-slate-500">Professional</dt>
-                <dd class="text-right font-medium text-slate-900">{{ confirmation.staff?.name }}</dd>
-              </div>
-              <div v-if="confirmation.branch?.name" class="flex justify-between gap-4">
-                <dt class="text-slate-500">Location</dt>
-                <dd class="text-right font-medium text-slate-900">{{ confirmation.branch.name }}</dd>
-              </div>
-              <div v-if="confirmation.status" class="flex justify-between gap-4">
-                <dt class="text-slate-500">Status</dt>
-                <dd class="text-right font-medium capitalize text-slate-900">{{ confirmation.status }}</dd>
-              </div>
-              <div
-                v-if="Number(confirmation.payment?.amount_pending) > 0"
-                class="flex justify-between gap-4 border-t border-slate-200 pt-2"
-              >
-                <dt class="text-slate-500">Deposit</dt>
-                <dd class="text-right font-medium text-amber-600">
-                  {{ formatPrice(confirmation.payment.amount_pending) }} · pending
-                </dd>
-              </div>
-            </dl>
+              <dl class="summary mt-9 text-left">
+                <div>
+                  <dt>Date</dt>
+                  <dd>{{ formatDate(confirmation.date) }}</dd>
+                </div>
+                <div>
+                  <dt>Time</dt>
+                  <dd>
+                    {{ formatTime(confirmation.start_time) }}<template v-if="confirmation.end_time"> – {{ formatTime(confirmation.end_time) }}</template>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Service</dt>
+                  <dd>{{ confirmation.service?.name }}</dd>
+                </div>
+                <div>
+                  <dt>Professional</dt>
+                  <dd>{{ confirmation.staff?.name }}</dd>
+                </div>
+                <div v-if="confirmation.branch?.name">
+                  <dt>Location</dt>
+                  <dd>{{ confirmation.branch.name }}</dd>
+                </div>
+                <div v-if="confirmation.status">
+                  <dt>Status</dt>
+                  <dd class="dd-accent capitalize">{{ confirmation.status }}</dd>
+                </div>
+                <div v-if="Number(confirmation.payment?.amount_pending) > 0" class="summary-total">
+                  <dt>Deposit</dt>
+                  <dd class="dd-accent">{{ formatPrice(confirmation.payment.amount_pending) }} · pending</dd>
+                </div>
+              </dl>
 
-            <p
-              v-if="Number(confirmation.payment?.amount_pending) > 0"
-              class="mx-auto mt-3 max-w-sm text-xs text-slate-500"
-            >
-              We've recorded your deposit reference. The salon will confirm it shortly.
-            </p>
+              <p v-if="Number(confirmation.payment?.amount_pending) > 0" class="mt-4 text-sm text-white/35">
+                We've recorded your deposit reference. The salon will confirm it shortly.
+              </p>
 
-            <p v-if="confirmation.public_token" class="mt-6 text-sm text-slate-500">
-              Need to make a change?
-              <a
-                :href="`/book/${slug}/manage/${confirmation.public_token}`"
-                class="font-medium text-indigo-600 hover:text-indigo-700"
-              >
-                Manage this booking
-              </a>
-            </p>
+              <p v-if="confirmation.public_token" class="mt-9 text-sm text-white/45">
+                Need to make a change?
+                <a
+                  :href="`/book/${slug}/manage/${confirmation.public_token}`"
+                  class="text-[var(--accent)] underline underline-offset-4 transition hover:text-white"
+                >
+                  Manage this booking
+                </a>
+              </p>
 
-            <button
-              type="button"
-              class="mt-4 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-              @click="resetWizard"
-            >
-              Book another
-            </button>
-          </section>
+              <div class="mt-7 flex flex-wrap justify-center gap-3">
+                <button type="button" class="btn-light" @click="resetWizard">Book another</button>
+                <RouterLink v-if="account" to="/account" class="btn-ghost">My bookings</RouterLink>
+                <RouterLink :to="`/salon/${slug}`" class="btn-ghost">Back to salon</RouterLink>
+              </div>
+            </section>
+          </div>
         </div>
 
-        <p class="mt-6 text-center text-xs text-slate-400">Powered by SalonHub</p>
+        <p class="label mt-9 text-center text-white/25">Powered by SalonHub</p>
       </main>
     </div>
   </div>
 </template>
+
+<style scoped>
+/*
+ * The wizard is the salon's shopfront continued indoors: same dark room, same
+ * brass, square corners. It deliberately shares no styling with the dashboard.
+ */
+.booking {
+  background: #080706;
+  color: #fff;
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
+.label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Eyebrow with a brass rule on each side, centred over the salon name. */
+.rule-label {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.rule-label::before {
+  content: '';
+  width: 1.75rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.rule-label.justify-center::after {
+  content: '';
+  width: 1.75rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.panel {
+  background: #131110;
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+/* Selectable card — service row, staff card, anything the customer picks. */
+.option {
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: #0e0d0c;
+  transition:
+    border-color 0.3s ease,
+    background-color 0.3s ease;
+}
+
+.option:hover {
+  border-color: rgb(255 255 255 / 0.2);
+  background: #121110;
+}
+
+.option-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, #0e0d0c);
+}
+
+.chip {
+  border: 1px solid rgb(255 255 255 / 0.15);
+  padding: 0.15rem 0.55rem;
+  font-size: 0.7rem;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.btn-gold,
+.btn-ghost,
+.btn-light {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.95rem 1.9rem;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    opacity 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-gold {
+  background: var(--accent);
+  color: #0a0908;
+}
+
+.btn-gold:hover:not(:disabled) {
+  background: #fff;
+}
+
+.btn-gold:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-light {
+  background: #fff;
+  color: #0a0908;
+}
+
+.btn-light:hover {
+  background: var(--accent);
+}
+
+.btn-ghost {
+  border: 1px solid rgb(255 255 255 / 0.22);
+  color: rgb(255 255 255 / 0.75);
+}
+
+.btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-text {
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+  transition: color 0.3s ease;
+}
+
+.btn-text:hover {
+  color: #fff;
+}
+
+/* Calendar */
+.cal-nav {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  color: rgb(255 255 255 / 0.6);
+  font-size: 1.1rem;
+  line-height: 1;
+  transition:
+    border-color 0.3s ease,
+    color 0.3s ease;
+}
+
+.cal-nav:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cal-nav:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.cal-day {
+  margin-inline: auto;
+  display: flex;
+  height: 2.6rem;
+  width: 2.6rem;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.8);
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.cal-day:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.cal-day-on,
+.cal-day-on:hover {
+  background: var(--accent);
+  color: #0a0908;
+}
+
+.cal-day-off {
+  color: rgb(255 255 255 / 0.2);
+  cursor: not-allowed;
+}
+
+/* Time chips */
+.slot {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  padding: 0.7rem 0.4rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.8);
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.slot:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.slot-on,
+.slot-on:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #0a0908;
+}
+
+/* Summary / detail rows */
+.summary {
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: #0e0d0c;
+  padding: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-block: 0.5rem;
+}
+
+.summary dt {
+  color: rgb(255 255 255 / 0.4);
+}
+
+.summary dd {
+  text-align: right;
+  color: #fff;
+}
+
+/* Beats `.summary dd` on specificity, which a utility class would not. */
+.summary dd.dd-accent {
+  color: var(--accent);
+}
+
+.summary-total {
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+  margin-top: 0.5rem;
+  padding-top: 1rem !important;
+}
+
+/* Form fields */
+/* Who the booking is for, when the visitor is signed in. */
+.identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  border-left: 1px solid var(--accent);
+  background: rgb(255 255 255 / 0.02);
+  padding: 0.85rem 1.1rem;
+}
+
+.identity-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.identity-name {
+  color: #fff;
+}
+
+.identity-email {
+  font-size: 0.85rem;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.field {
+  width: 100%;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: #0a0908;
+  padding: 0.9rem 1rem;
+  color: #fff;
+  outline: none;
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease;
+}
+
+.field::placeholder {
+  color: rgb(255 255 255 / 0.25);
+}
+
+.field:focus {
+  border-color: var(--accent);
+  background: #0e0d0c;
+}
+
+/* Chrome paints autofilled inputs pale blue; keep the room dark. */
+.field:-webkit-autofill,
+.field:-webkit-autofill:hover,
+.field:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  -webkit-box-shadow: 0 0 0 60rem #0a0908 inset;
+  caret-color: #fff;
+}
+
+.field-error {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #f2a0a0;
+}
+
+.method {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  color: rgb(255 255 255 / 0.7);
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.method-on {
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.alert-error {
+  border: 1px solid rgb(242 160 160 / 0.35);
+  background: rgb(242 160 160 / 0.07);
+  padding: 0.9rem 1.1rem;
+  font-size: 0.9rem;
+  color: #f2a0a0;
+}
+
+.empty {
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: #0e0d0c;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: rgb(255 255 255 / 0.4);
+}
+
+/* One brass ring, used wherever something is loading. */
+.spinner {
+  display: inline-block;
+  height: 1.5rem;
+  width: 1.5rem;
+  border: 1px solid rgb(255 255 255 / 0.15);
+  border-top-color: var(--accent);
+  border-radius: 9999px;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner-sm {
+  height: 0.9rem;
+  width: 0.9rem;
+  border-top-color: #0a0908;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>
