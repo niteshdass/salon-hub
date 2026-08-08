@@ -72,8 +72,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        // The lines are wholly derived from appointments.service_id, which
-        // still exists at this point; clearing them is a clean reversal.
-        DB::table('appointment_services')->delete();
+        // Deliberately empty. Once multi-service booking is live these rows
+        // are no longer wholly derived from appointments.service_id, and
+        // nothing separates a backfilled line from one a customer actually
+        // booked. Reversing the schema belongs to 2026_08_09_100000, which
+        // drops the table outright.
     }
 };
