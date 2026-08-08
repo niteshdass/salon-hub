@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AppointmentStatus;
 use App\Enums\UserRole;
 use App\Models\Appointment;
+use App\Models\Expense;
 use App\Models\Review;
 use App\Models\Service;
 use App\Models\User;
@@ -31,6 +32,7 @@ class ReportService
             'top_services' => $this->topServices($from, $to),
             'staff' => $this->staffPerformance($from, $to),
             'bookings' => $this->bookingsBreakdown($from, $to),
+            'profit' => $this->profit($from, $to),
         ];
     }
 
@@ -332,6 +334,41 @@ class ReportService
             'by_status' => $byStatus,
             'busiest_day' => $this->peak($dayCounts, 'weekday'),
             'busiest_hour' => $this->peak($hourCounts, 'hour'),
+        ];
+    }
+
+    /**
+     * Earned revenue against everything the salon spent in the same window.
+     * Staff pay arrives here as the single salary expense a finalized payroll
+     * run writes, so it is counted exactly once.
+     *
+     * @return array<string, mixed>
+     */
+    protected function profit(string $from, string $to): array
+    {
+        $rows = Expense::query()
+            ->whereDate('expense_date', '>=', $from)
+            ->whereDate('expense_date', '<=', $to)
+            ->selectRaw('category, SUM(amount) as amount')
+            ->groupBy('category')
+            ->get();
+
+        $total = round((float) $rows->sum('amount'), 2);
+        $earned = $this->earnedWindow($from, $to)['earned'];
+
+        return [
+            'earned' => $earned,
+            'expenses_total' => $total,
+            'expenses_by_category' => $rows
+                ->sortByDesc(fn ($row) => (float) $row->amount)
+                ->map(fn ($row) => [
+                    'category' => $row->category,
+                    'amount' => round((float) $row->amount, 2),
+                    'share_pct' => $total > 0 ? round((float) $row->amount / $total * 100, 1) : 0.0,
+                ])
+                ->values()
+                ->all(),
+            'net_profit' => round($earned - $total, 2),
         ];
     }
 
