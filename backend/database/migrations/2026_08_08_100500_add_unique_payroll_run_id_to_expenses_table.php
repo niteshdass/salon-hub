@@ -23,10 +23,18 @@ return new class extends Migration
         });
     }
 
+    /**
+     * MySQL satisfies the foreign key added one migration earlier with this
+     * very index rather than creating its own, so dropping it on its own is
+     * refused (errno 1553). Drop the constraint, drop the index, put the
+     * constraint back — it then builds the plain index it needs.
+     */
     public function down(): void
     {
         Schema::table('expenses', function (Blueprint $table) {
+            $table->dropForeign(['payroll_run_id']);
             $table->dropUnique(['payroll_run_id']);
+            $table->foreign('payroll_run_id')->references('id')->on('payroll_runs')->cascadeOnDelete();
         });
     }
 };
