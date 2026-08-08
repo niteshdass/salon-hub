@@ -14,7 +14,7 @@
 
 - Backend commands run from `backend/`; frontend commands from `frontend/`.
 - Backend tests: `php artisan test`. A single file: `php artisan test tests/Feature/Path/FileTest.php`.
-- Frontend tests: `npm run test`. A single file: `npm run test -- src/views/File.spec.js`.
+- Frontend tests: `npm run test:unit`. A single file: `npm run test:unit -- src/views/File.spec.js`.
 - Every model that is reachable directly from a controller carries `BelongsToOrganization`. `AppointmentService` does **not** — it is only ever reached through its appointment, exactly like `PayrollLine` is only reached through its run.
 - Every `Rule::exists()` on a tenant-owned table must be constrained with `->where('organization_id', $tenantId)`. Never accept a bare id.
 - Money columns are `decimal(10,2)`; money returned from the API is a string formatted with `number_format($v, 2, '.', '')`.
@@ -2261,7 +2261,7 @@ describe('PublicBookingView service selection', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd frontend && npm run test -- src/views/PublicBookingView.spec.js`
+Run: `cd frontend && npm run test:unit -- src/views/PublicBookingView.spec.js`
 Expected: FAIL — `toggleService is not a function`.
 
 - [ ] **Step 3: Replace the single-service state**
@@ -2331,7 +2331,7 @@ No one can do all of these — try removing a service.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `cd frontend && npm run test -- src/views/PublicBookingView.spec.js`
+Run: `cd frontend && npm run test:unit -- src/views/PublicBookingView.spec.js`
 Expected: PASS, 2 tests.
 
 - [ ] **Step 7: Commit**
@@ -2381,7 +2381,7 @@ This requires exporting the helper as a named export from the SFC's `<script>` b
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd frontend && npm run test -- src/views/AppointmentsView.spec.js`
+Run: `cd frontend && npm run test:unit -- src/views/AppointmentsView.spec.js`
 Expected: FAIL — no such export.
 
 - [ ] **Step 3: Replace the single-service form state**
@@ -2437,7 +2437,7 @@ Initialise `paymentForm.tip_amount = ''` and send `tip_amount: paymentForm.tip_a
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `cd frontend && npm run test -- src/views/AppointmentsView.spec.js`
+Run: `cd frontend && npm run test:unit -- src/views/AppointmentsView.spec.js`
 Expected: PASS, 2 tests.
 
 - [ ] **Step 7: Commit**
@@ -2475,7 +2475,7 @@ In the payroll view, add a `Tips` header and cell between Commission and Total, 
 
 - [ ] **Step 4: Run the frontend suite and build**
 
-Run: `cd frontend && npm run test && npm run build`
+Run: `cd frontend && npm run test:unit && npm run build`
 Expected: PASS, and a clean build.
 
 - [ ] **Step 5: Run the whole backend suite once more**
@@ -2498,5 +2498,5 @@ After Task 15, confirm end to end:
 
 1. `cd backend && php artisan migrate:fresh --seed` completes.
 2. `cd backend && php artisan test` — all green.
-3. `cd frontend && npm run test && npm run build` — all green.
+3. `cd frontend && npm run test:unit && npm run build` — all green.
 4. Manually: book two services on the public site, confirm the calendar block spans both durations, take a payment with a tip at the counter, open the invoice (two line items, tips shown separately, balance unaffected), then generate a payroll run for that month and confirm the tip appears in Tips and in Total but not in Earned revenue.
