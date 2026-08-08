@@ -49,8 +49,8 @@ body {
 /*
  * Admin surface primitives. Every view used to hand-roll its own slate/indigo
  * utility strings, so card radii and table headers drifted page to page. The
- * auth-* names are kept as aliases of the sh-* ones — five auth views point at
- * them and convert in their own commit.
+ * auth-* aliases at the foot of this block are down to a single consumer —
+ * see the note there before deleting any of them.
  */
 @layer components {
   .sh-card {

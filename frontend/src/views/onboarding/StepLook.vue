@@ -180,7 +180,7 @@ async function save() {
               type="button"
               class="h-9 w-9 rounded-full ring-2 ring-offset-2 transition"
               :style="{ backgroundColor: colour }"
-              :class="themeColor === colour ? 'ring-slate-900' : 'ring-transparent'"
+              :class="themeColor === colour ? 'ring-ink' : 'ring-transparent'"
               :aria-label="colour"
               @click="themeColor = colour"
             />
