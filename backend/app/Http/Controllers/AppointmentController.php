@@ -114,11 +114,18 @@ class AppointmentController extends Controller
     {
         $data = $request->validated();
 
+        // Only re-price and re-time the visit when the caller actually sent
+        // service_ids. A status-only (or staff-id/date-only) PATCH — the
+        // most common update in the product — must leave the price snapshot,
+        // the lines, and the duration exactly as they were.
+        $resync = array_key_exists('service_ids', $data);
+
         // Effective schedule after applying any partial changes.
         $staffId = $data['staff_id'] ?? $appointment->staff_id;
         $bookingDate = $data['booking_date'] ?? $appointment->booking_date->format('Y-m-d');
-        $serviceIds = $data['service_ids'] ?? $appointment->lines->pluck('service_id')->filter()->all();
-        $duration = $this->writer->totalsFor($serviceIds)['duration'];
+        $duration = $resync
+            ? $this->writer->totalsFor($data['service_ids'])['duration']
+            : $appointment->durationMinutes();
 
         $startSource = $data['start_time'] ?? $appointment->start_time;
         $startTime = $this->scheduler->normalizeTime($startSource);
@@ -131,11 +138,15 @@ class AppointmentController extends Controller
 
         $data['start_time'] = $startTime;
         $data['end_time'] = $endTime;
+        $serviceIds = $data['service_ids'] ?? null;
         unset($data['service_ids']);
 
-        $appointment = DB::transaction(function () use ($appointment, $data, $serviceIds) {
+        $appointment = DB::transaction(function () use ($appointment, $data, $resync, $serviceIds) {
             $appointment->update($data);
-            $this->writer->sync($appointment, $serviceIds);
+
+            if ($resync) {
+                $this->writer->sync($appointment, $serviceIds);
+            }
 
             return $appointment;
         });

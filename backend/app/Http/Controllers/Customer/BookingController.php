@@ -74,7 +74,7 @@ class BookingController extends Controller
         $booking->loadMissing(['staff', 'branch']);
 
         // An existing booking already knows how long it takes: its own window.
-        $duration = (int) ((strtotime($booking->end_time) - strtotime($booking->start_time)) / 60);
+        $duration = $booking->durationMinutes();
 
         return response()->json(['data' => [
             'date' => $data['date'],
@@ -99,7 +99,7 @@ class BookingController extends Controller
         $booking->loadMissing(['staff', 'branch']);
 
         // An existing booking already knows how long it takes: its own window.
-        $duration = (int) ((strtotime($booking->end_time) - strtotime($booking->start_time)) / 60);
+        $duration = $booking->durationMinutes();
 
         $startTime = $scheduler->normalizeTime($data['start_time']);
         $endTime = $scheduler->deriveEndTime($data['start_time'], $duration);

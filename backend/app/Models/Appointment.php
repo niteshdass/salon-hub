@@ -133,6 +133,17 @@ class Appointment extends Model
         return number_format((float) $sum, 2, '.', '');
     }
 
+    /**
+     * Minutes between start_time and end_time, from the stored window
+     * itself — not recomputed from the lines, which may since have drifted
+     * from today's menu. The one place every reschedule/status path that
+     * needs "how long is this visit" without re-pricing it should read from.
+     */
+    public function durationMinutes(): int
+    {
+        return (int) ((strtotime($this->end_time) - strtotime($this->start_time)) / 60);
+    }
+
     /** Still customer-editable (pending or confirmed). */
     public function isChangeable(): bool
     {

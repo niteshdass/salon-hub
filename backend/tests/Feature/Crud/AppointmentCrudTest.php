@@ -10,6 +10,7 @@ use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -319,5 +320,123 @@ class AppointmentCrudTest extends TestCase
         $status->assertOk();
         $status->assertJsonPath('data.status', 'confirmed');
         $status->assertJsonPath('data.end_time', '10:30');
+    }
+
+    /**
+     * A status-only PATCH is the most-used control in the product. It must
+     * never re-read the menu: the customer was quoted at booking time, and
+     * that quote is what the invoice, the balance and every revenue report
+     * still owe them.
+     */
+    public function test_status_only_update_does_not_reprice_or_retime(): void
+    {
+        $ctx = $this->scaffold('nomut', 30);
+
+        $id = $this->withToken($ctx['token'])
+            ->postJson('/api/appointments', $this->bookingPayload($ctx))
+            ->json('data.id');
+
+        // The salon raises the price and lengthens the service after booking.
+        $ctx['service']->update(['price' => 90, 'duration' => 60]);
+
+        $response = $this->withToken($ctx['token'])->patchJson("/api/appointments/{$id}", [
+            'status' => 'completed',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.price', '25.00');
+        $response->assertJsonPath('data.end_time', '10:30');
+
+        $this->assertDatabaseHas('appointments', ['id' => $id, 'price' => 25, 'end_time' => '10:30:00']);
+        $this->assertDatabaseHas('appointment_services', [
+            'appointment_id' => $id, 'name' => 'Haircut', 'price' => 25, 'duration' => 30,
+        ]);
+    }
+
+    /**
+     * Staff are restricted to a status-only payload by policy — exactly the
+     * payload the regression re-priced. The lowest-privileged role must not
+     * be the one that can rewrite money.
+     */
+    public function test_staff_status_only_update_does_not_reprice_or_retime(): void
+    {
+        $ctx = $this->scaffold('staffnomut', 30);
+        $staffToken = $ctx['staff']->createToken('api')->plainTextToken;
+
+        $id = $this->withToken($ctx['token'])
+            ->postJson('/api/appointments', $this->bookingPayload($ctx))
+            ->json('data.id');
+
+        $ctx['service']->update(['price' => 90, 'duration' => 60]);
+
+        $this->app['auth']->forgetGuards();
+        $response = $this->withToken($staffToken)->patchJson("/api/appointments/{$id}", [
+            'status' => 'completed',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.price', '25.00');
+        $response->assertJsonPath('data.end_time', '10:30');
+        $this->assertDatabaseHas('appointments', ['id' => $id, 'price' => 25, 'end_time' => '10:30:00']);
+    }
+
+    /**
+     * A line's service_id goes NULL when the service behind it is later
+     * removed from the menu (the column's own nullOnDelete). A status-only
+     * PATCH must not resync at all, so that line — and the price it
+     * contributes — must survive untouched.
+     */
+    public function test_status_update_survives_a_line_with_a_null_service_id(): void
+    {
+        $ctx = $this->scaffold('nullline', 30);
+
+        $id = $this->withToken($ctx['token'])
+            ->postJson('/api/appointments', $this->bookingPayload($ctx))
+            ->json('data.id');
+
+        // Bypasses ServiceController's own refusal on purpose, exactly as
+        // AppointmentServiceLineTest does: the column's nullOnDelete is what
+        // guarantees history survives any future deletion path.
+        DB::table('services')->where('id', $ctx['service']->id)->delete();
+
+        $response = $this->withToken($ctx['token'])->patchJson("/api/appointments/{$id}", [
+            'status' => 'confirmed',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.price', '25.00');
+        $this->assertDatabaseCount('appointment_services', 1);
+        $this->assertDatabaseHas('appointment_services', [
+            'appointment_id' => $id, 'service_id' => null, 'name' => 'Haircut', 'price' => 25,
+        ]);
+        $this->assertDatabaseHas('appointments', ['id' => $id, 'price' => 25]);
+    }
+
+    /**
+     * The fix must not turn resyncing off altogether: an update that does
+     * send service_ids still has to re-price, re-time and rewrite the lines.
+     */
+    public function test_update_with_service_ids_still_resyncs_price_duration_and_lines(): void
+    {
+        $ctx = $this->scaffold('resync', 30);
+
+        $extra = Service::create([
+            'organization_id' => $ctx['org']->id, 'name' => 'Blow Dry',
+            'duration' => 20, 'price' => 15, 'status' => 'active',
+        ]);
+
+        $id = $this->withToken($ctx['token'])
+            ->postJson('/api/appointments', $this->bookingPayload($ctx))
+            ->json('data.id');
+
+        $response = $this->withToken($ctx['token'])->patchJson("/api/appointments/{$id}", [
+            'service_ids' => [$ctx['service']->id, $extra->id],
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.price', '40.00');
+        $response->assertJsonPath('data.end_time', '10:50');
+        $this->assertDatabaseCount('appointment_services', 2);
+        $this->assertDatabaseHas('appointments', ['id' => $id, 'price' => 40, 'end_time' => '10:50:00']);
     }
 }

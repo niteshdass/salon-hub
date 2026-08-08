@@ -494,7 +494,7 @@ class BookingController extends Controller
         $appointment->loadMissing(['staff', 'branch']);
 
         // An existing booking already knows how long it takes: its own window.
-        $duration = (int) ((strtotime($appointment->end_time) - strtotime($appointment->start_time)) / 60);
+        $duration = $appointment->durationMinutes();
 
         $startTime = $this->scheduler->normalizeTime($data['start_time']);
         $endTime = $this->scheduler->deriveEndTime($data['start_time'], $duration);
