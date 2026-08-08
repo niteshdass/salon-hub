@@ -678,12 +678,15 @@ class AppointmentServiceBackfillTest extends TestCase
         $this->assertCount(1, $lines);
         $this->assertSame($service->id, (int) $lines[0]->service_id);
         $this->assertSame('Haircut', $lines[0]->name);
-        $this->assertSame('35.00', (string) $lines[0]->price);
+        // Compared as a number, not a string: these are raw query results, so
+        // the model's decimal:2 cast never runs and each database engine picks
+        // its own trailing zeros.
+        $this->assertSame(35.0, (float) $lines[0]->price);
         $this->assertSame(30, (int) $lines[0]->duration);
         $this->assertSame(0, (int) $lines[0]->sort_order);
 
         // The appointment's own total is untouched.
-        $this->assertSame('35.00', (string) DB::table('appointments')->find($appointmentId)->price);
+        $this->assertSame(35.0, (float) DB::table('appointments')->find($appointmentId)->price);
     }
 
     public function test_it_is_safe_to_run_twice(): void
