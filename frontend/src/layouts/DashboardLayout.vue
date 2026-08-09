@@ -200,7 +200,7 @@ async function onLogout() {
         <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-500 text-sm font-bold text-accent-fg">
           S
         </div>
-        <span class="font-display text-xl font-semibold text-white">SalonHub</span>
+        <span class="font-display text-xl font-semibold text-white">Glowhub</span>
       </div>
 
       <nav class="flex-1 space-y-6 overflow-y-auto px-3 pb-4">

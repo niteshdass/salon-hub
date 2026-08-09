@@ -49,13 +49,13 @@ class RegisterTest extends TestCase
         // Primary domain created.
         $domain = Domain::where('organization_id', $organization->id)->where('is_primary', true)->first();
         $this->assertNotNull($domain);
-        $this->assertSame('glamour-studio.salonhub.com', $domain->domain);
+        $this->assertSame('glamour-studio.glowhub.com', $domain->domain);
 
         // Settings row created.
         $this->assertNotNull(Setting::where('organization_id', $organization->id)->first());
 
         // Primary domain surfaced in response.
-        $this->assertSame('glamour-studio.salonhub.com', $response->json('organization.primary_domain'));
+        $this->assertSame('glamour-studio.glowhub.com', $response->json('organization.primary_domain'));
     }
 
     public function test_registration_creates_a_default_branch_with_opening_hours(): void
@@ -114,8 +114,8 @@ class RegisterTest extends TestCase
                 "The reserved slug [{$reserved}] was created anyway."
             );
             $this->assertNull(
-                Domain::where('domain', $reserved.'.salonhub.com')->first(),
-                "The reserved host [{$reserved}.salonhub.com] was minted anyway."
+                Domain::where('domain', $reserved.'.glowhub.com')->first(),
+                "The reserved host [{$reserved}.glowhub.com] was minted anyway."
             );
         }
     }
@@ -138,9 +138,9 @@ class RegisterTest extends TestCase
         $organization = Organization::where('email', 'owner@app-salon.test')->firstOrFail();
 
         $this->assertSame('app-2', $organization->slug);
-        $this->assertNull(Domain::where('domain', 'app.salonhub.com')->first());
+        $this->assertNull(Domain::where('domain', 'app.glowhub.com')->first());
         $this->assertSame(
-            'app-2.salonhub.com',
+            'app-2.glowhub.com',
             Domain::where('organization_id', $organization->id)->value('domain')
         );
     }
@@ -202,7 +202,7 @@ class RegisterTest extends TestCase
 
     /**
      * Str::slug('💇') === '', which used to be accepted: the organization got
-     * an empty slug and a Domain row of ".salonhub.com", unrecoverable because
+     * an empty slug and a Domain row of ".glowhub.com", unrecoverable because
      * there is no slug-change flow.
      */
     public function test_a_name_with_nothing_transliterable_falls_back_to_a_usable_slug(): void
@@ -218,7 +218,7 @@ class RegisterTest extends TestCase
 
         $this->assertSame('salon', $organization->slug);
         $this->assertSame(
-            'salon.salonhub.com',
+            'salon.glowhub.com',
             Domain::where('organization_id', $organization->id)->value('domain')
         );
     }

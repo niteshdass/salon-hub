@@ -1,4 +1,4 @@
-# SalonHub — production deployment runbook
+# Glowhub — production deployment runbook
 
 Follow this top to bottom on a fresh Ubuntu 24.04 VPS. Two pieces are **not
 optional**:
@@ -163,7 +163,7 @@ Expected: prints `Composer version 2.` or newer.
 
 ### certbot with the Cloudflare DNS plugin
 
-Needed for the wildcard certificate in Step 3 — issuing `*.salonhub.com`
+Needed for the wildcard certificate in Step 3 — issuing `*.glowhub.com`
 requires the DNS-01 challenge, which the HTTP-01 challenge used by the
 plain `certbot --nginx` flow cannot do.
 
@@ -192,7 +192,7 @@ create, all pointed at the VPS's public IP:
 | A    | `@`    | Proxied |
 | A    | `*`    | Proxied |
 
-Salon booking sites live at `<slug>.salonhub.com` (`APP_DOMAIN=salonhub.com`
+Salon booking sites live at `<slug>.glowhub.com` (`APP_DOMAIN=glowhub.com`
 in the production `.env` — see Step 5), and that subdomain is where the site
 is actually served from: the Host header, not the URL path, tells the
 application which salon's data to return. So the wildcard `A *` record is
@@ -210,8 +210,8 @@ every visitor.
 Verify (from any machine, once DNS has propagated):
 
 ```bash
-dig +short app.salonhub.com
-dig +short anything.salonhub.com
+dig +short app.glowhub.com
+dig +short anything.glowhub.com
 ```
 
 Expected: both print the VPS's public IP.
@@ -223,13 +223,13 @@ Expected: both print the VPS's public IP.
 Salon subdomains live at `<slug>.APP_DOMAIN` (Task 8's CORS config matches
 that same pattern in `backend/config/cors.php`), so the certificate must
 cover the wildcard, not just the apex. One certificate, requested with both
-names, covers `app.salonhub.com`, `www.salonhub.com`, the bare
-`salonhub.com` apex, and every `<slug>.salonhub.com` — both vhosts
+names, covers `app.glowhub.com`, `www.glowhub.com`, the bare
+`glowhub.com` apex, and every `<slug>.glowhub.com` — both vhosts
 installed in Step 6 point at the same cert files.
 
 Create the Cloudflare API token credentials file (a genuine per-server
 secret — generate a Cloudflare API token scoped to `Zone:DNS:Edit` for
-`salonhub.com` and substitute it below):
+`glowhub.com` and substitute it below):
 
 ```bash
 sudo mkdir -p /root/.secrets/certbot
@@ -247,7 +247,7 @@ one from memory until someone notices:
 sudo certbot certonly --dns-cloudflare \
   --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini \
   --deploy-hook "systemctl reload nginx" \
-  -d salonhub.com -d '*.salonhub.com'
+  -d glowhub.com -d '*.glowhub.com'
 ```
 
 Verify:
@@ -256,8 +256,8 @@ Verify:
 sudo certbot certificates
 ```
 
-Expected: one certificate for `salonhub.com`, `Domains:` line lists both
-`salonhub.com` and `*.salonhub.com`, `VALID:` shows roughly 90 days.
+Expected: one certificate for `glowhub.com`, `Domains:` line lists both
+`glowhub.com` and `*.glowhub.com`, `VALID:` shows roughly 90 days.
 
 Certbot's systemd timer (`certbot.timer`, installed automatically with the
 package) renews it automatically — no cron entry needed for this.
@@ -267,7 +267,7 @@ package) renews it automatically — no cron entry needed for this.
 ## 4. Database
 
 Create the database and a user matching the `DB_*` values you will put in
-`.env` in Step 5. `salonhub` is the database/user name used by
+`.env` in Step 5. `glowhub` is the database/user name used by
 `docs/deploy/env.production.example`; the password is a genuine per-server
 secret — generate one and use the *same* value here and in `.env`:
 
@@ -277,9 +277,9 @@ openssl rand -base64 32
 
 ```bash
 sudo mysql -u root <<'SQL'
-CREATE DATABASE salonhub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'salonhub'@'127.0.0.1' IDENTIFIED BY 'REPLACE_WITH_GENERATED_PASSWORD';
-GRANT ALL PRIVILEGES ON salonhub.* TO 'salonhub'@'127.0.0.1';
+CREATE DATABASE glowhub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'glowhub'@'127.0.0.1' IDENTIFIED BY 'REPLACE_WITH_GENERATED_PASSWORD';
+GRANT ALL PRIVILEGES ON glowhub.* TO 'glowhub'@'127.0.0.1';
 FLUSH PRIVILEGES;
 SQL
 ```
@@ -292,7 +292,7 @@ to the wrong one fails silently at connect time.
 Verify:
 
 ```bash
-mysql -u salonhub -p -h 127.0.0.1 salonhub -e "SELECT 1"
+mysql -u glowhub -p -h 127.0.0.1 glowhub -e "SELECT 1"
 ```
 
 Expected: prompts for the password, then prints a `1` row with no error.
@@ -306,7 +306,7 @@ this runbook:** a dedicated `deploy` user owns the checkout and runs every
 deploy, including this first one (`git`, `composer`, `npm`, `artisan` — see
 `deploy.sh`, which must always be run as `deploy`). `deploy` is a member of
 the `www-data` group — the same group php-fpm and the queue worker run
-under, per `salonhub-worker.conf`'s `user=www-data`. `storage/` and
+under, per `glowhub-worker.conf`'s `user=www-data`. `storage/` and
 `bootstrap/cache/` are group-owned `www-data` with the setgid bit set, so
 whichever of the two users writes a file there, the other can still read
 and write it afterwards. `deploy` has no interactive login of its own —
@@ -318,10 +318,10 @@ commands `deploy.sh` runs as root (nothing broader):
 ```bash
 sudo useradd -m -s /bin/bash deploy
 sudo usermod -aG www-data deploy
-sudo tee /etc/sudoers.d/salonhub-deploy > /dev/null <<'EOF'
-deploy ALL=(root) NOPASSWD: /usr/bin/supervisorctl restart salonhub-worker:*, /usr/bin/systemctl reload php8.4-fpm
+sudo tee /etc/sudoers.d/glowhub-deploy > /dev/null <<'EOF'
+deploy ALL=(root) NOPASSWD: /usr/bin/supervisorctl restart glowhub-worker:*, /usr/bin/systemctl reload php8.4-fpm
 EOF
-sudo chmod 440 /etc/sudoers.d/salonhub-deploy
+sudo chmod 440 /etc/sudoers.d/glowhub-deploy
 ```
 
 Verify the sudoers file is valid before relying on it — a broken sudoers
@@ -332,7 +332,7 @@ sudo visudo -c
 ```
 
 Expected: every file it lists, including
-`/etc/sudoers.d/salonhub-deploy: parsed OK`, with no errors.
+`/etc/sudoers.d/glowhub-deploy: parsed OK`, with no errors.
 
 Verify the grant actually works with no password prompt (php-fpm is
 already running from Step 1, and reloading it is a no-downtime operation,
@@ -344,12 +344,12 @@ sudo -u deploy sudo -n systemctl reload php8.4-fpm && echo "deploy can reload ph
 
 Expected: `deploy can reload php-fpm passwordlessly`.
 
-Create `/var/www/salonhub` owned by `deploy`, then switch into that user
+Create `/var/www/glowhub` owned by `deploy`, then switch into that user
 for the clone and initial setup:
 
 ```bash
-sudo mkdir -p /var/www/salonhub
-sudo chown deploy:deploy /var/www/salonhub
+sudo mkdir -p /var/www/glowhub
+sudo chown deploy:deploy /var/www/glowhub
 sudo -iu deploy
 ```
 
@@ -358,8 +358,8 @@ Install PHP dependencies before `key:generate` — `php artisan` needs
 `vendor/autoload.php` to run at all:
 
 ```bash
-git clone <YOUR_GIT_REMOTE_URL> /var/www/salonhub
-cd /var/www/salonhub/backend
+git clone <YOUR_GIT_REMOTE_URL> /var/www/glowhub
+cd /var/www/glowhub/backend
 composer install --no-dev --optimize-autoloader
 ```
 
@@ -399,7 +399,7 @@ grep '^APP_KEY=' .env
 ```
 
 ...into your team's password manager or secrets vault, labelled
-`salonhub-production-app-key`. Treat it exactly like the DB password: never
+`glowhub-production-app-key`. Treat it exactly like the DB password: never
 in Slack, never in a plaintext note, never committed.
 
 ```bash
@@ -415,10 +415,10 @@ setgid bit so that stays true for every file created afterwards by either
 user:
 
 ```bash
-sudo chgrp -R www-data /var/www/salonhub/backend/storage \
-  /var/www/salonhub/backend/bootstrap/cache
-sudo chmod -R 2775 /var/www/salonhub/backend/storage \
-  /var/www/salonhub/backend/bootstrap/cache
+sudo chgrp -R www-data /var/www/glowhub/backend/storage \
+  /var/www/glowhub/backend/bootstrap/cache
+sudo chmod -R 2775 /var/www/glowhub/backend/storage \
+  /var/www/glowhub/backend/bootstrap/cache
 ```
 
 Verify both users this actually matters for — `deploy` (runs `artisan
@@ -427,11 +427,11 @@ queue worker, writing logs/sessions/cache at runtime) — can really write
 both directories. Do this now, before Step 9's first deploy, not after:
 
 ```bash
-sudo -u deploy test -w /var/www/salonhub/backend/storage && \
-  sudo -u deploy test -w /var/www/salonhub/backend/bootstrap/cache && \
+sudo -u deploy test -w /var/www/glowhub/backend/storage && \
+  sudo -u deploy test -w /var/www/glowhub/backend/bootstrap/cache && \
   echo "deploy can write both directories"
-sudo -u www-data test -w /var/www/salonhub/backend/storage && \
-  sudo -u www-data test -w /var/www/salonhub/backend/bootstrap/cache && \
+sudo -u www-data test -w /var/www/glowhub/backend/storage && \
+  sudo -u www-data test -w /var/www/glowhub/backend/bootstrap/cache && \
   echo "www-data can write both directories"
 ```
 
@@ -442,7 +442,7 @@ Verify the app key was written (`.env` is `chmod 600` owned by `deploy`,
 so read it via `sudo`):
 
 ```bash
-sudo grep -c '^APP_KEY=base64:' /var/www/salonhub/backend/.env
+sudo grep -c '^APP_KEY=base64:' /var/www/glowhub/backend/.env
 ```
 
 Expected: `1`.
@@ -451,14 +451,14 @@ Expected: `1`.
 
 ## 6. Install the nginx vhosts
 
-Both vhosts `include snippets/salonhub-cloudflare-realip.conf`, so install
+Both vhosts `include snippets/glowhub-cloudflare-realip.conf`, so install
 the snippet first — `nginx -t` fails outright if it is missing, which is the
 intended behaviour rather than silently starting without it:
 
 ```bash
 sudo mkdir -p /etc/nginx/snippets
-sudo cp /var/www/salonhub/backend/docs/deploy/nginx-cloudflare-realip.conf \
-  /etc/nginx/snippets/salonhub-cloudflare-realip.conf
+sudo cp /var/www/glowhub/backend/docs/deploy/nginx-cloudflare-realip.conf \
+  /etc/nginx/snippets/glowhub-cloudflare-realip.conf
 ```
 
 This is what makes `$remote_addr` — and therefore Laravel's
@@ -474,12 +474,12 @@ If you are not fronting the origin with Cloudflare, delete the two `include`
 lines from the vhosts instead of installing the snippet.
 
 ```bash
-sudo cp /var/www/salonhub/backend/docs/deploy/nginx-app.conf \
-  /etc/nginx/sites-available/salonhub-app.conf
-sudo cp /var/www/salonhub/backend/docs/deploy/nginx-salon.conf \
-  /etc/nginx/sites-available/salonhub-salon.conf
-sudo ln -sf /etc/nginx/sites-available/salonhub-app.conf /etc/nginx/sites-enabled/
-sudo ln -sf /etc/nginx/sites-available/salonhub-salon.conf /etc/nginx/sites-enabled/
+sudo cp /var/www/glowhub/backend/docs/deploy/nginx-app.conf \
+  /etc/nginx/sites-available/glowhub-app.conf
+sudo cp /var/www/glowhub/backend/docs/deploy/nginx-salon.conf \
+  /etc/nginx/sites-available/glowhub-salon.conf
+sudo ln -sf /etc/nginx/sites-available/glowhub-app.conf /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/glowhub-salon.conf /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 ```
 
@@ -501,7 +501,7 @@ routing and TLS only — the SPA shell will show its "build is missing"
 notice until Step 7 runs):
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://app.salonhub.com/up
+curl -s -o /dev/null -w '%{http_code}\n' https://app.glowhub.com/up
 ```
 
 Expected: `200`.
@@ -511,22 +511,22 @@ Expected: `200`.
 ## 7. Install the queue worker
 
 ```bash
-sudo mkdir -p /var/log/salonhub
-sudo chown www-data:www-data /var/log/salonhub
-sudo cp /var/www/salonhub/backend/docs/deploy/salonhub-worker.conf \
-  /etc/supervisor/conf.d/salonhub-worker.conf
+sudo mkdir -p /var/log/glowhub
+sudo chown www-data:www-data /var/log/glowhub
+sudo cp /var/www/glowhub/backend/docs/deploy/glowhub-worker.conf \
+  /etc/supervisor/conf.d/glowhub-worker.conf
 sudo supervisorctl reread
 sudo supervisorctl update
-sudo supervisorctl start salonhub-worker:*
+sudo supervisorctl start glowhub-worker:*
 ```
 
 Verify:
 
 ```bash
-sudo supervisorctl status salonhub-worker:*
+sudo supervisorctl status glowhub-worker:*
 ```
 
-Expected: two lines (`salonhub-worker:salonhub-worker_00` and `_01`), both
+Expected: two lines (`glowhub-worker:glowhub-worker_00` and `_01`), both
 `RUNNING`.
 
 Now that the program exists, verify the other half of Step 5's narrow sudo
@@ -534,7 +534,7 @@ grant — `deploy` restarting the worker with no password prompt, which
 `deploy.sh` (Step 9) depends on:
 
 ```bash
-sudo -u deploy sudo -n supervisorctl restart salonhub-worker:* && \
+sudo -u deploy sudo -n supervisorctl restart glowhub-worker:* && \
   echo "deploy can restart the worker passwordlessly"
 ```
 
@@ -551,7 +551,7 @@ process. Install the cron entry for `www-data` (the same user php-fpm and
 the queue worker run as):
 
 ```bash
-(sudo crontab -l -u www-data 2>/dev/null; echo '* * * * * cd /var/www/salonhub/backend && php artisan schedule:run >> /dev/null 2>&1') | sudo crontab -u www-data -
+(sudo crontab -l -u www-data 2>/dev/null; echo '* * * * * cd /var/www/glowhub/backend && php artisan schedule:run >> /dev/null 2>&1') | sudo crontab -u www-data -
 ```
 
 Without this line, `reminders:send` (hourly) never fires so no appointment
@@ -564,12 +564,12 @@ Verify the line is installed:
 sudo crontab -l -u www-data
 ```
 
-Expected: prints the `* * * * * cd /var/www/salonhub/backend && php artisan schedule:run >> /dev/null 2>&1` line.
+Expected: prints the `* * * * * cd /var/www/glowhub/backend && php artisan schedule:run >> /dev/null 2>&1` line.
 
 Verify both commands are actually scheduled:
 
 ```bash
-cd /var/www/salonhub/backend && php artisan schedule:list
+cd /var/www/glowhub/backend && php artisan schedule:list
 ```
 
 Expected: two rows, `reminders:send` next-runs within the hour and
@@ -593,23 +593,23 @@ below) reads the `DB_*` values straight out of `.env`, which Step 5 locks to
 
 Before installing the cron line, create the backup destination and give
 `deploy` write access to it and to the log directory. `/var/backups` is
-root-owned and `/var/log/salonhub` is `www-data:www-data` by default
+root-owned and `/var/log/glowhub` is `www-data:www-data` by default
 (created in Step 7); neither grants `deploy` a path in without this
 one-time setup, so the cron entry below has nowhere to write until it's
 done:
 
 ```bash
-sudo mkdir -p /var/backups/salonhub
-sudo chown deploy:deploy /var/backups/salonhub
-sudo chmod 700 /var/backups/salonhub
-sudo chmod g+w /var/log/salonhub
+sudo mkdir -p /var/backups/glowhub
+sudo chown deploy:deploy /var/backups/glowhub
+sudo chmod 700 /var/backups/glowhub
+sudo chmod g+w /var/log/glowhub
 ```
 
-`/var/backups/salonhub` is `chmod 700`, owned `deploy` alone — not
+`/var/backups/glowhub` is `chmod 700`, owned `deploy` alone — not
 `www-data`, not world-readable — because a gunzipped dump in it is every
 salon's complete customer list in plaintext: names, phone numbers, emails,
 booking history. `backup.sh` re-asserts this mode on every run in case it
-is ever loosened. `chmod g+w` on `/var/log/salonhub` gives it group write,
+is ever loosened. `chmod g+w` on `/var/log/glowhub` gives it group write,
 and `deploy` is already a member of the `www-data` group (Step 5), so this
 is the smallest change that lets `deploy` append to `backup.log` without
 changing who owns the worker's own log file next to it.
@@ -617,8 +617,8 @@ changing who owns the worker's own log file next to it.
 Verify both:
 
 ```bash
-sudo -u deploy test -w /var/backups/salonhub && \
-  sudo -u deploy test -w /var/log/salonhub && \
+sudo -u deploy test -w /var/backups/glowhub && \
+  sudo -u deploy test -w /var/log/glowhub && \
   echo "deploy can write both backup paths"
 ```
 
@@ -627,7 +627,7 @@ Expected: `deploy can write both backup paths`.
 Install the cron line:
 
 ```bash
-(sudo crontab -l -u deploy 2>/dev/null; echo '15 3 * * * /var/www/salonhub/backend/docs/deploy/backup.sh >> /var/log/salonhub/backup.log 2>&1') | sudo crontab -u deploy -
+(sudo crontab -l -u deploy 2>/dev/null; echo '15 3 * * * /var/www/glowhub/backend/docs/deploy/backup.sh >> /var/log/glowhub/backup.log 2>&1') | sudo crontab -u deploy -
 ```
 
 Verify the line is installed:
@@ -636,24 +636,24 @@ Verify the line is installed:
 sudo crontab -l -u deploy
 ```
 
-Expected: prints the `15 3 * * * ...backup.sh >> /var/log/salonhub/backup.log 2>&1` line.
+Expected: prints the `15 3 * * * ...backup.sh >> /var/log/glowhub/backup.log 2>&1` line.
 
 Don't wait until 03:15 to find out whether it actually works. Run it once
 now, as `deploy`:
 
 ```bash
-sudo -u deploy /var/www/salonhub/backend/docs/deploy/backup.sh
+sudo -u deploy /var/www/glowhub/backend/docs/deploy/backup.sh
 ```
 
-Expected: `Backup complete: /var/backups/salonhub/salonhub-<today>.sql.gz`
+Expected: `Backup complete: /var/backups/glowhub/glowhub-<today>.sql.gz`
 with no other output. Confirm both files landed and the success marker
 (Section 11) was written:
 
 ```bash
-sudo -u deploy ls -la /var/backups/salonhub
+sudo -u deploy ls -la /var/backups/glowhub
 ```
 
-Expected: `salonhub-<today>.sql.gz`, `storage-<today>.tar.gz`, and
+Expected: `glowhub-<today>.sql.gz`, `storage-<today>.tar.gz`, and
 `.last-success` all present. If this step fails, fix it now — a cron job
 that's never been proven to run once is not a backup you can trust to run
 nightly unattended.
@@ -676,7 +676,7 @@ writes must stay owned `deploy`, group `www-data`, matching `storage/` and
 `*.APP_DOMAIN` domain row, and its `down()` is a deliberate no-op — there is
 no rollback. If an organization registered before `Organization::
 RESERVED_SLUGS` existed holds a platform hostname, a *verified* claim on it is
-one `Domain::resolveOrganizationForHost` will honour, and `app.salonhub.com`
+one `Domain::resolveOrganizationForHost` will honour, and `app.glowhub.com`
 starts resolving to a tenant.
 
 The migration itself now excludes every hostname composed from
@@ -688,10 +688,10 @@ Generate the list from the constant rather than retyping it, so this step
 cannot drift from the code it is checking:
 
 ```bash
-cd /var/www/salonhub/backend
+cd /var/www/glowhub/backend
 SLUGS=$(php -r "require 'vendor/autoload.php'; \
   echo \"'\" . implode(\"','\", App\Models\Organization::RESERVED_SLUGS) . \"'\";")
-mysql -u salonhub -p -h 127.0.0.1 salonhub -e \
+mysql -u glowhub -p -h 127.0.0.1 glowhub -e \
   "SELECT id, slug FROM organizations WHERE slug IN ($SLUGS);"
 ```
 
@@ -702,7 +702,7 @@ subdomain will not work until the slug is changed.
 
 ```bash
 sudo -iu deploy
-cd /var/www/salonhub && ./backend/docs/deploy/deploy.sh
+cd /var/www/glowhub && ./backend/docs/deploy/deploy.sh
 exit
 ```
 
@@ -750,7 +750,7 @@ Run every one of these after the first deploy. All must pass before calling
 the server live.
 
 ```bash
-curl -sf https://app.salonhub.com/up
+curl -sf https://app.glowhub.com/up
 ```
 Expected: exits `0`, empty/OK body — the health check route.
 
@@ -760,7 +760,7 @@ answers `200` with no `APP_KEY`, an unreadable `.env`, no config cache and no
 database. Run the deep one too:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://app.salonhub.com/up/db
+curl -s -o /dev/null -w '%{http_code}\n' https://app.glowhub.com/up/db
 ```
 
 Expected: `200` (body `OK`). `503` means the app booted but the database did
@@ -780,7 +780,7 @@ Prove that dependency is currently satisfied, rather than trusting that it
 is — run the app as the user that actually serves it:
 
 ```bash
-sudo -u www-data php /var/www/salonhub/backend/artisan about --only=environment
+sudo -u www-data php /var/www/glowhub/backend/artisan about --only=environment
 ```
 
 Expected: prints the environment table with `Environment: production` and
@@ -792,11 +792,11 @@ there is no usable config cache — the app is down even if `/up` returns
 wrong user and break the next `deploy.sh`.)
 
 ```bash
-echo | openssl s_client -connect anything.salonhub.com:443 -servername anything.salonhub.com 2>/dev/null \
+echo | openssl s_client -connect anything.glowhub.com:443 -servername anything.glowhub.com 2>/dev/null \
   | openssl x509 -noout -subject -ext subjectAltName
 ```
-Expected: `subject=CN = salonhub.com` and a `X509v3 Subject Alternative Name`
-line listing both `DNS:salonhub.com` and `DNS:*.salonhub.com` — proves the
+Expected: `subject=CN = glowhub.com` and a `X509v3 Subject Alternative Name`
+line listing both `DNS:glowhub.com` and `DNS:*.glowhub.com` — proves the
 wildcard cert (Step 3), not just the apex, is what nginx is actually
 serving on a salon subdomain.
 
@@ -806,13 +806,13 @@ selects the right tenant, and only the right tenant. Substitute a real
 registered salon's slug for `<slug>`.
 
 ```bash
-curl -s https://<slug>.salonhub.com/api/public-site/site | head -c 200
+curl -s https://<slug>.glowhub.com/api/public-site/site | head -c 200
 ```
 Expected: JSON whose `"slug"` is `<slug>` — the API resolved the tenant from
 the Host header alone, with no `{org}` segment in the path.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://no-such-salon.salonhub.com/api/public-site/site
+curl -s -o /dev/null -w '%{http_code}\n' https://no-such-salon.glowhub.com/api/public-site/site
 ```
 Expected: `404`. An unregistered subdomain must be a 404, never a fallback
 to some other salon. The same `404` is expected for a salon whose
@@ -820,8 +820,8 @@ organization has been suspended.
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' \
-  -H 'X-Forwarded-Host: <slug>.salonhub.com' \
-  https://salonhub.com/api/public-site/site
+  -H 'X-Forwarded-Host: <slug>.glowhub.com' \
+  https://glowhub.com/api/public-site/site
 ```
 Expected: `404`. The application trusts no proxy, so `X-Forwarded-Host` is
 ignored and cannot be used to pick a tenant. If this ever returns `200`,
@@ -834,7 +834,7 @@ note your public address and make one request:
 
 ```bash
 curl -s https://api.ipify.org; echo
-curl -s -o /dev/null https://app.salonhub.com/up
+curl -s -o /dev/null https://app.glowhub.com/up
 ```
 
 Then on the server:
@@ -860,7 +860,7 @@ only answers for verified rows, so a database restored from before that
 migration will 404 on every salon subdomain until it has run.
 
 ```bash
-mysql -u salonhub -p -h 127.0.0.1 -e "SELECT @@global.foreign_key_checks;"
+mysql -u glowhub -p -h 127.0.0.1 -e "SELECT @@global.foreign_key_checks;"
 ```
 
 Expected: `1`. Every `appointments` foreign key is `cascadeOnDelete`, and the
@@ -874,33 +874,33 @@ returns `0`, find out what set it and fix that, rather than setting it back
 by hand.
 
 ```bash
-sudo supervisorctl status salonhub-worker:*
+sudo supervisorctl status glowhub-worker:*
 ```
 Expected: both processes `RUNNING`.
 
 ```bash
-cd /var/www/salonhub/backend && php artisan queue:work --once
+cd /var/www/glowhub/backend && php artisan queue:work --once
 ```
 Expected: drains one queued job (or exits immediately with nothing to do
 if the queue is empty) with no error — proves a worker process can connect
 to Redis and process a job, independent of the supervisor-managed workers.
 
 ```bash
-cd /var/www/salonhub/backend && php artisan schedule:list
+cd /var/www/glowhub/backend && php artisan schedule:list
 ```
 Expected: `reminders:send` and `bookings:release-abandoned` both listed
 with upcoming next-run times.
 
 ```bash
-curl -s https://app.salonhub.com/ | grep -o '<script type="module" src="/app/[^"]*"'
+curl -s https://app.glowhub.com/ | grep -o '<script type="module" src="/app/[^"]*"'
 ```
 Expected: one `<script>` tag pointing at a hashed file under `/app/assets/`
 — proves the manifest was found and the SPA shell is not showing the
 "build is missing" notice.
 
 ```bash
-CSS_PATH=$(curl -s https://app.salonhub.com/ | grep -oE '/app/assets/index-[A-Za-z0-9_-]*\.css' | head -1)
-curl -s "https://app.salonhub.com$CSS_PATH" | grep -c 'url(/app/assets/'
+CSS_PATH=$(curl -s https://app.glowhub.com/ | grep -oE '/app/assets/index-[A-Za-z0-9_-]*\.css' | head -1)
+curl -s "https://app.glowhub.com$CSS_PATH" | grep -c 'url(/app/assets/'
 ```
 Expected: a number greater than `0` — proves the self-hosted webfonts'
 `url(...)` references were built with `--base=/app/` and point at
@@ -917,12 +917,12 @@ queued, picked up by the supervisor-managed worker, and delivered — not
 just that the worker process is running.
 
 ```bash
-sudo find /var/backups/salonhub/.last-success -mtime -1
+sudo find /var/backups/glowhub/.last-success -mtime -1
 ```
 Expected: prints the path — proves the manual run in Step 8's backup cron
 subsection actually succeeded and left tonight's marker behind. `sudo` is
 required here, same as every other command that reaches into
-`/var/backups/salonhub`: it's `chmod 700` owned by `deploy`, so without
+`/var/backups/glowhub`: it's `chmod 700` owned by `deploy`, so without
 `sudo` this always prints nothing and exits non-zero — even on a perfectly
 healthy backup — which is the opposite of what an empty result is meant to
 mean. See "11. Database and upload backups" for what to check if this is
@@ -950,15 +950,15 @@ alone does not cover them — `docs/deploy/backup.sh` takes both, nightly.
 loosen that file's permissions or duplicate the password somewhere else,
 the backup cron runs as `deploy` too — the one user that can already read
 it. Step 8, above, already covers the one-time setup this depends on
-(creating `/var/backups/salonhub`, granting `deploy` write access to it and
-to `/var/log/salonhub`, installing the cron line, and running it once by
+(creating `/var/backups/glowhub`, granting `deploy` write access to it and
+to `/var/log/glowhub`, installing the cron line, and running it once by
 hand to prove the whole chain works) — if you skipped straight to this
 section, go do that first.
 
 With that done, `backup.sh` runs nightly at 03:15 and produces, in
-`/var/backups/salonhub`:
+`/var/backups/glowhub`:
 
-- `salonhub-YYYY-MM-DD.sql.gz` — a `mysqldump --single-transaction` of the
+- `glowhub-YYYY-MM-DD.sql.gz` — a `mysqldump --single-transaction` of the
   database, so it does not lock a salon out mid-booking to take it.
 - `storage-YYYY-MM-DD.tar.gz` — everything under `storage/app/public`.
 
@@ -981,15 +981,15 @@ with a different `APP_KEY`; see "Record `APP_KEY`..." in Step 5, and
 "Restoring onto a different server" below.
 
 **How you'd know a night's backup didn't happen:** `backup.sh` touches
-`/var/backups/salonhub/.last-success` as its last step, so a healthy run
+`/var/backups/glowhub/.last-success` as its last step, so a healthy run
 always leaves that file newer than 24 hours old. Check it as part of
 routine ops (Step 10 also checks it once, right after the first deploy):
 
 ```bash
-sudo find /var/backups/salonhub/.last-success -mtime -1
+sudo find /var/backups/glowhub/.last-success -mtime -1
 ```
 
-`sudo` is required — `/var/backups/salonhub` is `chmod 700` owned by
+`sudo` is required — `/var/backups/glowhub` is `chmod 700` owned by
 `deploy` (see Step 8), so without it `find` can't even `stat` the marker
 and this prints nothing regardless of whether last night's backup
 succeeded. Dropping the `sudo` doesn't fail loudly; it just prints the
@@ -998,7 +998,7 @@ fine every night — silently defeating the whole point of having a marker
 to check.
 
 Expected: prints the path. No output (with `sudo` present) means the
-marker is genuinely missing or stale — check `/var/log/salonhub/backup.log`
+marker is genuinely missing or stale — check `/var/log/glowhub/backup.log`
 for why last night's run didn't finish. This repo does not wire up a
 paging/alerting integration for that check; if you have existing
 monitoring (cron-monitoring SaaS, a Nagios/Zabbix check, even a second
@@ -1017,9 +1017,9 @@ losing the VPS itself.
 **Rehearse this once before launch, and again after any schema change.** A
 backup nobody has restored is an assumption, not a backup. Everything here
 runs against a disposable scratch database — nothing here ever touches the
-live `salonhub` database or the live `storage/app/public` directory.
+live `glowhub` database or the live `storage/app/public` directory.
 
-`/var/backups/salonhub` is `chmod 700` owned by `deploy` (see Step 8), so
+`/var/backups/glowhub` is `chmod 700` owned by `deploy` (see Step 8), so
 your own sudo-capable account can't read the dump or archive out of it
 directly — every step below that touches a file in that directory runs
 under `sudo` for that reason, not just the MySQL commands.
@@ -1027,15 +1027,15 @@ under `sudo` for that reason, not just the MySQL commands.
 1. Create the scratch database:
 
    ```bash
-   sudo mysql -u root -e "DROP DATABASE IF EXISTS salonhub_restore_test; \
-     CREATE DATABASE salonhub_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   sudo mysql -u root -e "DROP DATABASE IF EXISTS glowhub_restore_test; \
+     CREATE DATABASE glowhub_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
    ```
 
 2. Restore the most recent dump into it. List the directory first if you
    want a specific date rather than today's (`sudo` — see above):
 
    ```bash
-   sudo ls -la /var/backups/salonhub
+   sudo ls -la /var/backups/glowhub
    ```
 
    `sudo mysql -u root` above elevates the MySQL side of a restore, but a
@@ -1045,8 +1045,8 @@ under `sudo` for that reason, not just the MySQL commands.
    ever reaches MySQL. Elevate the whole pipeline instead:
 
    ```bash
-   DUMP="/var/backups/salonhub/salonhub-$(date +%F).sql.gz"
-   sudo bash -c "gunzip -c '$DUMP' | mysql -u root salonhub_restore_test"
+   DUMP="/var/backups/glowhub/glowhub-$(date +%F).sql.gz"
+   sudo bash -c "gunzip -c '$DUMP' | mysql -u root glowhub_restore_test"
    ```
 
 3. Restore the matching upload archive to a scratch path — never over the
@@ -1055,9 +1055,9 @@ under `sudo` for that reason, not just the MySQL commands.
    not just the destination `mkdir`:
 
    ```bash
-   mkdir -p /tmp/salonhub-restore-test
-   ARCHIVE="/var/backups/salonhub/storage-$(date +%F).tar.gz"
-   sudo tar -xzf "$ARCHIVE" -C /tmp/salonhub-restore-test
+   mkdir -p /tmp/glowhub-restore-test
+   ARCHIVE="/var/backups/glowhub/storage-$(date +%F).tar.gz"
+   sudo tar -xzf "$ARCHIVE" -C /tmp/glowhub-restore-test
    ```
 
    The extracted files end up root-owned (root did the extracting). That's
@@ -1082,9 +1082,9 @@ under `sudo` for that reason, not just the MySQL commands.
    UNION ALL SELECT 'services', COUNT(*) FROM services;"
 
    echo "-- live --"
-   mysql -u salonhub -p -h 127.0.0.1 salonhub -e "$READ_TABLES"
+   mysql -u glowhub -p -h 127.0.0.1 glowhub -e "$READ_TABLES"
    echo "-- restored --"
-   sudo mysql -u root salonhub_restore_test -e "$READ_TABLES"
+   sudo mysql -u root glowhub_restore_test -e "$READ_TABLES"
    ```
 
    Expected: `live` and `restored` counts match for every table, if the
@@ -1098,7 +1098,7 @@ under `sudo` for that reason, not just the MySQL commands.
    compare it field-by-field against the same row live:
 
    ```bash
-   sudo mysql -u root salonhub_restore_test -e \
+   sudo mysql -u root glowhub_restore_test -e \
      "SELECT a.id, a.booking_date, a.start_time, c.name, c.email, c.phone \
       FROM appointments a JOIN customers c ON c.id = a.customer_id \
       ORDER BY a.id DESC LIMIT 1;"
@@ -1108,7 +1108,7 @@ under `sudo` for that reason, not just the MySQL commands.
    database filtered to that id:
 
    ```bash
-   mysql -u salonhub -p -h 127.0.0.1 salonhub -e \
+   mysql -u glowhub -p -h 127.0.0.1 glowhub -e \
      "SELECT a.id, a.booking_date, a.start_time, c.name, c.email, c.phone \
       FROM appointments a JOIN customers c ON c.id = a.customer_id \
       WHERE a.id = <id from the previous query>;"
@@ -1120,7 +1120,7 @@ under `sudo` for that reason, not just the MySQL commands.
    **Uploads restored byte-for-byte:**
 
    ```bash
-   diff -rq /tmp/salonhub-restore-test/public /var/www/salonhub/backend/storage/app/public
+   diff -rq /tmp/glowhub-restore-test/public /var/www/glowhub/backend/storage/app/public
    ```
 
    Expected: no output — every file in the restored archive is identical to
@@ -1134,8 +1134,8 @@ under `sudo` for that reason, not just the MySQL commands.
    themselves, just the drill's working copy:
 
    ```bash
-   sudo mysql -u root -e "DROP DATABASE salonhub_restore_test;"
-   sudo rm -rf /tmp/salonhub-restore-test
+   sudo mysql -u root -e "DROP DATABASE glowhub_restore_test;"
+   sudo rm -rf /tmp/glowhub-restore-test
    ```
 
 ### Restoring onto a different server
@@ -1156,7 +1156,7 @@ than discovering live:
   directory, not a copy of it. A fresh server has no symlink until
   `php artisan storage:link` creates one — Step 5 runs it once during
   initial setup, but a restore onto a new box needs it run again.
-- **Restore into the real `salonhub` database, not a scratch one** — and
+- **Restore into the real `glowhub` database, not a scratch one** — and
   take the app offline (or at least stop the queue worker) first, the same
   way you would for any production data load, so nothing writes to tables
   mid-restore.
@@ -1169,14 +1169,14 @@ Every subsequent deploy is just, run as `deploy` (Step 5's ownership model):
 
 ```bash
 sudo -iu deploy
-cd /var/www/salonhub && ./backend/docs/deploy/deploy.sh
+cd /var/www/glowhub && ./backend/docs/deploy/deploy.sh
 exit
 ```
 
 Then check the deep health endpoint, not just `/up`:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://app.salonhub.com/up/db
+curl -s -o /dev/null -w '%{http_code}\n' https://app.glowhub.com/up/db
 ```
 
 Expected: `200`. `deploy.sh` re-runs `config:cache`, so a `500` here is the
@@ -1205,7 +1205,7 @@ To turn it on:
 4. Verify delivery:
 
 ```bash
-cd /var/www/salonhub/backend && php artisan sentry:test
+cd /var/www/glowhub/backend && php artisan sentry:test
 ```
 
 Expected: no error, and the event appears in the Sentry project within a
@@ -1219,7 +1219,7 @@ server. See that file's docblock for the full analysis.
 ## What's not covered here
 
 - **Off-site backup replication.** Step 11's `backup.sh` writes to
-  `/var/backups/salonhub` on the same VPS it protects. Its commented-out
+  `/var/backups/glowhub` on the same VPS it protects. Its commented-out
   `rclone copy` line is ready but not enabled by default — choose a remote
   target and turn it on before relying on backups to survive losing the
   whole server, not just its database.
@@ -1227,7 +1227,7 @@ server. See that file's docblock for the full analysis.
   one VPS running nginx, php-fpm, the queue worker, MySQL and Redis
   together. Splitting these across hosts is out of scope here.
 - **Log rotation for `backup.log` / `worker.log`.** Both grow forever under
-  `/var/log/salonhub` — nothing here installs a `logrotate` config for
+  `/var/log/glowhub` — nothing here installs a `logrotate` config for
   them. Ubuntu's default `logrotate` package is already present and already
-  handles the system's own logs; add a `/etc/logrotate.d/salonhub` entry
+  handles the system's own logs; add a `/etc/logrotate.d/glowhub` entry
   for these two before disk space run-out becomes a page.

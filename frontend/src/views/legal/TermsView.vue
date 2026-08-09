@@ -7,9 +7,9 @@ import LegalPage from '@/components/legal/LegalPage.vue'
   <LegalPage title="Terms of Service" updated="5 August 2026">
     <h2>1. Who we are</h2>
     <p>
-      SalonHub is a booking and salon-management service. These terms govern your use of
-      the SalonHub dashboard, the booking website we host for your salon, and the
-      SalonHub marketing site.
+      Glowhub is a booking and salon-management service. These terms govern your use of
+      the Glowhub dashboard, the booking website we host for your salon, and the
+      Glowhub marketing site.
     </p>
 
     <h2>2. Your account</h2>
@@ -21,14 +21,14 @@ import LegalPage from '@/components/legal/LegalPage.vue'
 
     <h2>3. Acceptable use</h2>
     <ul>
-      <li>Do not use SalonHub to send unsolicited marketing to your customers.</li>
+      <li>Do not use Glowhub to send unsolicited marketing to your customers.</li>
       <li>Do not upload content you do not hold the rights to.</li>
       <li>Do not attempt to access another salon's data.</li>
     </ul>
 
     <h2>4. Your customers' data</h2>
     <p>
-      Customer records you create in SalonHub belong to you. We process them on your
+      Customer records you create in Glowhub belong to you. We process them on your
       behalf as described in our Privacy Policy, and we do not sell them or use them to
       market to your customers.
     </p>
@@ -37,12 +37,12 @@ import LegalPage from '@/components/legal/LegalPage.vue'
     <p>
       The Free plan is offered at no cost and is limited to one branch and ten staff
       members. Deposits your customers pay online are collected through your own payment
-      gateway credentials and settle to you, not to SalonHub.
+      gateway credentials and settle to you, not to Glowhub.
     </p>
 
     <h2>6. Availability</h2>
     <p>
-      We aim to keep SalonHub available continuously but do not guarantee uninterrupted
+      We aim to keep Glowhub available continuously but do not guarantee uninterrupted
       service. We may suspend access for maintenance or where an account breaches
       these terms.
     </p>

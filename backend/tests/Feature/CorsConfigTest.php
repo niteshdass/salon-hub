@@ -24,7 +24,7 @@ class CorsConfigTest extends TestCase
         $this->assertNotEmpty($patterns, 'No subdomain pattern configured.');
 
         $matched = collect($patterns)->contains(
-            fn (string $pattern) => preg_match($pattern, 'https://beauty-queen.salonhub.com') === 1
+            fn (string $pattern) => preg_match($pattern, 'https://beauty-queen.glowhub.com') === 1
         );
 
         $this->assertTrue($matched, 'A salon subdomain origin is not allowed by any pattern.');
@@ -35,7 +35,7 @@ class CorsConfigTest extends TestCase
         $patterns = config('cors.allowed_origins_patterns');
 
         $matched = collect($patterns)->contains(
-            fn (string $pattern) => preg_match($pattern, 'https://salonhub.com.evil.test') === 1
+            fn (string $pattern) => preg_match($pattern, 'https://glowhub.com.evil.test') === 1
         );
 
         $this->assertFalse($matched, 'A lookalike domain must not be allowed.');
@@ -50,7 +50,7 @@ class CorsConfigTest extends TestCase
         $patterns = config('cors.allowed_origins_patterns');
 
         $matched = collect($patterns)->contains(
-            fn (string $pattern) => preg_match($pattern, 'https://a.b.salonhub.com') === 1
+            fn (string $pattern) => preg_match($pattern, 'https://a.b.glowhub.com') === 1
         );
 
         $this->assertFalse($matched, 'A multi-label subdomain must not be allowed.');
@@ -121,6 +121,6 @@ class CorsConfigTest extends TestCase
 
         $this->assertStringContainsString('example\.org', $pattern);
         $this->assertSame(1, preg_match($pattern, 'https://beauty-queen.example.org'));
-        $this->assertSame(0, preg_match($pattern, 'https://beauty-queen.salonhub.com'));
+        $this->assertSame(0, preg_match($pattern, 'https://beauty-queen.glowhub.com'));
     }
 }

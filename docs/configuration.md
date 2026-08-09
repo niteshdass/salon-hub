@@ -1,4 +1,4 @@
-# SalonHub — configuration reference
+# Glowhub — configuration reference
 
 Every key and value needed to make **email**, **notifications (SMS/WhatsApp
 reminders)**, **payments** and **error monitoring** work, in local development
@@ -19,7 +19,7 @@ Companion documents:
 
 ## 1. Where configuration actually lives
 
-SalonHub reads settings from three places. Knowing which is which prevents most
+Glowhub reads settings from three places. Knowing which is which prevents most
 "I set the key and nothing happened" bugs.
 
 | Layer | Holds | Scope | Changed by |
@@ -58,10 +58,10 @@ Two consequences worth internalising:
 | `APP_ENV` | `local` | `production` | `DemoSalonSeeder` refuses to run outside `local`/`testing`. |
 | `APP_KEY` | `php artisan key:generate` | `php artisan key:generate`, once, then never again | Encrypts per-salon credentials — see above. |
 | `APP_DEBUG` | `true` | `false` | `true` in production leaks stack traces and env values. |
-| `APP_URL` | `http://localhost:8000` | `https://app.salonhub.com` | **Load-bearing for payments**: gateway success/fail/cancel/IPN URLs are built from it (`Public\BookingController::startGatewaySession`). |
-| `APP_DOMAIN` | `salonhub.com` | your apex | Mints each salon's `<slug>.APP_DOMAIN` domain row, anchors the CORS subdomain pattern, resolves Host → tenant. Changing it after salons exist orphans their existing domain rows. |
-| `FRONTEND_URL` | `http://localhost:5173` | `https://app.salonhub.com` | Used to build links in mail. |
-| `CORS_ALLOWED_ORIGINS` | Vite dev origins | `https://app.salonhub.com,https://salonhub.com` | Absolute origins, comma-separated. Salon subdomains match by pattern from `APP_DOMAIN` and need **no** entry. |
+| `APP_URL` | `http://localhost:8000` | `https://app.glowhub.com` | **Load-bearing for payments**: gateway success/fail/cancel/IPN URLs are built from it (`Public\BookingController::startGatewaySession`). |
+| `APP_DOMAIN` | `glowhub.com` | your apex | Mints each salon's `<slug>.APP_DOMAIN` domain row, anchors the CORS subdomain pattern, resolves Host → tenant. Changing it after salons exist orphans their existing domain rows. |
+| `FRONTEND_URL` | `http://localhost:5173` | `https://app.glowhub.com` | Used to build links in mail. |
+| `CORS_ALLOWED_ORIGINS` | Vite dev origins | `https://app.glowhub.com,https://glowhub.com` | Absolute origins, comma-separated. Salon subdomains match by pattern from `APP_DOMAIN` and need **no** entry. |
 | `DB_CONNECTION` | `sqlite` | `mysql` (+ host/db/user/password) | SQLite keeps a fresh checkout running with no services. |
 | `QUEUE_CONNECTION` | `database` (or `sync`) | `redis` | See §3 — with no worker, queued mail is never delivered. |
 | `CACHE_STORE` / `SESSION_DRIVER` | `database` | `redis` | |
@@ -119,9 +119,9 @@ MAIL_HOST=127.0.0.1
 MAIL_PORT=1025
 MAIL_USERNAME=null
 MAIL_PASSWORD=null
-MAIL_FROM_ADDRESS="bookings@salonhub.test"
-MAIL_FROM_NAME="SalonHub"
-CONTACT_EMAIL="support@salonhub.test"
+MAIL_FROM_ADDRESS="bookings@glowhub.test"
+MAIL_FROM_NAME="Glowhub"
+CONTACT_EMAIL="support@glowhub.test"
 ```
 
 Web UI at <http://localhost:8025>.
@@ -153,9 +153,9 @@ MAIL_PORT=587
 MAIL_USERNAME=<smtp user>
 MAIL_PASSWORD=<smtp password>
 MAIL_SCHEME=                       # blank: auto-selected from the port
-MAIL_FROM_ADDRESS="bookings@salonhub.com"
-MAIL_FROM_NAME="SalonHub"
-CONTACT_EMAIL="support@salonhub.com"
+MAIL_FROM_ADDRESS="bookings@glowhub.com"
+MAIL_FROM_NAME="Glowhub"
+CONTACT_EMAIL="support@glowhub.com"
 ```
 
 - `MAIL_PORT=587` → STARTTLS (`smtp`); `465` → implicit TLS (`smtps`). Leave
@@ -175,10 +175,10 @@ CONTACT_EMAIL="support@salonhub.com"
 
 ```bash
 # 1. Does the relay accept a message?
-php artisan tinker --execute="Mail::raw('SalonHub smtp check', fn(\$m) => \$m->to('you@example.com')->subject('SalonHub'));"
+php artisan tinker --execute="Mail::raw('Glowhub smtp check', fn(\$m) => \$m->to('you@example.com')->subject('Glowhub'));"
 
 # 2. Is a worker draining the queue? (production)
-sudo supervisorctl status salonhub-worker      # RUNNING
+sudo supervisorctl status glowhub-worker      # RUNNING
 php artisan queue:failed                       # should stay empty
 ```
 
@@ -240,7 +240,7 @@ Without the cron entry, no reminder is ever sent and abandoned unpaid bookings
 hold their slot forever.
 
 ```cron
-* * * * * cd /var/www/salonhub/backend && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/glowhub/backend && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 Reminders are dispatched as **queued jobs**, so the worker from §3 is required
@@ -401,9 +401,9 @@ Verify: `php artisan sentry:test`.
 exports `VITE_APP_DOMAIN`):
 
 ```dotenv
-VITE_APP_DOMAIN=salonhub.com          # MUST equal backend APP_DOMAIN
-VITE_CONTACT_EMAIL=support@salonhub.com  # MUST equal backend CONTACT_EMAIL
-# VITE_API_URL=https://app.salonhub.com/api   # only if the API is on another origin
+VITE_APP_DOMAIN=glowhub.com          # MUST equal backend APP_DOMAIN
+VITE_CONTACT_EMAIL=support@glowhub.com  # MUST equal backend CONTACT_EMAIL
+# VITE_API_URL=https://app.glowhub.com/api   # only if the API is on another origin
 ```
 
 - `VITE_API_URL` is genuinely optional: both production vhosts serve the SPA
@@ -448,7 +448,7 @@ credentials (§5).
 - [ ] `CORS_ALLOWED_ORIGINS` lists the apex and app origins
 - [ ] `MAIL_MAILER` is a real relay (**not** `log`), from-domain has SPF/DKIM
 - [ ] `CONTACT_EMAIL` == `VITE_CONTACT_EMAIL`, and someone actually reads it
-- [ ] Queue worker running under supervisor (`salonhub-worker`)
+- [ ] Queue worker running under supervisor (`glowhub-worker`)
 - [ ] `schedule:run` cron installed
 - [ ] `php artisan storage:link` run (`FILESYSTEM_DISK=public`)
 - [ ] `php artisan config:cache` after the final `.env` edit

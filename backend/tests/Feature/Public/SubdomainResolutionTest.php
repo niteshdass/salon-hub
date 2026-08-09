@@ -48,7 +48,7 @@ class SubdomainResolutionTest extends TestCase
 
         Domain::create(array_merge([
             'organization_id' => $org->id,
-            'domain' => "{$slug}.salonhub.com",
+            'domain' => "{$slug}.glowhub.com",
             'is_primary' => true,
             'is_verified' => true,
             'ssl_enabled' => true,
@@ -76,7 +76,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->getJson($this->on('beauty-queen.salonhub.com'))
+        $this->getJson($this->on('beauty-queen.glowhub.com'))
             ->assertOk()
             ->assertJsonPath('data.slug', 'beauty-queen');
     }
@@ -92,7 +92,7 @@ class SubdomainResolutionTest extends TestCase
         $this->assertSame(
             ['Queen Balayage'],
             array_column(
-                $this->getJson($this->on('beauty-queen.salonhub.com', '/api/public-site/services'))
+                $this->getJson($this->on('beauty-queen.glowhub.com', '/api/public-site/services'))
                     ->assertOk()->json('data'),
                 'name'
             )
@@ -101,7 +101,7 @@ class SubdomainResolutionTest extends TestCase
         $this->assertSame(
             ['Rival Buzzcut'],
             array_column(
-                $this->getJson($this->on('rival-cuts.salonhub.com', '/api/public-site/services'))
+                $this->getJson($this->on('rival-cuts.glowhub.com', '/api/public-site/services'))
                     ->assertOk()->json('data'),
                 'name'
             )
@@ -120,14 +120,14 @@ class SubdomainResolutionTest extends TestCase
         // scope must reject it without revealing whether the id exists
         // elsewhere, so a cross-tenant id is a 422 validation failure.
         $this->getJson($this->on(
-            'beauty-queen.salonhub.com',
+            'beauty-queen.glowhub.com',
             '/api/public-site/staff?service_ids[]='.$rivalService->id
         ))->assertStatus(422);
 
         // ...and the salon's own service on its own host still resolves, so
         // the rejection above is isolation and not a broken route.
         $this->getJson($this->on(
-            'rival-cuts.salonhub.com',
+            'rival-cuts.glowhub.com',
             '/api/public-site/staff?service_ids[]='.$rivalService->id
         ))->assertOk();
     }
@@ -140,15 +140,15 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->getJson($this->on('nobody.salonhub.com'))->assertStatus(404);
+        $this->getJson($this->on('nobody.glowhub.com'))->assertStatus(404);
     }
 
     public function test_the_apex_host_does_not_resolve_to_any_salon(): void
     {
         $this->makeOrg('beauty-queen');
 
-        $this->getJson($this->on('salonhub.com'))->assertStatus(404);
-        $this->getJson($this->on('app.salonhub.com'))->assertStatus(404);
+        $this->getJson($this->on('glowhub.com'))->assertStatus(404);
+        $this->getJson($this->on('app.glowhub.com'))->assertStatus(404);
     }
 
     /**
@@ -159,8 +159,8 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->getJson($this->on('beauty-queen.salonhub.com.evil.test'))->assertStatus(404);
-        $this->getJson($this->on('evil-beauty-queen.salonhub.com'))->assertStatus(404);
+        $this->getJson($this->on('beauty-queen.glowhub.com.evil.test'))->assertStatus(404);
+        $this->getJson($this->on('evil-beauty-queen.glowhub.com'))->assertStatus(404);
     }
 
     /**
@@ -171,7 +171,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen', ['status' => 'suspended']);
 
-        $this->getJson($this->on('beauty-queen.salonhub.com'))->assertStatus(404);
+        $this->getJson($this->on('beauty-queen.glowhub.com'))->assertStatus(404);
 
         // The reference behaviour, same organization, by path.
         $this->getJson('/api/public/beauty-queen/site')->assertStatus(404);
@@ -181,7 +181,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen', ['status' => 'inactive']);
 
-        $this->getJson($this->on('beauty-queen.salonhub.com'))->assertStatus(404);
+        $this->getJson($this->on('beauty-queen.glowhub.com'))->assertStatus(404);
         $this->getJson('/api/public/beauty-queen/site')->assertStatus(404);
     }
 
@@ -194,7 +194,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen', [], ['is_verified' => false]);
 
-        $this->getJson($this->on('beauty-queen.salonhub.com'))->assertStatus(404);
+        $this->getJson($this->on('beauty-queen.glowhub.com'))->assertStatus(404);
     }
 
     /**
@@ -229,12 +229,12 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->withHeader('X-Forwarded-Host', 'beauty-queen.salonhub.com')
-            ->getJson($this->on('salonhub.com'))
+        $this->withHeader('X-Forwarded-Host', 'beauty-queen.glowhub.com')
+            ->getJson($this->on('glowhub.com'))
             ->assertStatus(404);
 
-        $this->withHeader('X-Forwarded-Host', 'rival-cuts.salonhub.com')
-            ->getJson($this->on('beauty-queen.salonhub.com'))
+        $this->withHeader('X-Forwarded-Host', 'rival-cuts.glowhub.com')
+            ->getJson($this->on('beauty-queen.glowhub.com'))
             ->assertOk()
             ->assertJsonPath('data.slug', 'beauty-queen');
     }
@@ -258,7 +258,7 @@ class SubdomainResolutionTest extends TestCase
         ]);
         $deep = Domain::create([
             'organization_id' => $org->id,
-            'domain' => 'a.b.salonhub.com',
+            'domain' => 'a.b.glowhub.com',
             'is_primary' => false,
             'is_verified' => false,
             'ssl_enabled' => false,
@@ -268,7 +268,7 @@ class SubdomainResolutionTest extends TestCase
         // its own verification.
         $secondary = Domain::create([
             'organization_id' => $org->id,
-            'domain' => 'extra.salonhub.com',
+            'domain' => 'extra.glowhub.com',
             'is_primary' => false,
             'is_verified' => false,
             'ssl_enabled' => false,
@@ -276,13 +276,13 @@ class SubdomainResolutionTest extends TestCase
 
         (require database_path('migrations/2026_08_05_100100_verify_existing_apex_domains.php'))->up();
 
-        $this->assertTrue(Domain::where('domain', 'beauty-queen.salonhub.com')->first()->is_verified);
+        $this->assertTrue(Domain::where('domain', 'beauty-queen.glowhub.com')->first()->is_verified);
         // A host we do not control stays a claim, not a resolvable tenant.
         $this->assertFalse($custom->fresh()->is_verified);
         $this->assertFalse($deep->fresh()->is_verified);
         $this->assertFalse($secondary->fresh()->is_verified);
 
-        $this->getJson($this->on('beauty-queen.salonhub.com'))
+        $this->getJson($this->on('beauty-queen.glowhub.com'))
             ->assertOk()
             ->assertJsonPath('data.slug', 'beauty-queen');
         $this->getJson($this->on('beautyqueen.example'))->assertStatus(404);
@@ -296,7 +296,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->getJson($this->on('BEAUTY-QUEEN.SalonHub.com'))
+        $this->getJson($this->on('BEAUTY-QUEEN.Glowhub.com'))
             ->assertOk()
             ->assertJsonPath('data.slug', 'beauty-queen');
     }
@@ -305,7 +305,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->getJson($this->on('beauty-queen.salonhub.com:443'))
+        $this->getJson($this->on('beauty-queen.glowhub.com:443'))
             ->assertOk()
             ->assertJsonPath('data.slug', 'beauty-queen');
     }
@@ -314,7 +314,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->getJson($this->on('beauty-queen.salonhub.com.'))
+        $this->getJson($this->on('beauty-queen.glowhub.com.'))
             ->assertOk()
             ->assertJsonPath('data.slug', 'beauty-queen');
     }
@@ -355,7 +355,7 @@ class SubdomainResolutionTest extends TestCase
         foreach (['site', 'services', 'slots', 'book'] as $slug) {
             $this->makeOrg($slug);
 
-            $this->getJson('http://salonhub.com/api/public/'.$slug)
+            $this->getJson('http://glowhub.com/api/public/'.$slug)
                 ->assertOk()
                 ->assertJsonPath('data.slug', $slug);
         }
@@ -374,7 +374,7 @@ class SubdomainResolutionTest extends TestCase
         foreach (['site', 'services', 'slots', 'book'] as $slug) {
             $this->makeOrg($slug);
 
-            $this->getJson('http://beauty-queen.salonhub.com/api/public/'.$slug)
+            $this->getJson('http://beauty-queen.glowhub.com/api/public/'.$slug)
                 ->assertOk()
                 ->assertJsonPath('data.slug', $slug);
         }
@@ -402,9 +402,9 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('site');
 
-        $this->getJson('http://salonhub.com/api/public-site')->assertStatus(404);
-        $this->getJson('http://salonhub.com/api/public-site/site')->assertStatus(404);
-        $this->getJson('http://salonhub.com/api/public-site/services')->assertStatus(404);
+        $this->getJson('http://glowhub.com/api/public-site')->assertStatus(404);
+        $this->getJson('http://glowhub.com/api/public-site/site')->assertStatus(404);
+        $this->getJson('http://glowhub.com/api/public-site/services')->assertStatus(404);
     }
 
     /**
@@ -418,7 +418,7 @@ class SubdomainResolutionTest extends TestCase
         $this->makeOrg('beauty-queen');
         $this->makeOrg('rival-cuts');
 
-        $this->getJson('http://beauty-queen.salonhub.com/api/public-site')
+        $this->getJson('http://beauty-queen.glowhub.com/api/public-site')
             ->assertOk()
             ->assertJsonPath('data.slug', 'beauty-queen');
     }
@@ -431,7 +431,7 @@ class SubdomainResolutionTest extends TestCase
     {
         $this->makeOrg('beauty-queen');
 
-        $this->get($this->on('beauty-queen.salonhub.com', '/'))
+        $this->get($this->on('beauty-queen.glowhub.com', '/'))
             ->assertOk()
             ->assertSee('id="app"', false);
     }

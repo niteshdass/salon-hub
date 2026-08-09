@@ -22,7 +22,7 @@ class ContactMessageMail extends Mailable
     {
         // replyTo the sender so the platform team can respond directly.
         return new Envelope(
-            subject: 'New SalonHub contact message',
+            subject: 'New Glowhub contact message',
             replyTo: [$this->email],
         );
     }

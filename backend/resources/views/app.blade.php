@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SalonHub</title>
+    <title>Glowhub</title>
     {{-- The Vue build is copied to public/app by the deploy script. The
          manifest is read at request time so a redeploy needs no cache clear.
          Vite keys the manifest by the input file it built ("index.html"),

@@ -9,7 +9,7 @@ import LegalPage from '@/components/legal/LegalPage.vue'
     <p>
       When a salon signs up, we collect the salon's account details: business name,
       address, owner name, email and phone number. When the salon or its customers use
-      SalonHub to make a booking, we collect the customer's name, phone number, email
+      Glowhub to make a booking, we collect the customer's name, phone number, email
       address and any booking notes the salon enters — for example a preferred stylist or
       an allergy note. When a deposit is taken online, we store a reference to that
       payment transaction. We never see or store card numbers; those are handled entirely
@@ -42,15 +42,15 @@ import LegalPage from '@/components/legal/LegalPage.vue'
         request that failed.
       </li>
       <li>
-        The hosting and network providers that run the service — the server SalonHub is
-        installed on, and Cloudflare, which every request to salonhub.com passes through.
+        The hosting and network providers that run the service — the server Glowhub is
+        installed on, and Cloudflare, which every request to glowhub.com passes through.
       </li>
     </ul>
     <p>We do not sell customer or salon data, and we do not share it for advertising.</p>
 
     <h2>4. How long we keep it</h2>
     <p>
-      We keep account and booking data for the life of the salon's SalonHub account. There
+      We keep account and booking data for the life of the salon's Glowhub account. There
       is no self-service delete: to close an account and have its data removed, write to us
       at the address in section 7. We handle those requests by hand and aim to complete
       them within 30 days — except where we are required by law to retain particular
@@ -59,16 +59,16 @@ import LegalPage from '@/components/legal/LegalPage.vue'
 
     <h2>5. Your rights</h2>
     <p>
-      If you are a customer of a salon that uses SalonHub, the salon is the holder of your
+      If you are a customer of a salon that uses Glowhub, the salon is the holder of your
       booking record and the first point of contact for accessing, correcting or deleting
-      it. If a salon is unable to help, or you have a question about how SalonHub itself
+      it. If a salon is unable to help, or you have a question about how Glowhub itself
       handles data, contact us directly at
       <a :href="`mailto:${CONTACT_EMAIL}`">{{ CONTACT_EMAIL }}</a>.
     </p>
 
     <h2>6. Cookies</h2>
     <p>
-      SalonHub stores first-party authentication tokens in your browser's local storage to
+      Glowhub stores first-party authentication tokens in your browser's local storage to
       keep you signed in between visits — one for a salon's staff dashboard and one for a
       customer account. We do not use advertising cookies, and
       we do not embed third-party tracking scripts on the dashboard or booking pages.

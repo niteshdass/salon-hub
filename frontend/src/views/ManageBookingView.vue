@@ -573,7 +573,7 @@ onMounted(loadBooking)
             Book another appointment
           </a>
         </p>
-        <p class="label mt-4 text-center text-white/25">Powered by SalonHub</p>
+        <p class="label mt-4 text-center text-white/25">Powered by Glowhub</p>
       </main>
     </div>
   </div>

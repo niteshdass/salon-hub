@@ -16,7 +16,7 @@ class CustomerLoginCodeMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Your SalonHub login code');
+        return new Envelope(subject: 'Your Glowhub login code');
     }
 
     public function content(): Content

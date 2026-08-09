@@ -28,9 +28,9 @@ return [
 
     // Every salon gets <slug>.APP_DOMAIN, so the subdomain space is matched by
     // pattern rather than enumerated. Anchored at both ends and the dot before
-    // the apex is escaped, so `salonhub.com.evil.test` cannot match.
+    // the apex is escaped, so `glowhub.com.evil.test` cannot match.
     'allowed_origins_patterns' => [
-        '#^https://[a-z0-9-]+\.'.preg_quote((string) env('APP_DOMAIN', 'salonhub.com'), '#').'$#i',
+        '#^https://[a-z0-9-]+\.'.preg_quote((string) env('APP_DOMAIN', 'glowhub.com'), '#').'$#i',
     ],
 
     'allowed_headers' => ['*'],

@@ -273,7 +273,7 @@ class SentryPiiCaptureTest extends TestCase
         $secretManageToken = 'super-secret-manage-token-should-not-leak';
 
         $request = LaravelRequest::create(
-            'http://acme.salonhub.test/public/acme/manage/'.$secretManageToken.'?signature=leak',
+            'http://acme.glowhub.test/public/acme/manage/'.$secretManageToken.'?signature=leak',
             'GET'
         );
         // No route bound to this request — simulates an exception thrown
@@ -291,7 +291,7 @@ class SentryPiiCaptureTest extends TestCase
         $requestData = $result->getRequest();
 
         $this->assertStringNotContainsString($secretManageToken, $requestData['url'] ?? '');
-        $this->assertSame('http://acme.salonhub.test/<unrouted>', $requestData['url'] ?? null);
+        $this->assertSame('http://acme.glowhub.test/<unrouted>', $requestData['url'] ?? null);
         $this->assertArrayNotHasKey('query_string', $requestData);
     }
 

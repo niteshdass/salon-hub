@@ -83,7 +83,7 @@ return [
     |
     */
 
-    'domain' => env('APP_DOMAIN', 'salonhub.com'),
+    'domain' => env('APP_DOMAIN', 'glowhub.com'),
 
     /*
     |--------------------------------------------------------------------------

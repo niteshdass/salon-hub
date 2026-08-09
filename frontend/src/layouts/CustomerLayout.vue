@@ -28,7 +28,7 @@ async function signOut() {
       <RouterView />
     </main>
 
-    <p class="label pb-10 text-center text-white/25">Powered by SalonHub</p>
+    <p class="label pb-10 text-center text-white/25">Powered by Glowhub</p>
   </div>
 </template>
 

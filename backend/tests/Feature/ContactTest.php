@@ -14,7 +14,7 @@ class ContactTest extends TestCase
     public function test_valid_submission_sends_mail_to_configured_address(): void
     {
         Mail::fake();
-        config(['mail.contact_address' => 'inbox@salonhub.test']);
+        config(['mail.contact_address' => 'inbox@glowhub.test']);
 
         $response = $this->postJson('/api/contact', [
             'name' => 'Ada Salon',
@@ -25,7 +25,7 @@ class ContactTest extends TestCase
         $response->assertOk()->assertJsonStructure(['message']);
 
         Mail::assertSent(ContactMessageMail::class, function (ContactMessageMail $mail) {
-            return $mail->hasTo('inbox@salonhub.test')
+            return $mail->hasTo('inbox@glowhub.test')
                 && $mail->name === 'Ada Salon'
                 && $mail->email === 'ada@example.com'
                 && str_contains($mail->message, 'Business plan');

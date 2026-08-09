@@ -32,7 +32,7 @@ use RuntimeException;
  *
  * Idempotent: users.email is globally unique, so a second run without an
  * intervening migrate:fresh would otherwise die on a raw SQLSTATE[23000]
- * for demo@salonhub.com. Re-running is a normal workflow (refresh the demo
+ * for demo@glowhub.com. Re-running is a normal workflow (refresh the demo
  * data without wiping the rest of a shared dev database), so this seeder
  * deletes any previous demo-salon organization first rather than requiring
  * migrate:fresh every time. Every tenant-scoped table's organization_id
@@ -47,7 +47,7 @@ use RuntimeException;
  * sets it; it's server/session state, not app config), in which case
  * `DELETE FROM organizations` silently succeeds while every child row
  * (users included) is left orphaned, and the very next insert of
- * demo@salonhub.com collides again. `SET FOREIGN_KEY_CHECKS=1` is scoped to
+ * demo@glowhub.com collides again. `SET FOREIGN_KEY_CHECKS=1` is scoped to
  * this seeder's own DB connection/session only — it does not touch the
  * server's global setting or any other connection — so it's safe to force
  * on before the delete without side effects elsewhere.
@@ -63,16 +63,16 @@ use RuntimeException;
  *
  * IMPORTANT — the owner's email alone is not unambiguous either, contrary
  * to what an earlier version of this comment claimed. users.email is
- * globally unique, but that only says *a* user holds demo@salonhub.com; it
+ * globally unique, but that only says *a* user holds demo@glowhub.com; it
  * does not say that user is the owner of a *seeder-created* organization.
  * Verified against real data both ways: (1) a real tenant can register
- * with demo@salonhub.com as its own owner under a completely different
+ * with demo@glowhub.com as its own owner under a completely different
  * salon name/slug, and (2) StoreStaffRequest validates email uniqueness
  * globally too, so any real organization's *staff* member can hold that
  * address while someone else owns the org. Either case, blindly deleting
  * "whoever has that email" destroys a real tenant.
  *
- * So identifying "our" previous org requires BOTH: the demo@salonhub.com
+ * So identifying "our" previous org requires BOTH: the demo@glowhub.com
  * user must be that organization's OWNER (not staff/manager), AND the
  * organization's slug must match what RegisterOrganization::uniqueSlug()
  * actually produces for "Demo Salon" — `demo-salon`, or `demo-salon-2`,
@@ -129,7 +129,7 @@ class DemoSalonSeeder extends Seeder
         $result = app(RegisterOrganization::class)->execute([
             'salon_name' => 'Demo Salon',
             'name' => 'Dana Demo',
-            'email' => 'demo@salonhub.com',
+            'email' => 'demo@glowhub.com',
             'password' => 'password',
             'phone' => '+8801700000000',
             'country' => 'BD',
@@ -178,7 +178,7 @@ class DemoSalonSeeder extends Seeder
                 'organization_id' => $org->id,
                 'branch_id' => $branch->id,
                 'name' => $name,
-                'email' => str($name)->slug().'@demo.salonhub.com',
+                'email' => str($name)->slug().'@demo.glowhub.com',
                 'password' => Hash::make('password'),
                 'role' => 'staff',
                 'status' => 'active',
@@ -241,16 +241,16 @@ class DemoSalonSeeder extends Seeder
             ]);
         }
 
-        $this->command?->info("Demo salon ready: demo@salonhub.com / password (slug: {$org->slug})");
+        $this->command?->info("Demo salon ready: demo@glowhub.com / password (slug: {$org->slug})");
     }
 
     /**
      * Find the organization created by this seeder's own previous run, if
-     * any — see the class docblock for why the demo@salonhub.com email
+     * any — see the class docblock for why the demo@glowhub.com email
      * alone cannot answer this.
      *
      * Returns null only when there is genuinely nothing to clean up: no
-     * user holds demo@salonhub.com yet (first-ever run). If that address
+     * user holds demo@glowhub.com yet (first-ever run). If that address
      * is taken but the owner-role-plus-slug check fails, this throws
      * instead of returning null — silently reporting "nothing found" would
      * let run() sail on into RegisterOrganization::execute()'s inevitable
@@ -259,7 +259,7 @@ class DemoSalonSeeder extends Seeder
      */
     protected function resolvePreviousDemoOrganization(): ?Organization
     {
-        $user = User::where('email', 'demo@salonhub.com')->first();
+        $user = User::where('email', 'demo@glowhub.com')->first();
 
         if (! $user) {
             return null;
@@ -273,7 +273,7 @@ class DemoSalonSeeder extends Seeder
         if (! $looksLikeOurs) {
             throw new RuntimeException(
                 'DemoSalonSeeder refused to run: a user already exists with email '.
-                'demo@salonhub.com'.
+                'demo@glowhub.com'.
                 ($org
                     ? " (role \"{$user->role->value}\" in organization #{$org->id}, slug \"{$org->slug}\")"
                     : ' (no organization)'

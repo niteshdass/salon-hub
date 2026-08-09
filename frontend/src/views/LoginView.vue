@@ -38,7 +38,7 @@ async function onSubmit() {
 </script>
 
 <template>
-  <AuthLayout title="Welcome back" subtitle="Sign in to your SalonHub account.">
+  <AuthLayout title="Welcome back" subtitle="Sign in to your Glowhub account.">
     <div
       v-if="generalError"
       class="auth-alert mb-5 border-rose-200 bg-rose-50 text-rose-700"

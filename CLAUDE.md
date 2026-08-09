@@ -2,7 +2,7 @@
 
 ## Project Name
 
-**SalonHub** (Working Name)
+**Glowhub** (Working Name)
 
 > A multi-tenant SaaS platform that enables salons and beauty parlors to create their own online booking website and manage appointments, staff, services, and customers.
 
@@ -10,7 +10,7 @@
 
 # Vision
 
-SalonHub helps small and medium salons create a professional online presence in minutes.
+Glowhub helps small and medium salons create a professional online presence in minutes.
 
 Instead of managing appointments through Facebook Messenger or WhatsApp, salons receive a beautiful booking website and an easy-to-use dashboard.
 
@@ -69,7 +69,7 @@ Infrastructure
 ```
 Main Website
 
-salonhub.com
+glowhub.com
 
         │
 
@@ -85,7 +85,7 @@ Subdomain Generated
 
         │
 
-beautyqueen.salonhub.com
+beautyqueen.glowhub.com
 
         │
 
@@ -176,7 +176,7 @@ Fields
 Automatically create
 
 ```
-slug.salonhub.com
+slug.glowhub.com
 ```
 
 ---
@@ -326,7 +326,7 @@ Drag & Drop later
 Each organization receives
 
 ```
-beautyqueen.salonhub.com
+beautyqueen.glowhub.com
 ```
 
 Contains
@@ -441,7 +441,7 @@ updated_at
 Supports
 
 ```
-beautyqueen.salonhub.com
+beautyqueen.glowhub.com
 
 AND
 
@@ -772,7 +772,7 @@ Read Host Header
 Example
 
 ```
-beautyqueen.salonhub.com
+beautyqueen.glowhub.com
 ```
 
 ↓

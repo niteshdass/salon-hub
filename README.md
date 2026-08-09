@@ -118,7 +118,7 @@ php artisan serve
 
 `.env.example` defaults to a local SQLite connection and log-driver mail,
 so the four commands above are enough to get a working API — no MySQL or
-Redis required for local dev. `APP_DOMAIN` (default `salonhub.com`)
+Redis required for local dev. `APP_DOMAIN` (default `glowhub.com`)
 controls what subdomain each organization is served on.
 
 Seed a fully populated demo salon (services, staff, customers,
@@ -128,7 +128,7 @@ appointments — the data behind every screenshot above):
 php artisan db:seed --class=DemoSalonSeeder
 ```
 
-Log in with `demo@salonhub.com` / `password` afterwards. Two things to
+Log in with `demo@glowhub.com` / `password` afterwards. Two things to
 know before running it:
 
 - It **refuses to run unless `APP_ENV` is `local` or `testing`** — it

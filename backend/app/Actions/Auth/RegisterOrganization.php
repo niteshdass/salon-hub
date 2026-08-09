@@ -55,7 +55,7 @@ class RegisterOrganization
                 'phone' => $data['phone'] ?? null,
                 'country' => $data['country'] ?? null,
                 'timezone' => $data['timezone'] ?? 'UTC',
-                'currency' => $data['currency'] ?? 'USD',
+                'currency' => $data['currency'] ?? 'BDT',
                 'subscription_plan' => SubscriptionPlan::FREE->value,
                 'status' => OrganizationStatus::ACTIVE->value,
             ]);

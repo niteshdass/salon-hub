@@ -7,7 +7,7 @@ use App\Monitoring\SentryBeforeSend;
  *
  * @see https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/
  *
- * SalonHub holds customer names, phone numbers, emails, booking history and
+ * Glowhub holds customer names, phone numbers, emails, booking history and
  * payment references in one shared database keyed by organization_id, and
  * an error reporter is a data-exfiltration channel by default: the SDK
  * ships `send_default_pii` off, but several other things below are NOT off

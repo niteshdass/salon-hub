@@ -986,7 +986,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <p class="label mt-9 text-center text-white/25">Powered by SalonHub</p>
+        <p class="label mt-9 text-center text-white/25">Powered by Glowhub</p>
       </main>
     </div>
   </div>

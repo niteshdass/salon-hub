@@ -108,7 +108,7 @@ onMounted(load)
         No Twilio account connected — reminders are written to the log instead of sent.
       </div>
       <div v-else-if="!connected" class="rounded-lg bg-sky-50 px-4 py-3 text-sm text-sky-800">
-        Sending through the SalonHub Twilio account. Connect your own below to send from your number.
+        Sending through the Glowhub Twilio account. Connect your own below to send from your number.
       </div>
 
       <!-- Enable -->

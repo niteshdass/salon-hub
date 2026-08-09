@@ -43,7 +43,7 @@ class Domain extends Model
      *
      *  1. The host is normalised the way DNS treats it. Request::getHost()
      *     has already lowercased it and stripped any `:port`; the trailing
-     *     root dot in `beauty-queen.salonhub.com.` is stripped here. All
+     *     root dot in `beauty-queen.glowhub.com.` is stripped here. All
      *     three spellings of one name reach one tenant, and no spelling of
      *     one name reaches a different one.
      *  2. Only a VERIFIED row resolves. Registration mints the salon's own

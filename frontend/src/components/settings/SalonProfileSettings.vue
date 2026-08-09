@@ -35,13 +35,27 @@ const form = reactive({
   phone: '',
   country: '',
   timezone: '',
-  currency: '',
+  currency: 'BDT',
   theme_color: THEME_SWATCHES[0],
   about: '',
   facebook: '',
   instagram: '',
   website: '',
 })
+
+const CURRENCIES = [
+  { code: 'BDT', label: 'BDT — Bangladeshi Taka' },
+  { code: 'USD', label: 'USD — US Dollar' },
+  { code: 'EUR', label: 'EUR — Euro' },
+  { code: 'GBP', label: 'GBP — British Pound' },
+  { code: 'INR', label: 'INR — Indian Rupee' },
+  { code: 'PKR', label: 'PKR — Pakistani Rupee' },
+  { code: 'AED', label: 'AED — UAE Dirham' },
+  { code: 'SAR', label: 'SAR — Saudi Riyal' },
+  { code: 'MYR', label: 'MYR — Malaysian Ringgit' },
+  { code: 'AUD', label: 'AUD — Australian Dollar' },
+  { code: 'CAD', label: 'CAD — Canadian Dollar' },
+]
 
 // The browser knows every zone; fall back to a free-text field on the
 // handful of engines that do not expose the list.
@@ -319,7 +333,7 @@ onMounted(load)
           </div>
 
           <p v-if="isUnchosen" class="mt-3 text-xs text-ink/55">
-            Not set — your dashboard uses SalonHub terracotta and your public page uses its own gold.
+            Not set — your dashboard uses Glowhub terracotta and your public page uses its own gold.
           </p>
 
           <p v-if="fieldError('theme_color')" class="sh-error">{{ fieldError('theme_color') }}</p>
@@ -358,7 +372,9 @@ onMounted(load)
             </div>
             <div>
               <label class="sh-label">Currency</label>
-              <input v-model="form.currency" type="text" maxlength="3" placeholder="USD" class="sh-input uppercase" />
+              <select v-model="form.currency" class="sh-input">
+                <option v-for="c in CURRENCIES" :key="c.code" :value="c.code">{{ c.label }}</option>
+              </select>
               <p v-if="fieldError('currency')" class="sh-error">{{ fieldError('currency') }}</p>
             </div>
             <div>
