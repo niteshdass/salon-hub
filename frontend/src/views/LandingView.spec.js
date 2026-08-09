@@ -65,9 +65,14 @@ describe('LandingView', () => {
 
   it('points every filled call to action at registration', () => {
     const wrapper = mount(LandingView)
-    const filled = wrapper.findAll('a').filter((a) => a.classes().includes('bg-brand-500'))
+    // Primary CTAs are identified by data-test, not by fill colour: the
+    // closing band sits on a dark section and inverts to a paper fill so it
+    // stays visible, so colour alone can no longer tell "filled" apart from
+    // "not filled". One in the nav (desktop), one in the nav (mobile sheet),
+    // and one each in the hero, pricing card and closing band = 5.
+    const filled = wrapper.findAll('a[data-test="cta-primary"]')
 
-    expect(filled.length).toBeGreaterThan(2)
+    expect(filled).toHaveLength(5)
     expect(filled.every((a) => a.attributes('href') === '/register')).toBe(true)
   })
 

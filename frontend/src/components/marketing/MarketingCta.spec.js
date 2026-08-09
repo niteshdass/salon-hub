@@ -15,10 +15,10 @@ describe('MarketingCta', () => {
     expect(wrapper.text()).toContain('Register free')
   })
 
-  it('gives the primary variant the filled treatment and an arrow', () => {
+  it('gives the primary variant the filled ink treatment and an arrow', () => {
     const wrapper = mount(MarketingCta, { props: { to: '/register', label: 'Register free' } })
 
-    expect(wrapper.find('a').classes()).toContain('bg-brand-500')
+    expect(wrapper.find('a').classes()).toContain('bg-ink')
     expect(wrapper.find('svg').exists()).toBe(true)
   })
 
@@ -27,7 +27,7 @@ describe('MarketingCta', () => {
       props: { to: '/salon/demo-salon', label: 'See a live booking page', variant: 'secondary' },
     })
 
-    expect(wrapper.find('a').classes()).not.toContain('bg-brand-500')
+    expect(wrapper.find('a').classes()).not.toContain('bg-ink')
     expect(wrapper.find('svg').exists()).toBe(false)
   })
 

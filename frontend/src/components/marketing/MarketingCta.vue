@@ -8,18 +8,27 @@ defineProps({
   label: { type: String, required: true },
   variant: { type: String, default: 'primary' },
   block: { type: Boolean, default: false },
+  // The primary fill is near-black ink, which disappears on the closing
+  // band's own bg-ink section. `invert` swaps primary to a paper fill with
+  // an ink label so it stays a visible rectangle on a dark ground.
+  invert: { type: Boolean, default: false },
 })
 </script>
 
 <template>
   <RouterLink
     :to="to"
+    :data-test="variant === 'primary' ? 'cta-primary' : undefined"
     :class="[
-      'inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-7 py-3.5 text-base font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:outline-none',
+      'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:outline-none',
       block ? 'w-full' : '',
       variant === 'primary'
-        ? 'bg-brand-500 text-white shadow-xl shadow-brand-500/25 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35'
-        : 'border border-brand-200 bg-white/60 text-brand-700 hover:border-brand-300 hover:bg-white',
+        ? invert
+          ? 'bg-paper text-ink hover:bg-white'
+          : 'bg-ink text-white hover:bg-ink/90'
+        : invert
+          ? 'border border-paper/25 bg-transparent text-paper hover:bg-paper/10'
+          : 'border border-ink/15 bg-white text-ink hover:border-ink/25 hover:bg-paper',
     ]"
   >
     {{ label }}

@@ -14,7 +14,9 @@ describe('MarketingNav', () => {
   it('calls the product Glowhub', () => {
     const wrapper = mount(MarketingNav)
 
-    expect(wrapper.text()).toContain('Glowhub')
+    // The wordmark renders as a stylised lowercase "glowhub" (two-tone), so
+    // match case-insensitively rather than the capitalised brand spelling.
+    expect(wrapper.text().toLowerCase()).toContain('glowhub')
     expect(wrapper.text()).not.toContain('SalonHub')
   })
 
@@ -36,7 +38,7 @@ describe('MarketingNav', () => {
 
   it('offers registration as the one filled action', () => {
     const wrapper = mount(MarketingNav)
-    const filled = wrapper.findAll('a').filter((a) => a.classes().includes('bg-brand-500'))
+    const filled = wrapper.findAll('a[data-test="cta-primary"]')
 
     expect(filled.length).toBeGreaterThan(0)
     expect(filled.every((a) => a.attributes('href') === '/register')).toBe(true)

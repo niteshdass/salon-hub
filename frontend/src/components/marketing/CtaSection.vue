@@ -12,7 +12,7 @@ import MarketingCta from './MarketingCta.vue'
         Free to start. No card. Nothing to install.
       </p>
       <div class="mt-9 flex justify-center">
-        <MarketingCta to="/register" label="Register your salon" />
+        <MarketingCta to="/register" label="Register your salon" invert />
       </div>
     </div>
   </section>

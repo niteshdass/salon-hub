@@ -16,7 +16,7 @@ describe('HeroSection', () => {
 
   it('offers exactly one primary action, to registration', () => {
     const wrapper = mount(HeroSection)
-    const primaries = wrapper.findAll('a').filter((a) => a.classes().includes('bg-brand-500'))
+    const primaries = wrapper.findAll('a[data-test="cta-primary"]')
 
     expect(primaries).toHaveLength(1)
     expect(primaries[0].attributes('href')).toBe('/register')
@@ -41,8 +41,22 @@ describe('HeroSection', () => {
     const html = wrapper.html()
 
     expect(wrapper.text()).toContain('booked at 11:04pm')
-    // Bounded so the atmospheric blur's -left-32 does not match -left-3.
+    // Bounded so an unrelated offset like the floating card's -top-4 cannot
+    // false-match. The 360px overflow these two exact offsets caused before
+    // must not come back.
     expect(html).not.toMatch(/-right-3(?!\d)/)
     expect(html).not.toMatch(/-left-3(?!\d)/)
+  })
+
+  it('keeps the floating "New booking" card hidden until the lg breakpoint', () => {
+    const wrapper = mount(HeroSection)
+
+    expect(wrapper.text()).toContain('New booking')
+    expect(wrapper.text()).toContain('৳500 advance')
+
+    const card = wrapper.findAll('div').find((d) => d.text() === 'New booking৳500 advance')
+    expect(card).toBeTruthy()
+    expect(card.classes()).toContain('hidden')
+    expect(card.classes()).toContain('lg:flex')
   })
 })

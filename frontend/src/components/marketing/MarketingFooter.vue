@@ -130,7 +130,7 @@ const fieldClass = (field) => [
             <button
               type="submit"
               :disabled="sending"
-              class="inline-flex min-h-11 items-center justify-center rounded-full bg-brand-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              class="inline-flex min-h-11 items-center justify-center rounded-xl bg-paper px-6 py-3 text-sm font-semibold text-ink transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             >
               {{ sending ? 'Sending…' : 'Send message' }}
             </button>

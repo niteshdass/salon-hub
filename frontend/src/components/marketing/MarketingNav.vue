@@ -37,13 +37,20 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
   >
     <nav class="mx-auto flex h-18 max-w-6xl items-center justify-between px-5 lg:px-8">
       <!-- Wordmark -->
-      <a href="#top" class="group flex items-center gap-2.5" aria-label="Glowhub home">
-        <span
-          class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-sm shadow-brand-500/30 transition-transform duration-300 group-hover:-rotate-6"
+      <a href="#top" class="group flex items-center gap-2" aria-label="Glowhub home">
+        <svg
+          viewBox="0 0 24 24"
+          class="h-7 w-7 shrink-0 text-brand-600 transition-transform duration-300 group-hover:-rotate-6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
         >
-          <span class="font-display text-lg font-semibold leading-none">G</span>
-        </span>
-        <span class="font-display text-xl font-semibold tracking-tight text-ink">Glowhub</span>
+          <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+        </svg>
+        <span class="font-display text-xl font-semibold tracking-tight"><span class="text-ink">glow</span><span class="text-brand-600">hub</span></span>
       </a>
 
       <!-- Desktop anchor links -->
@@ -81,7 +88,8 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
         <RouterLink
           v-if="session"
           :to="session.to"
-          class="inline-flex min-h-11 items-center rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+          data-test="cta-primary"
+          class="inline-flex min-h-11 items-center rounded-xl bg-ink px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
         >
           {{ session.label }}
         </RouterLink>
@@ -94,7 +102,8 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
           </RouterLink>
           <RouterLink
             to="/register"
-            class="inline-flex min-h-11 items-center rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+            data-test="cta-primary"
+            class="inline-flex min-h-11 items-center rounded-xl bg-ink px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-ink/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
           >
             Register free
           </RouterLink>
@@ -105,7 +114,8 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
       <div class="flex items-center gap-2 md:hidden">
         <RouterLink
           :to="session ? session.to : '/register'"
-          class="inline-flex min-h-11 items-center rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-brand-500/25 transition-colors hover:bg-brand-600"
+          data-test="cta-primary"
+          class="inline-flex min-h-11 items-center rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-ink/90"
         >
           {{ session ? session.label : 'Register free' }}
         </RouterLink>

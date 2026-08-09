@@ -31,7 +31,7 @@ describe('PricingSection', () => {
 
   it('sends its one action to registration', () => {
     const wrapper = mount(PricingSection)
-    const primaries = wrapper.findAll('a').filter((a) => a.classes().includes('bg-brand-500'))
+    const primaries = wrapper.findAll('a[data-test="cta-primary"]')
 
     expect(primaries).toHaveLength(1)
     expect(primaries[0].attributes('href')).toBe('/register')
