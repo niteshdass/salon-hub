@@ -18,7 +18,8 @@ const observe = vi.fn()
 const disconnect = vi.fn()
 
 const fireHero = (isIntersecting) => fires[0]([{ isIntersecting }])
-const fireCta = (isIntersecting) => fires[1]([{ isIntersecting }])
+const fireCta = (isIntersecting, boundingClientRect = { bottom: 200 }) =>
+  fires[1]([{ isIntersecting, boundingClientRect }])
 
 beforeEach(() => {
   // The stores read their token from localStorage at construction, so a
@@ -95,7 +96,27 @@ describe('StickyMobileCta', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.find('a').exists()).toBe(true)
 
-    fireCta(true)
+    fireCta(true, { bottom: 100 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('a').exists()).toBe(false)
+  })
+
+  it('stays hidden once the CTA has fully scrolled past, instead of waking on top of the footer', async () => {
+    const wrapper = mount(StickyMobileCta)
+
+    fireHero(false)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('a').exists()).toBe(true)
+
+    // The CTA arrives on screen...
+    fireCta(true, { bottom: 100 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('a').exists()).toBe(false)
+
+    // ...and then scrolls fully above the viewport. isIntersecting goes
+    // back to false here too, but the footer that follows the CTA is now
+    // what's on screen, and the bar must not reappear on top of it.
+    fireCta(false, { bottom: -20 })
     await wrapper.vm.$nextTick()
     expect(wrapper.find('a').exists()).toBe(false)
   })

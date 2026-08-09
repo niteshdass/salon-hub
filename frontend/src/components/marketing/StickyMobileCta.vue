@@ -37,7 +37,14 @@ onMounted(() => {
   const cta = document.getElementById('cta')
   if (cta) {
     ctaObserver = new IntersectionObserver(([entry]) => {
-      ctaVisible.value = entry.isIntersecting
+      // isIntersecting alone flips back to false once the CTA has scrolled
+      // fully above the viewport too — not just before it arrives — which
+      // would wake the bar again right on top of the footer that follows
+      // it. Once the CTA's bottom edge has passed the top of the viewport,
+      // treat it as still "seen" so the bar stays asleep for the rest of
+      // the scroll down. Scrolling back up above the CTA correctly wakes
+      // it again, since the bottom edge returns below the viewport top.
+      ctaVisible.value = entry.isIntersecting || entry.boundingClientRect.bottom <= 0
     })
     ctaObserver.observe(cta)
   }
