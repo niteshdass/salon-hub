@@ -1,39 +1,20 @@
 <script setup>
+import SectionHeading from './SectionHeading.vue'
+
 const steps = [
-  {
-    n: '01',
-    title: 'Register your salon',
-    body: 'Create your account and claim your booking subdomain.',
-  },
-  {
-    n: '02',
-    title: 'Set up services & staff',
-    body: 'Add what you offer, who does it, and when.',
-  },
-  {
-    n: '03',
-    title: 'Share your booking link',
-    body: 'Drop it in your bio and start taking bookings.',
-  },
+  { n: '01', title: 'Register your salon', body: 'Two minutes. Name, phone, and your booking address is yours.' },
+  { n: '02', title: 'Add services & staff', body: 'Five minutes, guided. What you offer, who does it, and when.' },
+  { n: '03', title: 'Share your link', body: 'Bio, WhatsApp status, shop window. Bookings start arriving.' },
 ]
 </script>
 
 <template>
-  <section class="relative overflow-hidden py-20 sm:py-28">
+  <section class="relative overflow-hidden py-16 sm:py-24">
     <!-- Warm band behind the steps -->
     <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-1/2 -z-10 h-72 -translate-y-1/2 bg-gradient-to-b from-brand-50/70 to-transparent"></div>
 
-    <div class="mx-auto max-w-6xl px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl text-center">
-        <p class="inline-flex items-center gap-2 text-xs font-semibold tracking-widest text-brand-600 uppercase">
-          <span class="h-px w-8 bg-brand-300"></span>
-          How it works
-          <span class="h-px w-8 bg-brand-300"></span>
-        </p>
-        <h2 class="mt-4 font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
-          Live in three steps.
-        </h2>
-      </div>
+    <div class="mx-auto max-w-6xl px-5 lg:px-8">
+      <SectionHeading eyebrow="How it works" title="Live in three steps." align="center" />
 
       <div class="relative mt-16 grid gap-8 md:grid-cols-3">
         <!-- Connecting dashed line (desktop) -->
