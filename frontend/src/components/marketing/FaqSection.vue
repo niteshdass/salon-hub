@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     q: 'Who owns my client list?',
-    a: 'You do. Export every client, booking and note whenever you want, and take it with you if you leave.',
+    a: "You do. Ask and we'll send you the lot — every client, booking and note. A one-click export is on the way; until it lands we do it by hand, same day.",
   },
   {
     q: 'Can I run more than one branch?',

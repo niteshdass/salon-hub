@@ -25,7 +25,7 @@ describe('TrustSection', () => {
   it('promises the client list is portable, which is the real objection', () => {
     const wrapper = mount(TrustSection)
 
-    expect(wrapper.text()).toContain('Export it any time')
+    expect(wrapper.text()).toContain("we'll send you every client")
   })
 
   it('points at the demo salon rather than at a testimonial', () => {

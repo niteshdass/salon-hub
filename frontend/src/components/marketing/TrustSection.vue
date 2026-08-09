@@ -15,7 +15,7 @@ const promises = [
   },
   {
     title: 'Your client list is yours.',
-    body: 'Export it any time, in full. Leave any time. Nothing is held hostage.',
+    body: "Ask us for it and we'll send you every client, booking and note. Leave any time — nothing is held hostage.",
   },
   {
     title: 'You can reach a human.',
