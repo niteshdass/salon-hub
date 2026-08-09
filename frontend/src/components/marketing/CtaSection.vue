@@ -3,7 +3,7 @@ import MarketingCta from './MarketingCta.vue'
 </script>
 
 <template>
-  <section class="bg-ink py-16 sm:py-24">
+  <section id="cta" class="bg-ink py-16 sm:py-24">
     <div class="mx-auto max-w-3xl px-5 text-center lg:px-8">
       <h2 class="font-display text-[2rem] leading-[1.08] font-semibold tracking-tight text-paper sm:text-4xl lg:text-5xl">
         Your booking page is ten minutes away.
