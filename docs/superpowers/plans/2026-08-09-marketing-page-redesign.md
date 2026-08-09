@@ -589,7 +589,7 @@ import { mount } from '@vue/test-utils'
 import PainSection from './PainSection.vue'
 
 describe('PainSection', () => {
-  it('lists three of today's problems and one answer', () => {
+  it('lists three of the problems the owner has today and one answer', () => {
     const wrapper = mount(PainSection)
     const terms = wrapper.findAll('dt').map((dt) => dt.text())
 
@@ -1431,7 +1431,7 @@ vi.mock('vue-router', () => ({
   RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
 }))
 
-import { useAuthStore } from '@/stores/auth'
+import { TOKEN_KEY } from '@/lib/api'
 import StickyMobileCta from './StickyMobileCta.vue'
 
 // jsdom ships no IntersectionObserver. This stub keeps the last callback so a
@@ -1441,6 +1441,9 @@ const observe = vi.fn()
 const disconnect = vi.fn()
 
 beforeEach(() => {
+  // The stores read their token from localStorage at construction, so a
+  // session is installed the way sessionLink.spec.js installs one.
+  localStorage.clear()
   setActivePinia(createPinia())
   observe.mockClear()
   disconnect.mockClear()
@@ -1489,11 +1492,8 @@ describe('StickyMobileCta', () => {
   })
 
   it('never nags a visitor who is already signed in', async () => {
-    useAuthStore().setSession({
-      token: 't',
-      user: { id: 1, name: 'Owner', role: 'owner' },
-      organization: { id: 9, subscription_plan: 'free', currency: 'BDT' },
-    })
+    localStorage.setItem(TOKEN_KEY, 'staff-token')
+    setActivePinia(createPinia())
 
     const wrapper = mount(StickyMobileCta)
     fire?.([{ isIntersecting: false }])
