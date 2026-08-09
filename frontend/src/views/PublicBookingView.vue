@@ -4,9 +4,14 @@ import { useRoute } from 'vue-router'
 import api from '@/lib/api'
 import { customerToken, fetchCustomerIdentity } from '@/lib/customerApi'
 import { parseApiError } from '@/lib/errors'
+import { useAccountLink } from '@/lib/sessionLink'
 import { publicApiBase } from '@/lib/tenantHost'
 
 const route = useRoute()
+// Balances "← Back to salon" in the top bar: a returning customer who landed
+// straight on the booking page can reach their own bookings from here rather
+// than booking a duplicate because they could not find the old one.
+const accountLink = useAccountLink()
 const slug = route.params.slug
 // This view's route carries a required `:slug`, so this is always the
 // path-scoped base. It goes through publicApiBase so the prefix is decided in
@@ -527,6 +532,12 @@ onMounted(async () => {
       <RouterLink :to="`/salon/${slug}`" class="label absolute top-7 left-6 z-10 text-white/55 transition hover:text-white lg:left-10">
         ← Back to salon
       </RouterLink>
+      <RouterLink
+        :to="accountLink.to"
+        class="label absolute top-7 right-6 z-10 text-white/55 transition hover:text-white lg:right-10"
+      >
+        {{ accountLink.label }}
+      </RouterLink>
 
       <header class="px-6 pt-24 pb-14 text-center">
         <p class="rule-label justify-center text-[var(--accent)]">Book an appointment</p>
@@ -963,7 +974,12 @@ onMounted(async () => {
 
               <div class="mt-7 flex flex-wrap justify-center gap-3">
                 <button type="button" class="btn-light" @click="resetWizard">Book another</button>
-                <RouterLink v-if="account" to="/account" class="btn-ghost">My bookings</RouterLink>
+                <!--
+                  Whoever just booked is a customer, whatever else they may
+                  also be signed in as — so this stays the customer link
+                  rather than the shared account one.
+                -->
+                <RouterLink :to="account ? '/account' : '/account/login'" class="btn-ghost">My bookings</RouterLink>
                 <RouterLink :to="`/salon/${slug}`" class="btn-ghost">Back to salon</RouterLink>
               </div>
             </section>

@@ -76,6 +76,15 @@ async function submitCode() {
         </button>
         <button type="button" class="btn-text mt-6 w-full text-center" @click="sendCode">Resend code</button>
       </form>
+
+      <!--
+        A way out, in both directions: back to the site they came from, and
+        across to the staff door for anyone who arrived at the wrong one.
+      -->
+      <div class="mt-10 flex items-center justify-between gap-4 border-t border-white/8 pt-6">
+        <RouterLink to="/" class="btn-text">← Back</RouterLink>
+        <RouterLink to="/login" class="btn-text">Salon log in</RouterLink>
+      </div>
     </div>
   </div>
 </template>

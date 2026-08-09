@@ -51,7 +51,12 @@ const productLinks = [
           <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Account</p>
           <ul class="mt-4 space-y-3">
             <li>
-              <RouterLink to="/login" class="text-paper/70 transition-colors hover:text-paper">Log in</RouterLink>
+              <RouterLink to="/account/login" class="text-paper/70 transition-colors hover:text-paper">
+                My bookings
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink to="/login" class="text-paper/70 transition-colors hover:text-paper">Salon log in</RouterLink>
             </li>
             <li>
               <RouterLink to="/register" class="text-paper/70 transition-colors hover:text-paper">Register a salon</RouterLink>

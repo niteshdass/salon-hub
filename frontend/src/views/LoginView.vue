@@ -86,6 +86,15 @@ async function onSubmit() {
     <template #footer>
       Don't have an account?
       <RouterLink to="/register" class="auth-link">Register a salon</RouterLink>
+      <!--
+        This page is the salon's own staff door, and it is the one a customer
+        finds first. Say so, and point them at theirs, rather than letting them
+        fail against a password they were never given.
+      -->
+      <p class="mt-2">
+        Booked at a salon?
+        <RouterLink to="/account/login" class="auth-link">See your bookings</RouterLink>
+      </p>
     </template>
   </AuthLayout>
 </template>

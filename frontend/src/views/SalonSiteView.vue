@@ -3,14 +3,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
-import { useSessionLink } from '@/lib/sessionLink'
+import { useAccountLink } from '@/lib/sessionLink'
 import { publicApiBase } from '@/lib/tenantHost'
 
 const route = useRoute()
 
-// A visitor who is already signed in — as a customer or as salon staff — gets
-// the way back into their own area alongside the salon's own links.
-const session = useSessionLink()
+// One "your bookings are over here" link, present for everyone: a signed-in
+// visitor — customer or salon staff — goes to their own area, and a signed-out
+// one is offered the customer sign-in. This page is where a returning customer
+// actually looks for it, so it must never be missing.
+const account = useAccountLink()
 
 // Two ways in: `/salon/:slug` on any host, and `/` on the salon's own
 // subdomain. In the second case there is no slug in the path, so the calls
@@ -237,16 +239,11 @@ onBeforeUnmount(() => {
             <a v-if="site.phone" :href="`tel:${site.phone}`" class="label hidden text-white/55 transition hover:text-white sm:block">
               {{ site.phone }}
             </a>
-            <RouterLink
-              v-if="session"
-              :to="session.to"
-              class="label nav-link hidden text-white/55 sm:block"
-            >
-              {{ session.label }}
+            <RouterLink :to="account.to" class="label nav-link hidden text-white/55 sm:block">
+              {{ account.label }}
             </RouterLink>
             <RouterLink :to="`/book/${site.slug}`" class="btn-gold">Book</RouterLink>
             <button
-              v-if="sections.length || session"
               type="button"
               class="label text-white/70 lg:hidden"
               :aria-expanded="menuOpen"
@@ -268,13 +265,8 @@ onBeforeUnmount(() => {
           >
             {{ section.label }}
           </a>
-          <RouterLink
-            v-if="session"
-            :to="session.to"
-            class="label block py-2.5 text-[var(--accent)]"
-            @click="closeMenu"
-          >
-            {{ session.label }}
+          <RouterLink :to="account.to" class="label block py-2.5 text-[var(--accent)]" @click="closeMenu">
+            {{ account.label }}
           </RouterLink>
         </nav>
       </header>
@@ -335,11 +327,8 @@ onBeforeUnmount(() => {
           <div class="reveal mt-11 flex flex-wrap items-center gap-3" style="--d: 260ms">
             <RouterLink :to="`/book/${site.slug}`" class="btn-gold btn-lg">Book an appointment</RouterLink>
             <a v-if="site.phone" :href="`tel:${site.phone}`" class="btn-ghost btn-lg">{{ site.phone }}</a>
-            <RouterLink
-              :to="session ? session.to : '/account/login'"
-              class="label ml-1 text-white/45 transition hover:text-white"
-            >
-              {{ session ? session.label : 'Manage bookings' }}
+            <RouterLink :to="account.to" class="label ml-1 text-white/45 transition hover:text-white">
+              {{ account.label }}
             </RouterLink>
           </div>
         </div>

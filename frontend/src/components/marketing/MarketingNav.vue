@@ -62,6 +62,18 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
         >
           Find a salon
         </RouterLink>
+        <!--
+          Customers sit on this side of the bar, beside "Find a salon" — the
+          actions on the right belong to salon owners. Hidden once a session
+          exists, because that session's own link is already in the actions.
+        -->
+        <RouterLink
+          v-if="!session"
+          to="/account/login"
+          class="rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+        >
+          My bookings
+        </RouterLink>
       </div>
 
       <!-- Desktop actions -->
@@ -78,7 +90,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
             to="/login"
             class="rounded-full px-4 py-2 text-sm font-semibold text-ink/75 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
-            Log in
+            Salon log in
           </RouterLink>
           <RouterLink
             to="/register"
@@ -142,11 +154,19 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
             Find a salon
           </RouterLink>
           <RouterLink
+            v-if="!session"
+            to="/account/login"
+            class="rounded-xl px-3 py-2.5 text-base font-semibold text-brand-700 transition-colors hover:bg-brand-50"
+            @click="open = false"
+          >
+            My bookings
+          </RouterLink>
+          <RouterLink
             :to="session ? session.to : '/login'"
             class="rounded-xl px-3 py-2.5 text-base font-semibold text-brand-700 transition-colors hover:bg-brand-50"
             @click="open = false"
           >
-            {{ session ? session.label : 'Log in' }}
+            {{ session ? session.label : 'Salon log in' }}
           </RouterLink>
         </div>
       </div>

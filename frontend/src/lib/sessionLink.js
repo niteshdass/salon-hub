@@ -21,3 +21,20 @@ export function useSessionLink() {
     return null
   })
 }
+
+// The signed-out half of the same link. A customer who booked last month has
+// no idea the salon's "Log in" belongs to the salon's own staff, so every
+// public surface offers this one instead of leaving them nowhere to go.
+const CUSTOMER_SIGN_IN = { label: 'My bookings', to: '/account/login' }
+
+/**
+ * Like useSessionLink(), but never null: a visitor with no session is offered
+ * the customer sign-in rather than nothing. Use this where the page has room
+ * for exactly one "your stuff is over here" link; use useSessionLink() where
+ * signed-out visitors are meant to see the page's own signed-out links.
+ */
+export function useAccountLink() {
+  const session = useSessionLink()
+
+  return computed(() => session.value || CUSTOMER_SIGN_IN)
+}

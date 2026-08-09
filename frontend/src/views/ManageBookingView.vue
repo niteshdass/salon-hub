@@ -3,9 +3,13 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/lib/api'
 import { parseApiError } from '@/lib/errors'
+import { useAccountLink } from '@/lib/sessionLink'
 import { publicApiBase } from '@/lib/tenantHost'
 
 const route = useRoute()
+// Whoever opened this emailed link has exactly one booking in front of them;
+// this is the way to the rest of them.
+const accountLink = useAccountLink()
 const slug = route.params.slug
 // This view's route carries a required `:slug`, so this is always the
 // path-scoped base. It goes through publicApiBase so the prefix is decided in
@@ -327,6 +331,12 @@ onMounted(loadBooking)
 
       <RouterLink :to="bookAnotherLink" class="label absolute top-7 left-6 z-10 text-white/55 transition hover:text-white lg:left-10">
         ← Back to booking
+      </RouterLink>
+      <RouterLink
+        :to="accountLink.to"
+        class="label absolute top-7 right-6 z-10 text-white/55 transition hover:text-white lg:right-10"
+      >
+        {{ accountLink.label }}
       </RouterLink>
 
       <header class="px-6 pt-24 pb-14 text-center">
