@@ -16,7 +16,9 @@ const fill = async (wrapper) => {
 }
 
 describe('MarketingFooter', () => {
-  beforeEach(() => vi.mocked(api.post).mockReset())
+  beforeEach(() => {
+    vi.mocked(api.post).mockReset()
+  })
 
   it('calls the product Glowhub', () => {
     const wrapper = mount(MarketingFooter)
@@ -42,14 +44,7 @@ describe('MarketingFooter', () => {
   })
 
   it('shows the field errors the server returns', async () => {
-    // mockRejectedValueOnce (not mockRejectedValue): the submit path awaits
-    // and catches this exactly once, but a persistent mockRejectedValue
-    // implementation leaves a second, later-created rejected promise (from
-    // Vitest's own mock bookkeeping) floating with no handler attached,
-    // which Vitest's jsdom pool reports as an unhandled rejection against
-    // whichever test is active — a false failure unrelated to this
-    // component's behavior. Confirmed via api.post.mock.calls.length === 1.
-    vi.mocked(api.post).mockRejectedValueOnce({ response: { status: 422, data: { errors: { email: ['Not an email.'] } } } })
+    vi.mocked(api.post).mockRejectedValue({ response: { status: 422, data: { errors: { email: ['Not an email.'] } } } })
     const wrapper = mount(MarketingFooter)
 
     await fill(wrapper)
@@ -60,9 +55,7 @@ describe('MarketingFooter', () => {
   })
 
   it('says so plainly when the visitor is rate limited', async () => {
-    // See note above: mockRejectedValueOnce avoids a spurious unhandled-
-    // rejection failure unrelated to the assertions in this test.
-    vi.mocked(api.post).mockRejectedValueOnce({ response: { status: 429 } })
+    vi.mocked(api.post).mockRejectedValue({ response: { status: 429 } })
     const wrapper = mount(MarketingFooter)
 
     await fill(wrapper)

@@ -38,6 +38,7 @@ describe('MarketingNav', () => {
     const wrapper = mount(MarketingNav)
     const filled = wrapper.findAll('a').filter((a) => a.classes().includes('bg-brand-500'))
 
+    expect(filled.length).toBeGreaterThan(0)
     expect(filled.every((a) => a.attributes('href') === '/register')).toBe(true)
   })
 

@@ -69,7 +69,7 @@ const fieldClass = (field) => [
           <p class="mt-4 max-w-xs leading-relaxed text-paper/55">Booking software for salons in Bangladesh.</p>
           <a
             :href="`mailto:${CONTACT_EMAIL}`"
-            class="mt-4 inline-block text-sm text-paper/70 underline decoration-paper/20 underline-offset-4 transition-colors hover:text-paper hover:decoration-paper/50"
+            class="mt-4 inline-flex min-h-11 items-center text-sm text-paper/70 underline decoration-paper/20 underline-offset-4 transition-colors hover:text-paper hover:decoration-paper/50"
           >
             {{ CONTACT_EMAIL }}
           </a>
@@ -87,10 +87,11 @@ const fieldClass = (field) => [
                 type="text"
                 autocomplete="name"
                 :aria-invalid="!!fieldError('name')"
+                :aria-describedby="fieldError('name') ? 'footer-contact-name-error' : undefined"
                 :class="fieldClass('name')"
                 placeholder="Your name"
               />
-              <p v-if="fieldError('name')" class="mt-1.5 text-sm text-rose-300">{{ fieldError('name') }}</p>
+              <p v-if="fieldError('name')" id="footer-contact-name-error" class="mt-1.5 text-sm text-rose-300">{{ fieldError('name') }}</p>
             </div>
 
             <div>
@@ -101,10 +102,11 @@ const fieldClass = (field) => [
                 type="email"
                 autocomplete="email"
                 :aria-invalid="!!fieldError('email')"
+                :aria-describedby="fieldError('email') ? 'footer-contact-email-error' : undefined"
                 :class="fieldClass('email')"
                 placeholder="you@salon.com"
               />
-              <p v-if="fieldError('email')" class="mt-1.5 text-sm text-rose-300">{{ fieldError('email') }}</p>
+              <p v-if="fieldError('email')" id="footer-contact-email-error" class="mt-1.5 text-sm text-rose-300">{{ fieldError('email') }}</p>
             </div>
 
             <div>
@@ -114,10 +116,11 @@ const fieldClass = (field) => [
                 v-model="form.message"
                 rows="3"
                 :aria-invalid="!!fieldError('message')"
+                :aria-describedby="fieldError('message') ? 'footer-contact-message-error' : undefined"
                 :class="fieldClass('message')"
                 placeholder="How can we help your salon?"
               ></textarea>
-              <p v-if="fieldError('message')" class="mt-1.5 text-sm text-rose-300">{{ fieldError('message') }}</p>
+              <p v-if="fieldError('message')" id="footer-contact-message-error" class="mt-1.5 text-sm text-rose-300">{{ fieldError('message') }}</p>
             </div>
 
             <p v-if="formError" class="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
@@ -140,7 +143,11 @@ const fieldClass = (field) => [
             <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Product</p>
             <ul class="mt-4 space-y-3">
               <li v-for="link in productLinks" :key="link.href">
-                <a :href="link.href" class="text-paper/70 transition-colors hover:text-paper">{{ link.label }}</a>
+                <a
+                  :href="link.href"
+                  class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper"
+                  >{{ link.label }}</a
+                >
               </li>
             </ul>
           </div>
@@ -148,19 +155,19 @@ const fieldClass = (field) => [
           <div>
             <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Account</p>
             <ul class="mt-4 space-y-3">
-              <li><RouterLink to="/register" class="text-paper/70 transition-colors hover:text-paper">Register a salon</RouterLink></li>
-              <li><RouterLink to="/login" class="text-paper/70 transition-colors hover:text-paper">Salon log in</RouterLink></li>
-              <li><RouterLink to="/salons" class="text-paper/70 transition-colors hover:text-paper">Find a salon</RouterLink></li>
-              <li><RouterLink to="/account/login" class="text-paper/70 transition-colors hover:text-paper">My bookings</RouterLink></li>
+              <li><RouterLink to="/register" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Register free</RouterLink></li>
+              <li><RouterLink to="/login" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Salon log in</RouterLink></li>
+              <li><RouterLink to="/salons" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Find a salon</RouterLink></li>
+              <li><RouterLink to="/account/login" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">My bookings</RouterLink></li>
             </ul>
           </div>
 
           <div>
             <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Legal</p>
             <ul class="mt-4 space-y-3">
-              <li><RouterLink to="/terms" class="text-paper/70 transition-colors hover:text-paper">Terms of Service</RouterLink></li>
-              <li><RouterLink to="/privacy" class="text-paper/70 transition-colors hover:text-paper">Privacy Policy</RouterLink></li>
-              <li><RouterLink to="/refund" class="text-paper/70 transition-colors hover:text-paper">Refund Policy</RouterLink></li>
+              <li><RouterLink to="/terms" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Terms of Service</RouterLink></li>
+              <li><RouterLink to="/privacy" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Privacy Policy</RouterLink></li>
+              <li><RouterLink to="/refund" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Refund Policy</RouterLink></li>
             </ul>
           </div>
         </div>
