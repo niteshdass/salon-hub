@@ -383,8 +383,9 @@ describe('HeroSection', () => {
     const html = wrapper.html()
 
     expect(wrapper.text()).toContain('booked at 11:04pm')
-    expect(html).not.toContain('-right-3')
-    expect(html).not.toContain('-left-3')
+    // Bounded so the atmospheric blur's -left-32 does not match -left-3.
+    expect(html).not.toMatch(/-right-3(?!\d)/)
+    expect(html).not.toMatch(/-left-3(?!\d)/)
   })
 })
 ```
