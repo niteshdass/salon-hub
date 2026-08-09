@@ -9,7 +9,7 @@ const steps = [
 </script>
 
 <template>
-  <section class="relative overflow-hidden py-16 sm:py-24">
+  <section id="how-it-works" class="relative scroll-mt-24 overflow-hidden py-16 sm:py-24">
     <!-- Warm band behind the steps -->
     <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-1/2 -z-10 h-72 -translate-y-1/2 bg-gradient-to-b from-brand-50/70 to-transparent"></div>
 

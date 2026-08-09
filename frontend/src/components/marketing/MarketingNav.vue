@@ -12,9 +12,9 @@ const scrolled = ref(false)
 
 const links = [
   { label: 'Features', href: '#features' },
+  { label: 'How it works', href: '#how-it-works' },
   { label: 'Pricing', href: '#pricing' },
   { label: 'FAQ', href: '#faq' },
-  { label: 'Contact', href: '#contact' },
 ]
 
 function onScroll() {
@@ -37,13 +37,13 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
   >
     <nav class="mx-auto flex h-18 max-w-6xl items-center justify-between px-6 lg:px-8">
       <!-- Wordmark -->
-      <a href="#top" class="group flex items-center gap-2.5" aria-label="SalonHub home">
+      <a href="#top" class="group flex items-center gap-2.5" aria-label="Glowhub home">
         <span
           class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-sm shadow-brand-500/30 transition-transform duration-300 group-hover:-rotate-6"
         >
-          <span class="font-display text-lg font-semibold leading-none">S</span>
+          <span class="font-display text-lg font-semibold leading-none">G</span>
         </span>
-        <span class="font-display text-xl font-semibold tracking-tight text-ink">SalonHub</span>
+        <span class="font-display text-xl font-semibold tracking-tight text-ink">Glowhub</span>
       </a>
 
       <!-- Desktop anchor links -->
@@ -52,13 +52,13 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
           v-for="link in links"
           :key="link.href"
           :href="link.href"
-          class="rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          class="min-h-11 rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
           {{ link.label }}
         </a>
         <RouterLink
           to="/salons"
-          class="rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          class="min-h-11 rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
           Find a salon
         </RouterLink>
@@ -70,7 +70,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
         <RouterLink
           v-if="!session"
           to="/account/login"
-          class="rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          class="min-h-11 rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
           My bookings
         </RouterLink>
@@ -88,7 +88,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
         <template v-else>
           <RouterLink
             to="/login"
-            class="rounded-full px-4 py-2 text-sm font-semibold text-ink/75 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            class="min-h-11 rounded-full px-4 py-2 text-sm font-semibold text-ink/75 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
             Salon log in
           </RouterLink>
@@ -96,7 +96,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
             to="/register"
             class="inline-flex items-center rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-600 hover:shadow-brand-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
           >
-            Register a salon
+            Register free
           </RouterLink>
         </template>
       </div>
@@ -107,7 +107,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
           :to="session ? session.to : '/register'"
           class="inline-flex items-center rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-brand-500/25 transition-colors hover:bg-brand-600"
         >
-          {{ session ? session.label : 'Register a salon' }}
+          {{ session ? session.label : 'Register free' }}
         </RouterLink>
         <button
           type="button"
