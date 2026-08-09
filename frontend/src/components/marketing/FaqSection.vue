@@ -1,26 +1,35 @@
 <script setup>
 import { ref } from 'vue'
+import SectionHeading from './SectionHeading.vue'
 
 const faqs = [
   {
-    q: 'Do I need my own website?',
-    a: 'No. SalonHub gives every salon its own booking page the moment you register.',
+    q: 'My clients only use Messenger — will they use this?',
+    a: "They don't need an account or an app. You send them a link, they pick a time, they're booked. Most people book in under a minute.",
   },
   {
-    q: 'Can clients pay a deposit?',
-    a: 'Yes — turn on deposits and clients pay to confirm their slot, cutting no-shows.',
+    q: 'Do I need a website already?',
+    a: 'No. Glowhub gives every salon its own booking page the moment you register.',
   },
   {
-    q: 'Does it send reminders?',
-    a: 'Yes — connect a Twilio account in Settings and SMS or WhatsApp reminders go out before each appointment, to clients who left a phone number.',
+    q: 'Do I need a card to sign up?',
+    a: 'No. The free plan needs no card, and there is nothing to cancel.',
   },
   {
-    q: 'Can I manage more than one location?',
-    a: 'The Free plan covers one branch and up to ten staff today. Support for more locations is on the way.',
+    q: 'Can I take an advance payment?',
+    a: 'Yes. Turn on advances and a client pays part of the price to hold the slot, by card or mobile banking through SSLCommerz.',
   },
   {
-    q: 'How do I get started?',
-    a: 'Register your salon, add your services and staff, and share your booking link. It takes minutes.',
+    q: 'What happens when it stops being free?',
+    a: "It doesn't. Paid plans will add more branches and staff; what you can do today on Free stays free, and we will tell you before anything changes.",
+  },
+  {
+    q: 'Who owns my client list?',
+    a: 'You do. Export every client, booking and note whenever you want, and take it with you if you leave.',
+  },
+  {
+    q: 'Can I run more than one branch?',
+    a: 'One branch and up to ten staff on Free today. More branches are what the paid plans will be for.',
   },
 ]
 
@@ -32,18 +41,9 @@ function toggle(i) {
 </script>
 
 <template>
-  <section id="faq" class="scroll-mt-24 py-20 sm:py-28">
-    <div class="mx-auto max-w-3xl px-6 lg:px-8">
-      <div class="text-center">
-        <p class="inline-flex items-center gap-2 text-xs font-semibold tracking-widest text-brand-600 uppercase">
-          <span class="h-px w-8 bg-brand-300"></span>
-          FAQ
-          <span class="h-px w-8 bg-brand-300"></span>
-        </p>
-        <h2 class="mt-4 font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
-          Questions, answered.
-        </h2>
-      </div>
+  <section id="faq" class="scroll-mt-24 py-16 sm:py-24">
+    <div class="mx-auto max-w-3xl px-5 lg:px-8">
+      <SectionHeading eyebrow="FAQ" title="Questions, answered." align="center" />
 
       <div class="mt-12 space-y-3">
         <div

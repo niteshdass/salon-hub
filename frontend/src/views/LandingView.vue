@@ -5,7 +5,7 @@ import PainSection from '@/components/marketing/PainSection.vue'
 import ProductTourSection from '@/components/marketing/ProductTourSection.vue'
 import HowItWorksSection from '@/components/marketing/HowItWorksSection.vue'
 import PricingSection from '@/components/marketing/PricingSection.vue'
-import TestimonialsSection from '@/components/marketing/TestimonialsSection.vue'
+import TrustSection from '@/components/marketing/TrustSection.vue'
 import FaqSection from '@/components/marketing/FaqSection.vue'
 import ContactSection from '@/components/marketing/ContactSection.vue'
 import MarketingFooter from '@/components/marketing/MarketingFooter.vue'
@@ -20,7 +20,7 @@ import MarketingFooter from '@/components/marketing/MarketingFooter.vue'
       <ProductTourSection />
       <HowItWorksSection />
       <PricingSection />
-      <TestimonialsSection />
+      <TrustSection />
       <FaqSection />
       <ContactSection />
     </main>
