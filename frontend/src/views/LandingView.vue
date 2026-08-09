@@ -1,6 +1,7 @@
 <script setup>
 import MarketingNav from '@/components/marketing/MarketingNav.vue'
 import HeroSection from '@/components/marketing/HeroSection.vue'
+import PainSection from '@/components/marketing/PainSection.vue'
 import FeaturesSection from '@/components/marketing/FeaturesSection.vue'
 import HowItWorksSection from '@/components/marketing/HowItWorksSection.vue'
 import PricingSection from '@/components/marketing/PricingSection.vue'
@@ -15,6 +16,7 @@ import MarketingFooter from '@/components/marketing/MarketingFooter.vue'
     <MarketingNav />
     <main>
       <HeroSection />
+      <PainSection />
       <FeaturesSection />
       <HowItWorksSection />
       <PricingSection />
