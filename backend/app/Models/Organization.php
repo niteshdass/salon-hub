@@ -126,6 +126,11 @@ class Organization extends Model
         return $this->hasOne(Setting::class);
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
     /**
      * Salons that may appear in public discovery: open for business, finished
      * setting up, somewhere to go, and something to book.

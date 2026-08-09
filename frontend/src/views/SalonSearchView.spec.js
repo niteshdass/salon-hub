@@ -28,7 +28,10 @@ const salon = (overrides = {}) => ({
   ...overrides,
 })
 
-const results = (rows, total = rows.length) => ({ data: rows, meta: { total, page: 1, per_page: 12 } })
+const results = (rows, total = rows.length, cities = ['Dhaka', 'Sylhet']) => ({
+  data: rows,
+  meta: { total, page: 1, per_page: 12, facets: { cities } },
+})
 
 describe('SalonSearchView', () => {
   beforeEach(() => {
@@ -114,7 +117,7 @@ describe('SalonSearchView', () => {
     const wrapper = mount(SalonSearchView)
     await flushPromises()
 
-    expect(wrapper.text()).toContain("Couldn't load salons")
+    expect(wrapper.text()).toContain("Couldn't load results")
   })
 
   it('only shows "Show more" when more results exist beyond the current page', async () => {
@@ -252,5 +255,89 @@ describe('SalonSearchView', () => {
     expect(wrapper.text()).not.toContain('Aaa Salon')
     // A stale `finally` must not strand the page in the loading skeleton.
     expect(wrapper.find('.animate-pulse').exists()).toBe(false)
+  })
+
+  it('renders a city chip per facet and filters by it on click, syncing the URL', async () => {
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Dhaka')
+    expect(wrapper.text()).toContain('Sylhet')
+
+    vi.mocked(searchSalons).mockClear()
+    vi.mocked(searchSalons).mockResolvedValue(results([salon({ city: 'Dhaka' })]))
+
+    const dhaka = wrapper.findAll('button').find((b) => b.text() === 'Dhaka')
+    await dhaka.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(searchSalons)).toHaveBeenCalledWith({ q: '', page: 1, city: 'Dhaka' })
+    expect(replace).toHaveBeenCalledWith({ query: { city: 'Dhaka' } })
+  })
+
+  it('toggles a service chip off on a second click', async () => {
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+    vi.mocked(searchSalons).mockClear()
+
+    const chip = wrapper.findAll('button').find((b) => b.text() === 'Hair spa')
+    await chip.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(searchSalons)).toHaveBeenLastCalledWith({ q: '', page: 1, service: 'Hair spa' })
+
+    await chip.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(searchSalons)).toHaveBeenLastCalledWith({ q: '', page: 1 })
+  })
+
+  it('sends a non-default sort and puts it in the URL', async () => {
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+    vi.mocked(searchSalons).mockClear()
+
+    await wrapper.find('select').setValue('top_rated')
+    await flushPromises()
+
+    expect(vi.mocked(searchSalons)).toHaveBeenCalledWith({ q: '', page: 1, sort: 'top_rated' })
+    expect(replace).toHaveBeenCalledWith({ query: { sort: 'top_rated' } })
+  })
+
+  it('starts from city, service and sort in the URL', async () => {
+    route.query = { city: 'Dhaka', service: 'Bridal', sort: 'price_asc' }
+
+    mount(SalonSearchView)
+    await flushPromises()
+
+    expect(vi.mocked(searchSalons)).toHaveBeenCalledWith({
+      q: '',
+      page: 1,
+      city: 'Dhaka',
+      service: 'Bridal',
+      sort: 'price_asc',
+    })
+  })
+
+  it('"Clear filters" resets the search, chips and sort together', async () => {
+    route.query = { q: 'hair', city: 'Dhaka', service: 'Bridal', sort: 'top_rated' }
+    const wrapper = mount(SalonSearchView)
+    await flushPromises()
+    vi.mocked(searchSalons).mockClear()
+    vi.mocked(searchSalons).mockResolvedValue(results([salon()]))
+
+    const clearLink = wrapper.findAll('button').find((b) => b.text() === 'Clear filters')
+    await clearLink.trigger('click')
+    await flushPromises()
+
+    expect(vi.mocked(searchSalons)).toHaveBeenLastCalledWith({ q: '', page: 1 })
+    expect(replace).toHaveBeenLastCalledWith({ query: {} })
+  })
+
+  it('an unrecognised sort in the URL falls back to recommended', async () => {
+    route.query = { sort: 'bogus' }
+
+    mount(SalonSearchView)
+    await flushPromises()
+
+    expect(vi.mocked(searchSalons)).toHaveBeenCalledWith({ q: '', page: 1 })
   })
 })

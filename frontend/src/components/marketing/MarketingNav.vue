@@ -64,14 +64,14 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
       <!-- Desktop anchor links -->
       <div class="hidden items-center gap-1 md:flex">
-        <a
+        <RouterLink
           v-for="link in links"
           :key="link.href"
-          :href="link.href"
+          :to="{ path: '/', hash: link.href }"
           class="inline-flex min-h-11 items-center rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
         >
           {{ link.label }}
-        </a>
+        </RouterLink>
         <RouterLink
           to="/salons"
           class="inline-flex min-h-11 items-center rounded-full px-3.5 py-2 text-sm font-medium text-ink/65 transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
@@ -156,15 +156,15 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
     >
       <div v-if="open" class="border-t border-brand-100/70 bg-paper/95 backdrop-blur-md md:hidden">
         <div class="mx-auto flex max-w-6xl flex-col gap-1 px-5 py-4 lg:px-8">
-          <a
+          <RouterLink
             v-for="link in links"
             :key="link.href"
-            :href="link.href"
+            :to="{ path: '/', hash: link.href }"
             class="rounded-xl px-3 py-2.5 text-base font-medium text-ink/80 transition-colors hover:bg-brand-50 hover:text-ink"
             @click="open = false"
           >
             {{ link.label }}
-          </a>
+          </RouterLink>
           <RouterLink
             to="/salons"
             class="rounded-xl px-3 py-2.5 text-base font-medium text-ink/80 transition-colors hover:bg-brand-50 hover:text-ink"

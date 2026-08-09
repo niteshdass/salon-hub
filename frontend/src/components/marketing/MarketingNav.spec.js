@@ -3,7 +3,10 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
 vi.mock('vue-router', () => ({
-  RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+  RouterLink: {
+    props: ['to'],
+    template: '<a :href="typeof to === \'string\' ? to : to.path + (to.hash || \'\')"><slot /></a>',
+  },
 }))
 
 import MarketingNav from './MarketingNav.vue'
@@ -24,8 +27,8 @@ describe('MarketingNav', () => {
     const wrapper = mount(MarketingNav)
     const hrefs = wrapper.findAll('a').map((a) => a.attributes('href'))
 
-    expect(hrefs).not.toContain('#contact')
-    expect(hrefs).toContain('#features')
+    expect(hrefs).not.toContain('/#contact')
+    expect(hrefs).toContain('/#features')
   })
 
   it('keeps the customer entrances, demoted', () => {

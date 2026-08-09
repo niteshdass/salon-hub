@@ -463,6 +463,148 @@ class DiscoveryTest extends TestCase
         $this->assertSame($slugs, array_unique($slugs));
     }
 
+    public function test_it_filters_by_city_exactly(): void
+    {
+        $this->salon('chastity-hyde');
+        $dhaka = $this->salon('heaven-touch');
+        Branch::withoutGlobalScopes()->where('organization_id', $dhaka->id)->update(['city' => 'Dhaka']);
+
+        $response = $this->getJson('/api/discover/salons?city=Dhaka');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'heaven-touch');
+    }
+
+    public function test_city_filter_does_not_substring_match(): void
+    {
+        $this->salon('chastity-hyde'); // Sylhet
+        $sylhetSadar = $this->salon('heaven-touch');
+        Branch::withoutGlobalScopes()
+            ->where('organization_id', $sylhetSadar->id)
+            ->update(['city' => 'Sylhet Sadar']);
+
+        $response = $this->getJson('/api/discover/salons?city=Sylhet');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'chastity-hyde');
+    }
+
+    public function test_it_filters_by_service_keyword(): void
+    {
+        $this->salon('chastity-hyde'); // only "Hair cut"
+        $spa = $this->salon('heaven-touch');
+        Service::create([
+            'organization_id' => $spa->id,
+            'name' => 'Hair spa',
+            'duration' => 60,
+            'price' => 1200,
+            'status' => 'active',
+        ]);
+
+        $response = $this->getJson('/api/discover/salons?service=hair spa');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'heaven-touch');
+    }
+
+    public function test_service_filter_ignores_an_inactive_match(): void
+    {
+        $org = $this->salon('chastity-hyde');
+        Service::create([
+            'organization_id' => $org->id,
+            'name' => 'Bridal package',
+            'duration' => 180,
+            'price' => 5000,
+            'status' => 'inactive',
+        ]);
+
+        $response = $this->getJson('/api/discover/salons?service=bridal');
+
+        $response->assertJsonCount(0, 'data');
+    }
+
+    public function test_city_and_service_filters_combine_with_search(): void
+    {
+        $this->salon('chastity-hyde'); // Sylhet, Hair cut only
+        $match = $this->salon('heaven-touch');
+        Service::create([
+            'organization_id' => $match->id,
+            'name' => 'Hair spa',
+            'duration' => 60,
+            'price' => 1200,
+            'status' => 'active',
+        ]);
+        Branch::withoutGlobalScopes()->where('organization_id', $match->id)->update(['city' => 'Sylhet']);
+
+        $response = $this->getJson('/api/discover/salons?city=Sylhet&service=spa');
+
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.slug', 'heaven-touch');
+    }
+
+    public function test_sort_top_rated_ranks_a_qualifying_salon_above_an_unrated_one(): void
+    {
+        $unrated = $this->salon('aabode-spa');
+        $rated = $this->salon('zenith-massage');
+        $this->review($rated, 5);
+        $this->review($rated, 5);
+        $this->review($rated, 4);
+
+        $response = $this->getJson('/api/discover/salons?sort=top_rated');
+
+        $response->assertJsonPath('data.0.slug', 'zenith-massage');
+        $response->assertJsonPath('data.1.slug', 'aabode-spa');
+        // Sorting by rating must not hide the rating that made the ranking.
+        $response->assertJsonPath('data.0.rating.count', 3);
+        $this->assertSame($unrated->slug, 'aabode-spa');
+    }
+
+    public function test_sort_top_rated_does_not_let_one_review_outrank_three(): void
+    {
+        $oneReview = $this->salon('aabode-spa');
+        $this->review($oneReview, 5);
+        $threeReviews = $this->salon('zenith-massage');
+        $this->review($threeReviews, 4);
+        $this->review($threeReviews, 4);
+        $this->review($threeReviews, 4);
+
+        $response = $this->getJson('/api/discover/salons?sort=top_rated');
+
+        $response->assertJsonPath('data.0.slug', 'zenith-massage');
+        $response->assertJsonPath('data.1.slug', 'aabode-spa');
+    }
+
+    public function test_sort_price_asc_orders_by_cheapest_active_service(): void
+    {
+        $expensive = $this->salon('zenith-massage');
+        Service::withoutGlobalScopes()->where('organization_id', $expensive->id)->update(['price' => 2000]);
+        $cheap = $this->salon('aabode-spa');
+        Service::withoutGlobalScopes()->where('organization_id', $cheap->id)->update(['price' => 300]);
+
+        $response = $this->getJson('/api/discover/salons?sort=price_asc');
+
+        $response->assertJsonPath('data.0.slug', 'aabode-spa');
+        $response->assertJsonPath('data.1.slug', 'zenith-massage');
+    }
+
+    public function test_an_unrecognised_sort_falls_back_to_recommended(): void
+    {
+        $response = $this->getJson('/api/discover/salons?sort=nonsense');
+
+        $response->assertOk();
+    }
+
+    public function test_facets_list_every_city_regardless_of_the_active_filter(): void
+    {
+        $this->salon('chastity-hyde'); // Sylhet
+        $dhaka = $this->salon('heaven-touch');
+        Branch::withoutGlobalScopes()->where('organization_id', $dhaka->id)->update(['city' => 'Dhaka']);
+
+        $response = $this->getJson('/api/discover/salons?city=Dhaka');
+
+        $this->assertSame(['Dhaka', 'Sylhet'], $response->json('meta.facets.cities'));
+    }
+
     /** One photo in a salon's gallery. */
     private function photo(Organization $org, string $image, int $sortOrder): Gallery
     {

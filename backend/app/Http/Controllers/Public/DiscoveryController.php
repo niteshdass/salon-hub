@@ -28,11 +28,17 @@ class DiscoveryController extends Controller
     /** Salons per page. */
     protected const PER_PAGE = 12;
 
+    /** Sort values the endpoint accepts; anything else falls back to 'recommended'. */
+    protected const SORTS = ['recommended', 'top_rated', 'price_asc'];
+
     public function __invoke(Request $request): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
 
         $term = $this->term($request);
+        $city = $this->city($request);
+        $service = $this->service($request);
+        $sort = $this->sort($request);
 
         $query = Organization::query()->listable();
 
@@ -67,44 +73,78 @@ class DiscoveryController extends Controller
                 ->orderBy('name_rank');
         }
 
-        // A salon that recently took a booking is a salon that still exists.
-        // Nulls last: never booked is worse than booked long ago. The boolean
-        // expression evaluates to 0/1 on both sqlite and MySQL.
-        // `organizations.name` is not unique, so two same-named salons with
-        // no bookings would otherwise tie on every key above. Break the tie
-        // on id — the only column guaranteed unique here — so pagination
-        // can never repeat or skip a salon. Qualified because the query
-        // aggregates over `appointments`, which also has an `id` column.
-        $query
-            ->withMax('appointments', 'created_at')
-            ->orderByRaw('appointments_max_created_at IS NULL, appointments_max_created_at DESC')
-            ->orderBy('organizations.name')
-            ->orderBy('organizations.id');
+        // `city` is an exact match (case-insensitive): the chip row offers a
+        // fixed set of cities pulled from real branch data, so there is never
+        // a reason to substring-match here the way the free-text search does.
+        if ($city !== null) {
+            $query->whereHas('branches', fn ($branches) => $branches
+                ->whereRaw('LOWER(branches.city) = ?', [$city]));
+        }
+
+        // `service` narrows to salons selling something matching the chip's
+        // keyword. There is no shared cross-tenant category table — each
+        // salon's service_categories are its own — so this reuses the same
+        // substring match the search box uses rather than pretending a
+        // taxonomy exists.
+        if ($service !== null) {
+            $query->whereHas('services', fn ($services) => $services
+                ->where('status', ServiceStatus::ACTIVE)
+                ->whereRaw('LOWER(services.name) LIKE ?', ['%'.$service.'%']));
+        }
+
+        $query->withMin(
+            ['services as price_from' => fn ($services) => $services
+                ->where('status', ServiceStatus::ACTIVE)],
+            'price',
+        );
+
+        if ($sort === 'top_rated') {
+            // Same three-review floor as the card itself (see ratingsFor) —
+            // sorting a one-review 5-star salon to the top would rank a card
+            // that then shows no rating at all above ones that do.
+            $query
+                ->withCount(['reviews as rating_count' => fn ($reviews) => $reviews
+                    ->where('status', 'published')])
+                ->withAvg(['reviews as rating_avg' => fn ($reviews) => $reviews
+                    ->where('status', 'published')], 'rating')
+                ->orderByRaw('CASE WHEN rating_count >= 3 THEN rating_avg ELSE NULL END IS NULL')
+                ->orderByRaw('CASE WHEN rating_count >= 3 THEN rating_avg ELSE NULL END DESC');
+        } elseif ($sort === 'price_asc') {
+            $query->orderByRaw('price_from IS NULL')->orderBy('price_from');
+        } else {
+            // 'recommended': a salon that recently took a booking is a salon
+            // that still exists. Nulls last: never booked is worse than
+            // booked long ago. The boolean expression evaluates to 0/1 on
+            // both sqlite and MySQL.
+            $query
+                ->withMax('appointments', 'created_at')
+                ->orderByRaw('appointments_max_created_at IS NULL, appointments_max_created_at DESC');
+        }
+
+        // `organizations.name` is not unique, so two same-named salons could
+        // otherwise tie on every key above. Break the tie on id — the only
+        // column guaranteed unique here — so pagination can never repeat or
+        // skip a salon. Qualified because the query may aggregate over
+        // `appointments`/`reviews`, which also have an `id` column.
+        $query->orderBy('organizations.name')->orderBy('organizations.id');
 
         // Counted off a clean copy: `count()` over the ranking select
         // expressions is both wasteful and, with an ORDER BY on an alias,
         // invalid on MySQL.
         $total = (clone $query)->reorder()->count('organizations.id');
 
-        // get()'s column list is NOT a whitelist: withMax() above already
-        // forced `organizations.*` onto the select (or, on the $term
-        // branch, addSelect('organizations.*') did), and onceWithColumns()
-        // only applies a get() column list when nothing has selected yet.
-        // So every organizations column — email, phone, uuid, status, etc —
-        // comes back on $salons regardless of what is passed here. The
-        // only real whitelist is the hand-built ->map() below; never swap
-        // it for ->toArray() or an API Resource without keeping that in
-        // mind, and never add an $appends accessor to Organization that
-        // would leak through it.
+        // get()'s column list is NOT a whitelist: withMax()/withMin() above
+        // already forced `organizations.*` onto the select (or, on the
+        // $term branch, addSelect('organizations.*') did), and
+        // onceWithColumns() only applies a get() column list when nothing
+        // has selected yet. So every organizations column — email, phone,
+        // uuid, status, etc — comes back on $salons regardless of what is
+        // passed here. The only real whitelist is the hand-built ->map()
+        // below; never swap it for ->toArray() or an API Resource without
+        // keeping that in mind, and never add an $appends accessor to
+        // Organization that would leak through it.
         /** @var Collection<int, Organization> $salons */
-        $salons = $query
-            ->withMin(
-                ['services as price_from' => fn ($services) => $services
-                    ->where('status', ServiceStatus::ACTIVE)],
-                'price',
-            )
-            ->forPage($page, self::PER_PAGE)
-            ->get();
+        $salons = $query->forPage($page, self::PER_PAGE)->get();
 
         $ids = $salons->pluck('id')->all();
         $cities = $this->citiesFor($ids);
@@ -130,6 +170,9 @@ class DiscoveryController extends Controller
                 'total' => $total,
                 'page' => $page,
                 'per_page' => self::PER_PAGE,
+                'facets' => [
+                    'cities' => $this->availableCities(),
+                ],
             ],
         ]);
     }
@@ -254,5 +297,50 @@ class DiscoveryController extends Controller
         $term = is_string($raw) ? trim($raw) : '';
 
         return $term === '' ? null : mb_strtolower(mb_substr($term, 0, 80));
+    }
+
+    /** The city chip's value, lowercased for an exact match, or null when unset. */
+    protected function city(Request $request): ?string
+    {
+        $raw = $request->query('city');
+        $city = is_string($raw) ? trim($raw) : '';
+
+        return $city === '' ? null : mb_strtolower(mb_substr($city, 0, 80));
+    }
+
+    /** The service chip's value, lowercased for a substring match, or null when unset. */
+    protected function service(Request $request): ?string
+    {
+        $raw = $request->query('service');
+        $service = is_string($raw) ? trim($raw) : '';
+
+        return $service === '' ? null : mb_strtolower(mb_substr($service, 0, 80));
+    }
+
+    /** One of self::SORTS; anything unrecognised is treated as 'recommended'. */
+    protected function sort(Request $request): string
+    {
+        $sort = $request->query('sort');
+
+        return in_array($sort, self::SORTS, true) ? $sort : 'recommended';
+    }
+
+    /**
+     * Every city a listed salon can be found in, alphabetised — the chip row's
+     * option list. Computed off the full listable set, not the current
+     * filters, so choosing one city doesn't make the others disappear from
+     * the row.
+     *
+     * @return list<string>
+     */
+    protected function availableCities(): array
+    {
+        return Branch::query()
+            ->whereHas('organization', fn ($organizations) => $organizations->listable())
+            ->whereNotNull('city')
+            ->distinct()
+            ->orderBy('city')
+            ->pluck('city')
+            ->all();
     }
 }
