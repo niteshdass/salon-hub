@@ -13,12 +13,12 @@ const services = [
 
 <template>
   <div class="mx-auto w-full max-w-xs rounded-[1.75rem] border border-brand-100 bg-white p-3 shadow-2xl shadow-ink/10">
-    <p class="truncate rounded-full bg-paper px-3 py-1.5 text-center text-[11px] font-medium text-ink/45">
+    <p class="truncate rounded-full bg-paper px-3 py-1.5 text-center text-[11px] font-medium text-ink/65">
       your-salon.{{ APP_DOMAIN }}
     </p>
     <div class="mt-3 h-20 rounded-2xl bg-gradient-to-br from-brand-200 via-brand-100 to-rose-100"></div>
     <p class="mt-3 font-display text-lg font-semibold text-ink">Rupali Beauty Lounge</p>
-    <p class="text-xs text-ink/50">Zindabazar, Sylhet · Open until 8pm</p>
+    <p class="text-xs text-ink/65">Zindabazar, Sylhet · Open until 8pm</p>
     <ul class="mt-3 space-y-2">
       <li
         v-for="s in services"
@@ -27,7 +27,7 @@ const services = [
       >
         <span class="min-w-0">
           <span class="block truncate text-xs font-semibold text-ink">{{ s.name }}</span>
-          <span class="block text-[10px] text-ink/45">{{ s.meta }}</span>
+          <span class="block text-[10px] text-ink/65">{{ s.meta }}</span>
         </span>
         <span class="shrink-0 font-display text-sm font-semibold text-ink">{{ s.price }}</span>
       </li>

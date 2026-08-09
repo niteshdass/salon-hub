@@ -26,7 +26,7 @@ const messages = [
     >
       <span :class="['inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold', m.tint]">{{ m.channel }}</span>
       <p class="mt-3 text-sm leading-relaxed text-ink/80">{{ m.body }}</p>
-      <p class="mt-3 text-[11px] text-ink/45">{{ m.meta }}</p>
+      <p class="mt-3 text-[11px] text-ink/65">{{ m.meta }}</p>
     </div>
   </div>
 </template>

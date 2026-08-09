@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, nextTick } from 'vue'
 import { RouterLink } from 'vue-router'
 import { CONTACT_EMAIL } from '@/lib/contact'
 import api from '@/lib/api'
@@ -20,6 +20,7 @@ const sending = ref(false)
 const success = ref(false)
 const errors = ref({})
 const formError = ref('')
+const successEl = ref(null)
 
 function fieldError(field) {
   const e = errors.value?.[field]
@@ -34,6 +35,11 @@ async function submit() {
   try {
     await api.post('/contact', { name: form.name, email: form.email, message: form.message })
     success.value = true
+    // The form is replaced by this panel (v-if/v-else), so the submit
+    // button's focus would otherwise fall back to <body> and the visitor
+    // would lose their place on the page.
+    await nextTick()
+    successEl.value?.focus()
   } catch (e) {
     const status = e.response?.status
     if (status === 422) {
@@ -91,7 +97,13 @@ const fieldClass = (field) => [
             {{ CONTACT_EMAIL }}
           </a>
 
-          <div v-if="success" class="mt-8 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-5">
+          <div
+            v-if="success"
+            ref="successEl"
+            role="status"
+            tabindex="-1"
+            class="mt-8 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-5 focus:outline-none"
+          >
             <p class="font-display text-lg font-semibold text-paper">Thanks — we'll be in touch soon.</p>
           </div>
 
@@ -140,7 +152,7 @@ const fieldClass = (field) => [
               <p v-if="fieldError('message')" id="footer-contact-message-error" class="mt-1.5 text-sm text-rose-300">{{ fieldError('message') }}</p>
             </div>
 
-            <p v-if="formError" class="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
+            <p v-if="formError" role="alert" class="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">
               {{ formError }}
             </p>
 
@@ -157,18 +169,16 @@ const fieldClass = (field) => [
         <!-- Link columns -->
         <div class="grid gap-8 sm:grid-cols-3">
           <div>
-            <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Product</p>
+            <p class="text-xs font-semibold tracking-widest text-paper/55 uppercase">Product</p>
             <ul class="mt-4">
               <li v-for="link in productLinks" :key="link.href">
-                <a :href="link.href" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">{{
-                  link.label
-                }}</a>
+                <RouterLink :to="{ path: '/', hash: link.href }" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">{{ link.label }}</RouterLink>
               </li>
             </ul>
           </div>
 
           <div>
-            <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Account</p>
+            <p class="text-xs font-semibold tracking-widest text-paper/55 uppercase">Account</p>
             <ul class="mt-4">
               <li><RouterLink to="/register" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Register free</RouterLink></li>
               <li><RouterLink to="/login" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Salon log in</RouterLink></li>
@@ -178,7 +188,7 @@ const fieldClass = (field) => [
           </div>
 
           <div>
-            <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Legal</p>
+            <p class="text-xs font-semibold tracking-widest text-paper/55 uppercase">Legal</p>
             <ul class="mt-4">
               <li><RouterLink to="/terms" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Terms of Service</RouterLink></li>
               <li><RouterLink to="/privacy" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Privacy Policy</RouterLink></li>

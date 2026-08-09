@@ -44,9 +44,9 @@ const includes = [
         <MarketingCta to="/register" label="Register free" />
       </div>
 
-      <p class="mt-8 border-t border-ink/10 pt-6 text-sm leading-relaxed text-ink/50">
-        Card and mobile-banking advances run through SSLCommerz. SMS and WhatsApp reminders use your own
-        Twilio account and are billed by Twilio, not by us.
+      <p class="mt-8 border-t border-ink/10 pt-6 text-sm leading-relaxed text-ink/65">
+        Card and mobile-banking advances run through SSLCommerz. Connect your own Twilio account and SMS and
+        WhatsApp reminders are billed by Twilio, not by us.
       </p>
     </div>
   </section>

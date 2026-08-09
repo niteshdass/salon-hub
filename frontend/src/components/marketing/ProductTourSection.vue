@@ -18,7 +18,7 @@ const blocks = [
   {
     n: '02',
     title: 'Reminders that get read',
-    body: 'An automatic SMS or WhatsApp the day before, from your own number. The single biggest thing you can do about no-shows.',
+    body: 'An automatic SMS or WhatsApp the day before, from your own number once you connect your Twilio account. The single biggest thing you can do about no-shows.',
     mock: RemindersMock,
   },
   {

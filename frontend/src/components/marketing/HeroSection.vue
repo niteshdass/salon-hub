@@ -32,7 +32,7 @@ const DEMO_SALON = '/salon/demo-salon'
           <MarketingCta :to="DEMO_SALON" label="See a live booking page" variant="secondary" />
         </div>
 
-        <p class="rise d3 mt-6 text-sm text-ink/50">Free forever · No card · Live in 10 minutes</p>
+        <p class="rise d3 mt-6 text-sm text-ink/65">Free forever · No card · Live in 10 minutes</p>
       </div>
 
       <div class="rise d4 relative mx-auto w-full max-w-md lg:mx-0">
@@ -59,7 +59,7 @@ const DEMO_SALON = '/salon/demo-salon'
               <path d="M20 6 9 17l-5-5" />
             </svg>
           </span>
-          <span class="text-xs leading-tight text-ink"><span class="block font-semibold">New booking</span><span class="block text-ink/55">Deposit paid</span></span>
+          <span class="text-xs leading-tight text-ink"><span class="block font-semibold">New booking</span><span class="block text-ink/65">Deposit paid</span></span>
         </div>
       </div>
     </div>

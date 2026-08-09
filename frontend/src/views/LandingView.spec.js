@@ -46,7 +46,13 @@ describe('LandingView', () => {
 
   it('argues in the intended order', () => {
     const wrapper = mount(LandingView)
-    const rendered = EXPECTED_ORDER.filter((name) => wrapper.findComponent({ name }).exists())
+    // Sort EXPECTED_ORDER's components by their actual position in the
+    // rendered DOM (not by EXPECTED_ORDER's own array order — a plain
+    // .filter() over EXPECTED_ORDER can never fail, since it always returns
+    // items in EXPECTED_ORDER's order regardless of what the DOM did).
+    const rendered = EXPECTED_ORDER.map((name) => ({ name, el: wrapper.findComponent({ name }).element }))
+      .sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
+      .map((entry) => entry.name)
 
     expect(rendered).toEqual(EXPECTED_ORDER)
   })
@@ -74,6 +80,18 @@ describe('LandingView', () => {
 
     expect(filled).toHaveLength(5)
     expect(filled.every((a) => a.attributes('href') === '/register')).toBe(true)
+  })
+
+  it('keeps the cta and top ids that StickyMobileCta depends on', () => {
+    const wrapper = mount(LandingView)
+
+    // StickyMobileCta hard-depends on document.getElementById('cta') to know
+    // when to hide the bar over the closing ask — no anchor links to #cta,
+    // so the anchor-integrity test below can't catch this id being dropped.
+    expect(wrapper.find('section#cta').exists()).toBe(true)
+    // Same coupling for #top: StickyMobileCta uses it to know when the hero
+    // has scrolled away and the bar should wake up.
+    expect(wrapper.find('section#top').exists()).toBe(true)
   })
 
   it('keeps every anchor in the nav pointing at a section that exists', () => {

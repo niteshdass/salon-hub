@@ -25,7 +25,7 @@ const steps = [
             <span class="font-display text-2xl font-semibold text-brand-500">{{ step.n }}</span>
           </span>
           <h3 class="mt-6 font-display text-xl font-semibold text-ink">{{ step.title }}</h3>
-          <p class="mt-2 max-w-xs leading-relaxed text-ink/60">{{ step.body }}</p>
+          <p class="mt-2 max-w-xs leading-relaxed text-ink/65">{{ step.body }}</p>
         </div>
       </div>
     </div>

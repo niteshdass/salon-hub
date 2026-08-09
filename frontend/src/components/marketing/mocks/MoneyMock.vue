@@ -21,19 +21,19 @@ const week = [
       </span>
       <span class="min-w-0">
         <span class="block text-sm font-semibold text-ink">৳500 advance received</span>
-        <span class="block text-xs text-ink/50">Balayage · Tuesday 11:30 · card</span>
+        <span class="block text-xs text-ink/65">Balayage · Tuesday 11:30 · card</span>
       </span>
     </div>
 
     <div class="rounded-2xl border border-brand-100 bg-white p-4 shadow-xl shadow-ink/[0.06]">
       <div class="flex items-baseline justify-between">
-        <p class="text-xs font-medium tracking-wide text-ink/45 uppercase">This week</p>
+        <p class="text-xs font-medium tracking-wide text-ink/65 uppercase">This week</p>
         <p class="font-display text-xl font-semibold text-ink">৳48,200</p>
       </div>
       <div class="mt-4 flex items-end justify-between gap-2" aria-hidden="true">
         <span v-for="b in week" :key="b.day" class="flex flex-1 flex-col items-center gap-1.5">
           <span :class="['w-full rounded-t-md bg-brand-300', b.height]"></span>
-          <span class="text-[10px] text-ink/40">{{ b.day }}</span>
+          <span class="text-[10px] text-ink/65">{{ b.day }}</span>
         </span>
       </div>
     </div>

@@ -80,6 +80,8 @@ function toggle(i) {
             :id="`faq-panel-${i}`"
             role="region"
             :aria-labelledby="`faq-trigger-${i}`"
+            :inert="openIndex !== i"
+            :aria-hidden="openIndex !== i"
             :class="[
               'grid transition-all duration-300 ease-out',
               openIndex === i ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',

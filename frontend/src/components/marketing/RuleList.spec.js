@@ -20,7 +20,7 @@ describe('RuleList', () => {
   it('marks the strong row so it reads as the answer, not another complaint', () => {
     const wrapper = mount(RuleList, { props: { items: ITEMS } })
 
-    expect(wrapper.findAll('dt')[0].classes()).toContain('text-ink/40')
+    expect(wrapper.findAll('dt')[0].classes()).toContain('text-ink/65')
     expect(wrapper.findAll('dt')[1].classes()).toContain('text-brand-600')
   })
 })

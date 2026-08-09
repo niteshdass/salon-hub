@@ -13,7 +13,7 @@ const appointments = [
   <div class="rounded-3xl border border-brand-100 bg-white p-5 shadow-2xl shadow-ink/10 ring-1 ring-brand-50 sm:p-6">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <p class="text-xs font-medium tracking-wide text-ink/45 uppercase">Your booking page</p>
+        <p class="text-xs font-medium tracking-wide text-ink/65 uppercase">Your booking page</p>
         <p class="mt-0.5 font-display text-lg font-semibold text-ink">Tuesday, 12 May</p>
       </div>
       <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
@@ -32,13 +32,13 @@ const appointments = [
         <span :class="['h-9 w-1 shrink-0 rounded-full', a.accent]"></span>
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-semibold text-ink">{{ a.service }}</p>
-          <p class="truncate text-xs text-ink/50">with {{ a.stylist }}</p>
+          <p class="truncate text-xs text-ink/65">with {{ a.stylist }}</p>
         </div>
         <span :class="['shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold', a.chip]">{{ a.status }}</span>
       </div>
     </div>
 
-    <p class="mt-5 flex items-center gap-2 border-t border-brand-50 pt-4 text-xs text-ink/55">
+    <p class="mt-5 flex items-center gap-2 border-t border-brand-50 pt-4 text-xs text-ink/65">
       <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600">
         <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 6 9 17l-5-5" />

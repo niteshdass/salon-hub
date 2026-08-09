@@ -18,7 +18,7 @@ defineProps({
       <dt
         :class="[
           'font-display text-sm tracking-wide uppercase',
-          item.strong ? 'text-brand-600' : 'text-ink/40',
+          item.strong ? 'text-brand-600' : 'text-ink/65',
         ]"
       >
         {{ item.term }}
