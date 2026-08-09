@@ -141,33 +141,31 @@ const fieldClass = (field) => [
         <div class="grid gap-8 sm:grid-cols-3">
           <div>
             <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Product</p>
-            <ul class="mt-4 space-y-3">
+            <ul class="mt-4">
               <li v-for="link in productLinks" :key="link.href">
-                <a
-                  :href="link.href"
-                  class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper"
-                  >{{ link.label }}</a
-                >
+                <a :href="link.href" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">{{
+                  link.label
+                }}</a>
               </li>
             </ul>
           </div>
 
           <div>
             <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Account</p>
-            <ul class="mt-4 space-y-3">
-              <li><RouterLink to="/register" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Register free</RouterLink></li>
-              <li><RouterLink to="/login" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Salon log in</RouterLink></li>
-              <li><RouterLink to="/salons" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Find a salon</RouterLink></li>
-              <li><RouterLink to="/account/login" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">My bookings</RouterLink></li>
+            <ul class="mt-4">
+              <li><RouterLink to="/register" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Register free</RouterLink></li>
+              <li><RouterLink to="/login" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Salon log in</RouterLink></li>
+              <li><RouterLink to="/salons" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Find a salon</RouterLink></li>
+              <li><RouterLink to="/account/login" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">My bookings</RouterLink></li>
             </ul>
           </div>
 
           <div>
             <p class="text-xs font-semibold tracking-widest text-paper/40 uppercase">Legal</p>
-            <ul class="mt-4 space-y-3">
-              <li><RouterLink to="/terms" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Terms of Service</RouterLink></li>
-              <li><RouterLink to="/privacy" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Privacy Policy</RouterLink></li>
-              <li><RouterLink to="/refund" class="-my-2.5 flex min-h-11 items-center py-2.5 text-paper/70 transition-colors hover:text-paper">Refund Policy</RouterLink></li>
+            <ul class="mt-4">
+              <li><RouterLink to="/terms" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Terms of Service</RouterLink></li>
+              <li><RouterLink to="/privacy" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Privacy Policy</RouterLink></li>
+              <li><RouterLink to="/refund" class="flex min-h-11 items-center text-paper/70 transition-colors hover:text-paper">Refund Policy</RouterLink></li>
             </ul>
           </div>
         </div>
