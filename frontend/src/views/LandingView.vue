@@ -9,6 +9,8 @@ import TrustSection from '@/components/marketing/TrustSection.vue'
 import FaqSection from '@/components/marketing/FaqSection.vue'
 import ContactSection from '@/components/marketing/ContactSection.vue'
 import MarketingFooter from '@/components/marketing/MarketingFooter.vue'
+import CtaSection from '@/components/marketing/CtaSection.vue'
+import StickyMobileCta from '@/components/marketing/StickyMobileCta.vue'
 </script>
 
 <template>
@@ -23,7 +25,9 @@ import MarketingFooter from '@/components/marketing/MarketingFooter.vue'
       <TrustSection />
       <FaqSection />
       <ContactSection />
+      <CtaSection />
     </main>
     <MarketingFooter />
+    <StickyMobileCta />
   </div>
 </template>
