@@ -60,11 +60,28 @@ const fieldClass = (field) => [
       <div class="grid gap-12 lg:grid-cols-[1.1fr_1fr]">
         <!-- Brand + write to us -->
         <div>
+          <!--
+            Same droplet + lowercase two-tone wordmark as MarketingNav, but on
+            this bg-ink ground brand-600 (the nav's shade) only holds a
+            2.89:1 contrast ratio against ink and reads muddy. brand-300
+            clears 7.75:1 here, so the terracotta half is lifted for this
+            ground rather than reused verbatim. See MarketingNav.vue for the
+            paper-ground version.
+          -->
           <div class="flex items-center gap-2.5">
-            <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white">
-              <span class="font-display text-lg leading-none font-semibold">G</span>
-            </span>
-            <span class="font-display text-xl font-semibold text-paper">Glowhub</span>
+            <svg
+              viewBox="0 0 24 24"
+              class="h-7 w-7 shrink-0 text-brand-300"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+            </svg>
+            <span class="font-display text-xl font-semibold tracking-tight"><span class="text-paper">glow</span><span class="text-brand-300">hub</span></span>
           </div>
           <p class="mt-4 max-w-xs leading-relaxed text-paper/55">Booking software for salons in Bangladesh.</p>
           <a

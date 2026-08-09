@@ -36,7 +36,16 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
       : 'border-b border-transparent bg-paper/0'"
   >
     <nav class="mx-auto flex h-18 max-w-6xl items-center justify-between px-5 lg:px-8">
-      <!-- Wordmark -->
+      <!--
+        Wordmark: droplet outline + lowercase two-tone "glow"/"hub". This nav
+        sits on the paper ground, so brand-600 has 2.89:1 contrast against
+        ink text right next to it — fine here. The footer repeats this same
+        shape on a bg-ink ground, where brand-600 drops to 2.89:1 against
+        ink itself and goes muddy, so it uses brand-300 instead. Kept as two
+        separate inline copies rather than one shared component with a
+        "dark" prop, since the two ground colours genuinely need different
+        terracotta values, not just a swapped class.
+      -->
       <a href="#top" class="group flex items-center gap-2" aria-label="Glowhub home">
         <svg
           viewBox="0 0 24 24"

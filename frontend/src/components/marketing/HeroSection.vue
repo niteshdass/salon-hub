@@ -42,17 +42,24 @@ const DEMO_SALON = '/salon/demo-salon'
           Floating proof card from the reference. lg-only and inset within
           this wrapper's own box (not hanging past the grid column) so it
           cannot reintroduce the 360px overflow a prior pass removed.
+          -top-12 clears the card's shadow-xl blur above the mock's own
+          "6 booked" pill (measured live: at -top-4 the card's bottom edge
+          sat flush against the pill's top edge with zero gap, so the
+          shadow read as burying the pill). The label reads "Deposit paid"
+          rather than repeating "৳500 advance" — that string already
+          belongs to the Balayage row's own chip directly below, and
+          repeating it here read as a duplicate rather than a second event.
         -->
         <div
           aria-hidden="true"
-          class="pointer-events-none absolute -top-4 right-3 hidden items-center gap-2.5 rounded-2xl border border-brand-100 bg-white px-3.5 py-2.5 shadow-xl shadow-ink/10 lg:flex"
+          class="pointer-events-none absolute -top-12 right-2 hidden items-center gap-2.5 rounded-2xl border border-brand-100 bg-white px-3.5 py-2.5 shadow-xl shadow-ink/10 lg:flex"
         >
           <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600">
             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 6 9 17l-5-5" />
             </svg>
           </span>
-          <span class="text-xs leading-tight text-ink"><span class="block font-semibold">New booking</span><span class="block text-ink/55">৳500 advance</span></span>
+          <span class="text-xs leading-tight text-ink"><span class="block font-semibold">New booking</span><span class="block text-ink/55">Deposit paid</span></span>
         </div>
       </div>
     </div>

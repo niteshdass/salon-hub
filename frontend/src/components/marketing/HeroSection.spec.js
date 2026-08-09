@@ -52,9 +52,13 @@ describe('HeroSection', () => {
     const wrapper = mount(HeroSection)
 
     expect(wrapper.text()).toContain('New booking')
-    expect(wrapper.text()).toContain('৳500 advance')
+    // "Deposit paid", not "৳500 advance" — that exact string already
+    // belongs to the Balayage row's own chip in BookingDayMock, directly
+    // beneath where this card floats, and repeating it read as a
+    // duplicate rather than a second event.
+    expect(wrapper.text()).toContain('Deposit paid')
 
-    const card = wrapper.findAll('div').find((d) => d.text() === 'New booking৳500 advance')
+    const card = wrapper.findAll('div').find((d) => d.text() === 'New bookingDeposit paid')
     expect(card).toBeTruthy()
     expect(card.classes()).toContain('hidden')
     expect(card.classes()).toContain('lg:flex')
