@@ -44,6 +44,22 @@ export function needsOnboarding(authStore, to) {
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  // Without this, RouterLink navigations that carry a hash (the marketing
+  // footer's "Product" links, `{ path: '/', hash: '#pricing' }`) change the
+  // URL but never move the viewport — vue-router only auto-scrolls on a hash
+  // target when scrollBehavior is configured, and unlike a plain <a href>
+  // it does not fall back to the browser's native fragment handling. The 96px
+  // top offset matches the `scroll-mt-24` already set on the marketing
+  // sections (MarketingNav.vue's sticky header is `h-18` / 72px, plus 24px of
+  // breathing room) — vue-router computes the landing position itself via
+  // getBoundingClientRect and never reads CSS scroll-margin, so the offset
+  // has to be repeated here to land in the same place scroll-mt-24 implies.
+  scrollBehavior(to, from, savedPosition) {
+    if (to.hash) {
+      return { el: to.hash, top: 96 }
+    }
+    return savedPosition || { top: 0 }
+  },
   routes: [
     {
       path: '/login',
